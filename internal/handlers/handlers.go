@@ -212,14 +212,23 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
-	var traced int64
+	grantsByPortfolio, err := h.q.PortfolioGrantTotals(ctx, db.PortfolioGrantTotalsParams{BudgetYear: p.FY, Fy: p.FY})
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	var contracts, grants int64
 	amounts := map[string]int64{}
 	for _, b := range byPortfolio {
-		amounts[b.Portfolio] = b.Amount
-		traced += b.Amount
+		amounts[b.Portfolio] += b.Amount
+		contracts += b.Amount
+	}
+	for _, b := range grantsByPortfolio {
+		amounts[b.Portfolio] += b.Amount
+		grants += b.Amount
 	}
 	page.setItemised(func(r row) int64 { return amounts[r.Name] })
-	page.Coverage = h.coverageFor(ctx, traced, total.Cur)
+	page.Coverage = h.coverageFor(ctx, contracts, grants, total.Cur)
 	h.render(w, "node.html", page)
 }
 
@@ -311,20 +320,29 @@ func (h *Handler) portfolio(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
-	amounts := map[int64]int64{}
+	grantsByEntity, err := h.q.EntityGrantTotals(ctx, p.FY)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	contractAmounts, grantAmounts := map[int64]int64{}, map[int64]int64{}
 	for _, b := range byEntity {
-		amounts[b.EntityID.Int64] = b.Amount
+		contractAmounts[b.EntityID.Int64] = b.Amount
+	}
+	for _, b := range grantsByEntity {
+		grantAmounts[b.EntityID.Int64] = b.Amount
 	}
 	ids := map[string]int64{}
 	for _, e := range ents {
 		ids[e.Name] = e.ID
 	}
-	page.setItemised(func(r row) int64 { return amounts[ids[r.Name]] })
-	var traced int64
+	page.setItemised(func(r row) int64 { return contractAmounts[ids[r.Name]] + grantAmounts[ids[r.Name]] })
+	var contracts, grants int64
 	for _, r := range page.Rows {
-		traced += r.Itemised
+		contracts += contractAmounts[ids[r.Name]]
+		grants += grantAmounts[ids[r.Name]]
 	}
-	page.Coverage = h.coverageFor(ctx, traced, total.Cur)
+	page.Coverage = h.coverageFor(ctx, contracts, grants, total.Cur)
 	h.render(w, "node.html", page)
 }
 
@@ -415,11 +433,14 @@ func (h *Handler) entity(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
-	var traced int64
+	var contracts, grants int64
 	if page.Contracts != nil {
-		traced = page.Contracts.Stats.Amount
+		contracts = page.Contracts.Stats.Amount
 	}
-	page.Coverage = h.coverageFor(ctx, traced, total.Cur)
+	if page.Grants != nil {
+		grants = page.Grants.Stats.Amount
+	}
+	page.Coverage = h.coverageFor(ctx, contracts, grants, total.Cur)
 	h.render(w, "node.html", page)
 }
 
@@ -541,8 +562,8 @@ func (h *Handler) program(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
-	page.Coverage = h.coverageFor(ctx, 0, page.Total.Cur)
-	page.Coverage.Note = "AusTender records the agency, not the program, so contracts are shown on the entity page."
+	page.Coverage = h.coverageFor(ctx, 0, 0, page.Total.Cur)
+	page.Coverage.Note = "AusTender and GrantConnect record the agency, not the program, so contracts and grants are shown on the entity page."
 	h.render(w, "program.html", page)
 }
 

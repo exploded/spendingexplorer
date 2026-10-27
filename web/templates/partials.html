@@ -17,14 +17,14 @@
 
 {{define "coverage"}}
 <section class="coverage" aria-labelledby="coverage-h">
-  <h2 id="coverage-h" class="kicker">Traced to named suppliers</h2>
+  <h2 id="coverage-h" class="kicker">Traced to named suppliers and grant recipients</h2>
   {{with .Coverage}}
   {{if .Note}}
   <p class="muted">{{.Note}}</p>
   {{else if .Available}}
-  <div class="meter" aria-hidden="true"><span style="width:{{pctCSS (cap100 .Share)}}"></span></div>
-  <p><strong>{{money .Amount}}</strong> of contract value falls in {{$.Period.FY}}, equal to {{f1 .Share}}% of this total. <a class="badge badge-estimate" href="/methodology#annualised">estimate: annualised</a></p>
-  <p class="muted small">From AusTender contract notices published since {{.Since}}. Each contract’s value is spread evenly from its start to end date. Contract values are commitments, not payments, and contracts published before {{.Since}} are not included yet.</p>
+  <div class="meter meter-split" aria-hidden="true"><span style="width:{{pctCSS .ContractShare}}"></span><span class="seg-grants" style="width:{{pctCSS .GrantShare}}"></span></div>
+  <p><strong>{{money .Amount}}</strong> falls in {{$.Period.FY}}, equal to {{f1 .Share}}% of this total: <i class="sw sw-contracts"></i>{{money .Contracts}} in contracts and <i class="sw sw-grants"></i>{{money .Grants}} in grants. <a class="badge badge-estimate" href="/methodology#annualised">estimate: annualised</a></p>
+  <p class="muted small">From AusTender contract notices and GrantConnect grant awards published since {{.Since}}. Each contract’s or grant’s value is spread evenly from its start to end date. These values are commitments, not payments, and records published before {{.Since}} are not included yet.</p>
   {{else}}
   <div class="meter" aria-hidden="true"><span style="width:0%"></span></div>
   <p class="muted">Not yet loaded. Contract (AusTender) and grant (GrantConnect) records will show here, with the share of this total they account for.</p>
@@ -85,7 +85,7 @@
       <th scope="col" class="num">{{.Period.FY}}<br><span class="th-sub">Budget estimate</span></th>
       <th scope="col" class="num">Change</th>
       <th scope="col" class="num">Share</th>
-      {{if .Itemised}}<th scope="col" class="num"><a href="/methodology#annualised" title="Annualised value of contracts, an estimate">Contracts</a><br><span class="th-sub">{{.Period.FY}} est.</span></th>{{end}}
+      {{if .Itemised}}<th scope="col" class="num"><a href="/methodology#annualised" title="Annualised value of contracts and grants, an estimate">Contracts and grants</a><br><span class="th-sub">{{.Period.FY}} est.</span></th>{{end}}
       <th scope="col" class="num"><a href="/methodology#removed" title="Listed in the tables but removed as double counting or non-expense">Removed</a></th>
     </tr></thead>
     <tbody>

@@ -1100,6 +1100,14 @@ GROUP BY g.recipient
 ORDER BY amount DESC
 LIMIT sqlc.arg(lim);
 
+-- name: PortfolioGrantTotals :many
+SELECT p.portfolio, CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount
+FROM grant_fy gf
+JOIN grant_award g ON g.ga_id = gf.ga_id
+JOIN (SELECT DISTINCT entity_id, portfolio FROM program WHERE budget_year = sqlc.arg(budget_year)) p ON p.entity_id = g.entity_id
+WHERE gf.fiscal_year = sqlc.arg(fy)
+GROUP BY p.portfolio;
+
 -- name: EntityGrantTotals :many
 -- Annualised grant value in a year, by entity.
 SELECT g.entity_id, CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount

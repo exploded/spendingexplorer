@@ -15,7 +15,7 @@ type Node struct {
 	Cur      int64 // current fiscal year, whole dollars
 	Prev     int64 // previous fiscal year from the same publication
 	Excluded int64 // removed as double counting or non-expense, current year
-	Itemised int64 // annualised contract value traced to this node (estimate)
+	Itemised int64 // annualised contract and grant value traced to this node (estimate)
 	Children int
 	Note     string // short description shown under the name, e.g. a program objective
 }

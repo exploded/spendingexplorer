@@ -3201,6 +3201,48 @@ func (q *Queries) PortfolioContractTotals(ctx context.Context, arg PortfolioCont
 	return items, nil
 }
 
+const portfolioGrantTotals = `-- name: PortfolioGrantTotals :many
+SELECT p.portfolio, CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount
+FROM grant_fy gf
+JOIN grant_award g ON g.ga_id = gf.ga_id
+JOIN (SELECT DISTINCT entity_id, portfolio FROM program WHERE budget_year = ?1) p ON p.entity_id = g.entity_id
+WHERE gf.fiscal_year = ?2
+GROUP BY p.portfolio
+`
+
+type PortfolioGrantTotalsParams struct {
+	BudgetYear string
+	Fy         string
+}
+
+type PortfolioGrantTotalsRow struct {
+	Portfolio string
+	Amount    int64
+}
+
+func (q *Queries) PortfolioGrantTotals(ctx context.Context, arg PortfolioGrantTotalsParams) ([]PortfolioGrantTotalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, portfolioGrantTotals, arg.BudgetYear, arg.Fy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PortfolioGrantTotalsRow
+	for rows.Next() {
+		var i PortfolioGrantTotalsRow
+		if err := rows.Scan(&i.Portfolio, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const portfolioTotals = `-- name: PortfolioTotals :many
 SELECT p.portfolio,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur,

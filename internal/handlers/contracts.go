@@ -15,21 +15,32 @@ import (
 	"spendingexplorer/internal/signals"
 )
 
-// coverage is how much of a node's total can be traced to contract notices.
+// coverage is how much of a node's total can be traced to contract notices
+// and grant awards, both annualised estimates.
 type coverage struct {
 	Available bool   // contracts have been loaded
 	Since     string // earliest publication date loaded
-	Amount    int64  // annualised contract value in the year (estimate)
+	Contracts int64  // annualised contract value in the year
+	Grants    int64  // annualised grant value in the year
+	Amount    int64  // Contracts + Grants
 	Share     float64
-	Note      string // shown instead of the meter when coverage does not apply
+	// Bar segments, scaled so together they never pass 100%.
+	ContractShare, GrantShare float64
+	Note                      string // shown instead of the meter when coverage does not apply
 }
 
-func (h *Handler) coverageFor(ctx context.Context, amount, total int64) coverage {
+func (h *Handler) coverageFor(ctx context.Context, contracts, grants, total int64) coverage {
 	s, err := h.q.ContractLoadSummary(ctx)
 	if err != nil || s.Contracts == 0 {
 		return coverage{}
 	}
-	return coverage{Available: true, Since: s.FirstPublished, Amount: amount, Share: explore.Share(amount, total)}
+	c := coverage{Available: true, Since: s.FirstPublished, Contracts: contracts, Grants: grants, Amount: contracts + grants}
+	c.Share = explore.Share(c.Amount, total)
+	c.ContractShare, c.GrantShare = explore.Share(contracts, total), explore.Share(grants, total)
+	if c.Share > 100 {
+		c.ContractShare, c.GrantShare = c.ContractShare*100/c.Share, c.GrantShare*100/c.Share
+	}
+	return c
 }
 
 // contractsSection is the "Who gets paid" part of an entity page.

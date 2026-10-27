@@ -8,6 +8,7 @@
   --rule: #e4e2dc;
   --link: #1c5cab;
   --meter: #256abf;
+  --meter-2: #8db6e6;
   --track: #ecebe6;
   --badge-bg: #f0efec;
   --removed-bg: #fbe9e7;
@@ -33,6 +34,7 @@
     --rule: #33332f;
     --link: #86b6ef;
     --meter: #3987e5;
+    --meter-2: #a3c8f3;
     --track: #2c2c29;
     --badge-bg: #2c2c29;
     --removed-bg: #3a2120;
@@ -48,7 +50,7 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #141413; --surface: #1c1c1a; --ink: #f0efec; --ink-2: #c3c2b7; --ink-3: #9a998f;
-  --rule: #33332f; --link: #86b6ef; --meter: #3987e5; --track: #2c2c29; --badge-bg: #2c2c29;
+  --rule: #33332f; --link: #86b6ef; --meter: #3987e5; --meter-2: #a3c8f3; --track: #2c2c29; --badge-bg: #2c2c29;
   --removed-bg: #3a2120; --removed-ink: #f1a9a2;
   --down2: #3a86e0; --down1: #1f4f8a; --flat: #3a3a37; --up1: #7a312b; --up2: #c2453d; --tile-ink: #f0efec;
 }
@@ -122,6 +124,11 @@ ol.notes { margin: 12px 0 0; padding-left: 20px; color: var(--ink-2); }
 
 .meter { display: block; height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; min-width: 60px; }
 .meter > span { display: block; height: 100%; background: var(--meter); border-radius: 0 4px 4px 0; }
+.meter-split { display: flex; }
+.meter-split > span { border-radius: 0; flex: none; }
+.meter-split > span.seg-grants { background: var(--meter-2); border-radius: 0 4px 4px 0; }
+.sw-contracts { background: var(--meter); }
+.sw-grants { background: var(--meter-2); }
 .coverage p { margin: 8px 0 0; font-size: 14px; }
 
 .kind { display: grid; grid-template-columns: minmax(0, 2fr) minmax(80px, 3fr) auto; gap: 12px; align-items: center; padding: 6px 0; font-size: 14px; }
