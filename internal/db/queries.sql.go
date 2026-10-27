@@ -4804,7 +4804,8 @@ SELECT CAST(COALESCE(m.group_id, s.id) AS INTEGER) AS id,
   CAST(m.group_id IS NOT NULL AS INTEGER) AS is_group,
   CAST(COALESCE(g.name, s.name) AS TEXT) AS name,
   CAST(COALESCE(g.name_basis, '') AS TEXT) AS name_basis,
-  CAST(COUNT(DISTINCT s.id) AS INTEGER) AS suppliers,
+  CAST(CASE WHEN m.group_id IS NULL THEN 1
+    ELSE (SELECT COUNT(*) FROM supplier_group_member x WHERE x.group_id = m.group_id) END AS INTEGER) AS suppliers,
   CAST(COUNT(DISTINCT c.cn_id) AS INTEGER) AS contracts,
   CAST(SUM(cf.amount) AS INTEGER) AS amount,
   CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN cf.amount END), 0) AS INTEGER) AS limited_amount,
@@ -4840,7 +4841,9 @@ type TopSupplierGroupsRow struct {
 }
 
 // As TopSuppliers, with the members of each corporate group combined into
-// one row. is_group says whether id is a group's or a supplier's.
+// one row. is_group says whether id is a group's or a supplier's. suppliers
+// counts every member of the group, as its page lists them, not only those
+// with contract value in the year.
 func (q *Queries) TopSupplierGroups(ctx context.Context, arg TopSupplierGroupsParams) ([]TopSupplierGroupsRow, error) {
 	rows, err := q.db.QueryContext(ctx, topSupplierGroups, arg.Fy, arg.Lim)
 	if err != nil {
