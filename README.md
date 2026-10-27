@@ -113,7 +113,9 @@ To add a new Budget or Final Budget Outcome, add a row to `data/investment_docum
 Major projects funded this way, and every published estimate of their cost, are curated by hand in
 `data/projects.csv` and `data/project_estimates.csv` (amounts in $m). Each estimate needs its
 source URL and the source's words containing the figure; a video link is optional. A project's
-`item_keys` (separated by `|`) link it to the investment lines that fund it.
+`item_keys` (separated by `|`) link it to the investment lines that fund it. Its `entities` (entity
+names) and `supplier_abns`, also separated by `|`, make those department and supplier pages link to
+the project; `links_note` records the source for each link. An unknown entity name stops the load.
 
 ```
 go run ./cmd/load-projects

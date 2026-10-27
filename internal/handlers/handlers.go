@@ -80,8 +80,8 @@ func New(q *db.Queries, templates fs.FS) (*Handler, error) {
 		},
 	}
 	h := &Handler{q: q, pages: map[string]*template.Template{}}
-	for _, page := range []string{"node.html", "program.html", "methodology.html", "sources.html", "supplier.html", "suppliers.html", "group.html", "contract.html", "signals.html", "signal.html", "investments.html"} {
-		t, err := template.New("").Funcs(funcs).ParseFS(templates, "layout.html", "partials.html", page)
+	for _, page := range []string{"node.html", "program.html", "methodology.html", "sources.html", "supplier.html", "suppliers.html", "group.html", "contract.html", "signals.html", "signal.html", "investments.html", "projects.html", "project.html"} {
+		t, err := template.New("").Funcs(funcs).ParseFS(templates, "layout.html", "partials.html", "projectparts.html", page)
 		if err != nil {
 			return nil, err
 		}
@@ -102,6 +102,8 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /signals", h.signalsIndex)
 	mux.HandleFunc("GET /signals/{rule}", h.signalRule)
 	mux.HandleFunc("GET /investments", h.investments)
+	mux.HandleFunc("GET /projects", h.projectsIndex)
+	mux.HandleFunc("GET /projects/{key}", h.project)
 	mux.HandleFunc("GET /methodology", h.methodology)
 	mux.HandleFunc("GET /sources", h.sources)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
@@ -153,6 +155,7 @@ type nodePage struct {
 	Reported   *reportedSection  // entity only: Transparency Portal figures
 	Categories *categorySection  // entity only: AI-classified professional services
 	Grants     *grantsSection    // entity only: GrantConnect awards
+	Projects   []projectView     // home: every major project; entity: projects linked to it
 }
 
 // recon reconciles program line items to the Budget Paper 1 total.
@@ -205,6 +208,10 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	page.ChildLabel = "Portfolio"
 	page.Recon = rc
 	if rc.Investments, err = h.investmentTotal(ctx, p.FY); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if page.Projects, err = h.projects(ctx); err != nil {
 		h.fail(w, err)
 		return
 	}
@@ -432,6 +439,10 @@ func (h *Handler) entity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if page.Grants, err = h.entityGrants(ctx, id, p.FY); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if page.Projects, err = h.linkedProjects(ctx, id, 0); err != nil {
 		h.fail(w, err)
 		return
 	}

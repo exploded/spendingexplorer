@@ -3,12 +3,141 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"spendingexplorer/internal/db"
 	"spendingexplorer/internal/explore"
 )
+
+type projectsPage struct {
+	Period   period
+	Crumbs   []crumb
+	Projects []projectView
+}
+
+func (h *Handler) projectsIndex(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	p, err := h.period(ctx)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	page := projectsPage{Period: p, Crumbs: []crumb{{"Whole of government", "/"}}}
+	if page.Projects, err = h.projects(ctx); err != nil {
+		h.fail(w, err)
+		return
+	}
+	h.render(w, "projects.html", page)
+}
+
+// fundingLine is an investment line that funds a project, with its net
+// amount paid out in the current Budget year.
+type fundingLine struct {
+	Name  string
+	Cur   int64
+	Other bool // Treasury's "Net other", which is not itemised
+}
+
+type projectPage struct {
+	Period    period
+	Crumbs    []crumb
+	Project   projectView
+	Funding   []fundingLine
+	Entities  []db.ProjectLinksRow
+	Suppliers []db.ProjectLinksRow
+}
+
+func (h *Handler) project(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	p, err := h.period(ctx)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	all, err := h.projects(ctx)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	page := projectPage{Period: p, Crumbs: []crumb{{"Whole of government", "/"}, {"Major projects", "/projects"}}}
+	found := false
+	for _, pv := range all {
+		if pv.Key == r.PathValue("key") {
+			page.Project, found = pv, true
+		}
+	}
+	if !found {
+		http.NotFound(w, r)
+		return
+	}
+
+	links, err := h.q.ProjectLinks(ctx)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	for _, l := range links {
+		switch {
+		case l.ProjectKey != page.Project.Key:
+		case l.EntityID != 0:
+			page.Entities = append(page.Entities, l)
+		default:
+			page.Suppliers = append(page.Suppliers, l)
+		}
+	}
+
+	if doc, ok, err := h.investmentDoc(ctx, "bp1_investments", p.FY); err != nil {
+		h.fail(w, err)
+		return
+	} else if ok {
+		amounts, err := h.q.PolicyInvestments(ctx, doc.ID)
+		if err != nil {
+			h.fail(w, err)
+			return
+		}
+		keys := map[string]bool{}
+		for _, k := range strings.Split(page.Project.ItemKeys, "|") {
+			keys[k] = true
+		}
+		for _, a := range amounts {
+			if keys[a.ItemKey] && a.FiscalYear == p.FY {
+				page.Funding = append(page.Funding, fundingLine{Name: a.Item, Cur: -a.Amount, Other: a.ItemKey == "net other"})
+			}
+		}
+	}
+	h.render(w, "project.html", page)
+}
+
+// linkedProjects returns the projects linked to an entity or a supplier;
+// pass 0 for the other.
+func (h *Handler) linkedProjects(ctx context.Context, entityID, supplierID int64) ([]projectView, error) {
+	links, err := h.q.ProjectLinks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	keys := map[string]bool{}
+	for _, l := range links {
+		if (entityID != 0 && l.EntityID == entityID) || (supplierID != 0 && l.SupplierID == supplierID) {
+			keys[l.ProjectKey] = true
+		}
+	}
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	all, err := h.projects(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []projectView
+	for _, pv := range all {
+		if keys[pv.Key] {
+			out = append(out, pv)
+		}
+	}
+	return out, nil
+}
 
 // projectView is a project with its published cost estimates, oldest first.
 type projectView struct {

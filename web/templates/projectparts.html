@@ -1,0 +1,83 @@
+{{/* Shared blocks for major projects: the projects pages, the home page strip and the loans and investments page. */}}
+
+{{define "project-intro"}}
+<p class="muted">Major projects the government funds through loans and equity, with each cost estimate published for them. Amounts are as published, in dollars of the day, not adjusted for inflation. Where scope or price basis changed, estimates are marked “not like for like”. <a href="/methodology#projects">How these are compiled</a>.</p>
+{{end}}
+
+{{define "project-multiple"}}{{.Multiple}}{{if .ScopeChanged}} <span class="badge" title="Scope or price basis differs between these estimates">not like for like</span>{{end}}{{end}}
+
+{{define "project-stats"}}
+<dl class="stats">
+  <div><dt>First published estimate</dt><dd>{{.First.Amount}} <span class="muted small">{{.First.Date}}</span></dd></div>
+  <div><dt>Latest estimate</dt><dd>{{.Latest.Amount}} <span class="muted small">{{.Latest.Date}}</span></dd></div>
+  {{if .Multiple}}<div><dt>Latest as a multiple of first</dt><dd>{{template "project-multiple" .}}</dd></div>{{end}}
+  {{if and .First.Completion .Latest.Completion}}<div><dt>Expected completion</dt><dd class="dd-text">{{.Latest.Completion}} <span class="muted small">first stated as {{.First.Completion}}</span></dd></div>{{end}}
+</dl>
+{{end}}
+
+{{define "project-card"}}
+<article class="project">
+  <h3><a href="/projects/{{.Key}}">{{.Name}}</a></h3>
+  <p class="muted small">{{.Owner}}. {{.Summary}}</p>
+  {{template "project-stats" .}}
+  <p class="small"><a href="/projects/{{.Key}}">All {{len .Estimates}} estimates and their sources</a></p>
+</article>
+{{end}}
+
+{{/* Compact cards for the home page. */}}
+{{define "project-strip"}}
+<section class="project-strip" aria-labelledby="project-strip-h">
+  <h2 id="project-strip-h" class="kicker">Major project cost estimates</h2>
+  <ul class="strip">
+  {{range .}}
+    <li><a href="/projects/{{.Key}}">
+      <span class="strip-name">{{.Name}}</span>
+      <span class="strip-figures">{{.First.Amount}} <span class="muted">{{slice .First.Published 0 4}}</span> → {{.Latest.Amount}} <span class="muted">{{slice .Latest.Published 0 4}}</span></span>
+      {{if .Multiple}}<span class="strip-multiple">{{.Multiple}}{{if .ScopeChanged}} <span class="badge">not like for like</span>{{end}}</span>{{end}}
+    </a></li>
+  {{end}}
+  </ul>
+  <p class="small"><a href="/projects">All major projects</a> · first and latest published estimates, in dollars of the day</p>
+</section>
+{{end}}
+
+{{/* One row per project, for the loans and investments page. */}}
+{{define "project-table"}}
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Project</th><th scope="col" class="num">First published estimate</th><th scope="col" class="num">Latest estimate</th><th scope="col" class="num">Multiple</th></tr></thead>
+  <tbody>
+  {{range .}}
+    <tr>
+      <th scope="row"><a href="/projects/{{.Key}}">{{.Name}}</a></th>
+      <td class="num">{{.First.Amount}} <span class="muted small">{{.First.Date}}</span></td>
+      <td class="num">{{.Latest.Amount}} <span class="muted small">{{.Latest.Date}}</span></td>
+      <td class="num">{{template "project-multiple" .}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}
+
+{{define "project-estimates"}}
+<div class="scroll">
+<table class="data estimates">
+  <thead><tr><th scope="col">Date</th><th scope="col" class="num">Estimate</th><th scope="col">Covers</th><th scope="col">Completion</th><th scope="col">Source</th></tr></thead>
+  <tbody>
+  {{range .}}
+    <tr>
+      <td class="small est-head">{{.Date}}</td>
+      <td class="num est-head">{{.Amount}}</td>
+      <td class="small" data-label="Covers">{{.Scope}}{{if .ScopeChanged}} <span class="badge" title="Scope or price basis differs from the previous estimate">not like for like</span>{{end}}</td>
+      <td class="small"{{if .Completion}} data-label="Completion"{{end}}>{{.Completion}}</td>
+      <td class="small" data-label="Source"><a href="{{.SourceUrl}}">{{.SourceTitle}}</a>, {{.SourcePublisher}}{{if .Secondary}} <span class="badge badge-reported" title="A news report; no primary source was found">news report</span>{{end}}{{if .VideoUrl}}<br><a href="{{.VideoUrl}}" title="{{.VideoTitle}}">Video</a>{{end}}<span class="row-note">“{{.Quote}}”</span></td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}
+
+{{/* "Major projects linked to …" line for entity and supplier pages. */}}
+{{define "project-links"}}{{range $i, $p := .}}{{if $i}}, {{end}}<a href="/projects/{{$p.Key}}">{{$p.Name}}</a>{{end}}{{end}}

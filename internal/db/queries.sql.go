@@ -208,6 +208,15 @@ func (q *Queries) ClearProjectEstimates(ctx context.Context) error {
 	return err
 }
 
+const clearProjectLinks = `-- name: ClearProjectLinks :exec
+DELETE FROM project_link
+`
+
+func (q *Queries) ClearProjectLinks(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearProjectLinks)
+	return err
+}
+
 const clearProjects = `-- name: ClearProjects :exec
 DELETE FROM project
 `
@@ -2474,6 +2483,21 @@ func (q *Queries) InsertProjectEstimate(ctx context.Context, arg InsertProjectEs
 	return err
 }
 
+const insertProjectLink = `-- name: InsertProjectLink :exec
+INSERT INTO project_link (project_key, entity_id, supplier_id) VALUES (?, ?, ?)
+`
+
+type InsertProjectLinkParams struct {
+	ProjectKey string
+	EntityID   sql.NullInt64
+	SupplierID sql.NullInt64
+}
+
+func (q *Queries) InsertProjectLink(ctx context.Context, arg InsertProjectLinkParams) error {
+	_, err := q.db.ExecContext(ctx, insertProjectLink, arg.ProjectKey, arg.EntityID, arg.SupplierID)
+	return err
+}
+
 const insertReportedOrg = `-- name: InsertReportedOrg :exec
 INSERT INTO reported_org (entity_name, entity_id, reporting_year, kind, org_name, org_abn, amount,
   individual, check_note, source_document_id)
@@ -3629,6 +3653,53 @@ func (q *Queries) ProgramTotals(ctx context.Context, arg ProgramTotalsParams) ([
 	return items, nil
 }
 
+const projectLinks = `-- name: ProjectLinks :many
+SELECT l.project_key,
+  CAST(COALESCE(l.entity_id, 0) AS INTEGER) AS entity_id, COALESCE(e.name, '') AS entity_name,
+  CAST(COALESCE(l.supplier_id, 0) AS INTEGER) AS supplier_id, COALESCE(s.name, '') AS supplier_name
+FROM project_link l
+LEFT JOIN entity e ON e.id = l.entity_id
+LEFT JOIN supplier s ON s.id = l.supplier_id
+ORDER BY l.project_key, e.name, s.name
+`
+
+type ProjectLinksRow struct {
+	ProjectKey   string
+	EntityID     int64
+	EntityName   string
+	SupplierID   int64
+	SupplierName string
+}
+
+func (q *Queries) ProjectLinks(ctx context.Context) ([]ProjectLinksRow, error) {
+	rows, err := q.db.QueryContext(ctx, projectLinks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProjectLinksRow
+	for rows.Next() {
+		var i ProjectLinksRow
+		if err := rows.Scan(
+			&i.ProjectKey,
+			&i.EntityID,
+			&i.EntityName,
+			&i.SupplierID,
+			&i.SupplierName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const removeBatchedLate = `-- name: RemoveBatchedLate :exec
 DELETE FROM signal WHERE rule_id = 'late-publication'
   AND cn_id IN (SELECT cn_id FROM signal WHERE rule_id = 'late-batch')
@@ -4514,6 +4585,33 @@ func (q *Queries) SupplierGroupStats(ctx context.Context) (SupplierGroupStatsRow
 	var i SupplierGroupStatsRow
 	err := row.Scan(&i.GroupCount, &i.Members)
 	return i, err
+}
+
+const supplierIDsByABN = `-- name: SupplierIDsByABN :many
+SELECT id FROM supplier WHERE abn = ? AND abn <> ''
+`
+
+func (q *Queries) SupplierIDsByABN(ctx context.Context, abn string) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, supplierIDsByABN, abn)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const supplierIndividualCounts = `-- name: SupplierIndividualCounts :many

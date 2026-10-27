@@ -487,3 +487,13 @@ CREATE TABLE IF NOT EXISTS project_estimate (
   source_document_id  INTEGER NOT NULL REFERENCES source_document(id),
   PRIMARY KEY (project_key, published, scope)
 );
+
+-- Departments and suppliers linked to each major project, so their pages can
+-- point to it. Curated in the entities and supplier_abns columns of
+-- data/projects.csv. Each row links one entity or one supplier.
+CREATE TABLE IF NOT EXISTS project_link (
+  project_key  TEXT NOT NULL REFERENCES project(key),
+  entity_id    INTEGER REFERENCES entity(id),
+  supplier_id  INTEGER REFERENCES supplier(id),
+  CHECK ((entity_id IS NULL) <> (supplier_id IS NULL))
+);

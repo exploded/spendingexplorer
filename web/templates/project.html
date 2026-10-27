@@ -1,0 +1,38 @@
+{{define "title"}}{{.Project.Name}}: cost estimates{{end}}
+
+{{define "content"}}
+{{template "crumbs" .Crumbs}}
+<p class="kicker">Major project · {{.Project.Owner}}</p>
+<h1>{{.Project.Name}}</h1>
+<p class="objective">{{.Project.Summary}}</p>
+{{with .Project}}{{template "project-stats" .}}{{end}}
+
+<section aria-labelledby="estimates-h">
+  <h2 id="estimates-h">Every published estimate</h2>
+  <p class="muted">Amounts are as published, in dollars of the day, not adjusted for inflation. Each estimate links to its source and quotes the words containing the figure. <a href="/methodology#projects">How these are compiled</a>.</p>
+  {{template "project-estimates" .Project.Estimates}}
+</section>
+
+{{if or .Funding .Project.FundingNote}}
+<section class="coverage" aria-labelledby="funding-h">
+  <h2 id="funding-h" class="kicker">Government funding in the {{.Period.FY}} Budget</h2>
+  {{if .Funding}}
+  <ul class="small">
+  {{range .Funding}}<li>{{if .Other}}“{{.Name}}”: {{money .Cur}} net paid out in {{$.Period.FY}}. This line combines the project with other amounts Treasury does not itemise, so the project’s share is not published.{{else}}{{.Name}}: {{money .Cur}} net paid out in {{$.Period.FY}}{{end}}</li>{{end}}
+  </ul>
+  {{end}}
+  {{with .Project.FundingNote}}<p class="small">{{.}}</p>{{end}}
+  <p class="small">These are loans and equity, which are not counted as expenses. <a href="/investments">Loans and investments</a>.</p>
+</section>
+{{end}}
+
+{{if or .Entities .Suppliers}}
+<h2>Related pages</h2>
+<ul class="small">
+  {{range .Entities}}<li><a href="/entity/{{.EntityID}}">{{.EntityName}}</a></li>{{end}}
+  {{range .Suppliers}}<li><a href="/supplier/{{.SupplierID}}">{{.SupplierName}}</a> (contracts as a supplier on AusTender)</li>{{end}}
+</ul>
+{{end}}
+
+<p class="small"><a href="/projects">All major projects</a></p>
+{{end}}

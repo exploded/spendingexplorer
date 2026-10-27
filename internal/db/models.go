@@ -296,6 +296,12 @@ type ProjectEstimate struct {
 	SourceDocumentID int64
 }
 
+type ProjectLink struct {
+	ProjectKey string
+	EntityID   sql.NullInt64
+	SupplierID sql.NullInt64
+}
+
 type ReportedOrg struct {
 	EntityName       string
 	EntityID         sql.NullInt64

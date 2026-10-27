@@ -1,0 +1,9 @@
+{{define "title"}}Major projects{{end}}
+
+{{define "content"}}
+{{template "crumbs" .Crumbs}}
+<p class="kicker">Cost estimates over time</p>
+<h1>Major projects</h1>
+{{template "project-intro"}}
+{{range .Projects}}{{template "project-card" .}}{{end}}
+{{end}}

@@ -56,6 +56,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if err := q.ClearProjectLinks(ctx); err != nil {
+		log.Fatal(err)
+	}
 	if err := q.ClearProjectEstimates(ctx); err != nil {
 		log.Fatal(err)
 	}
@@ -63,15 +66,44 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// key, name, owner, summary, item_keys, funding_note
+	// key, name, owner, summary, item_keys, funding_note, entities, supplier_abns, links_note
 	known := map[string]bool{}
+	links := 0
 	for i, p := range projects {
+		if len(p) < 8 {
+			log.Fatalf("project %q: want entities and supplier_abns columns", p[0])
+		}
 		if err := q.InsertProject(ctx, db.InsertProjectParams{
 			Key: p[0], Name: p[1], Owner: p[2], Summary: p[3], ItemKeys: p[4], FundingNote: p[5], Sort: int64(i),
 		}); err != nil {
 			log.Fatalf("project %q: %v", p[0], err)
 		}
 		known[p[0]] = true
+		for _, name := range split(p[6]) {
+			id, err := q.EntityIDByName(ctx, name)
+			if err != nil {
+				log.Fatalf("project %q: entity %q: %v", p[0], name, err)
+			}
+			if err := q.InsertProjectLink(ctx, db.InsertProjectLinkParams{ProjectKey: p[0], EntityID: sql.NullInt64{Int64: id, Valid: true}}); err != nil {
+				log.Fatal(err)
+			}
+			links++
+		}
+		for _, abn := range split(p[7]) {
+			ids, err := q.SupplierIDsByABN(ctx, abn)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if len(ids) == 0 {
+				log.Printf("project %q: no supplier has ABN %s, so no supplier page links to it", p[0], abn)
+			}
+			for _, id := range ids {
+				if err := q.InsertProjectLink(ctx, db.InsertProjectLinkParams{ProjectKey: p[0], SupplierID: sql.NullInt64{Int64: id, Valid: true}}); err != nil {
+					log.Fatal(err)
+				}
+				links++
+			}
+		}
 	}
 
 	// project, published, amount_m, amount_high_m, scope, scope_changed, completion,
@@ -112,7 +144,7 @@ func main() {
 
 	if err := q.InsertLoadRun(ctx, db.InsertLoadRunParams{
 		Command: "load-projects", SourceDocumentID: docID, RowsRead: int64(len(estimates)), RowsWritten: int64(len(estimates)),
-		Notes: fmt.Sprintf("%d projects", len(projects)),
+		Notes: fmt.Sprintf("%d projects, %d links", len(projects), links),
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -126,6 +158,17 @@ func main() {
 func dollars(m string) (int64, error) {
 	v, err := strconv.ParseFloat(m, 64)
 	return int64(math.Round(v * 1e6)), err
+}
+
+// split returns the non-empty values of a |-separated cell.
+func split(s string) []string {
+	var out []string
+	for _, v := range strings.Split(s, "|") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func flag01(s string) int64 {

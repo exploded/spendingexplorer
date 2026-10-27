@@ -70,8 +70,8 @@ a:hover { text-decoration-thickness: 2px; }
 .masthead { border-bottom: 1px solid var(--rule); background: var(--surface); }
 .masthead-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; flex-wrap: wrap; }
 .brand { font: 600 18px/1.2 var(--serif); color: var(--ink); text-decoration: none; letter-spacing: 0.01em; }
-.masthead nav { display: flex; gap: 20px; font-size: 14px; }
-.masthead nav a { color: var(--ink-2); text-decoration: none; }
+.masthead nav { display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: 14px; }
+.masthead nav a { color: var(--ink-2); text-decoration: none; white-space: nowrap; }
 .masthead nav a:hover { color: var(--ink); text-decoration: underline; }
 
 main { padding-top: 24px; padding-bottom: 48px; }
@@ -182,8 +182,15 @@ h3 { font: 600 17px/1.3 var(--sans); margin: 28px 0 4px; }
 .stats dd { margin: 4px 0 0; font: 600 22px/1.2 var(--serif); font-variant-numeric: tabular-nums; }
 .stats dd .small { font-family: var(--sans); font-weight: 400; }
 .project { border-top: 1px solid var(--rule); padding-top: 8px; margin-top: 24px; }
-.project details { margin: 0 0 8px; }
-.project summary { cursor: pointer; color: var(--link); font-size: 14px; padding: 4px 0; }
+.stats dd.dd-text { font-size: 18px; }
+.project-strip { margin: 0 0 24px; }
+.strip { list-style: none; margin: 8px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.strip a { display: flex; flex-direction: column; gap: 4px; height: 100%; box-sizing: border-box; padding: 12px 14px; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; color: var(--ink); text-decoration: none; }
+.strip a:hover, .strip a:focus-visible { border-color: var(--link); }
+.strip-name { font-weight: 600; color: var(--link); }
+.strip-figures { font-variant-numeric: tabular-nums; font-size: 14px; }
+.strip-multiple { font: 600 20px/1.2 var(--serif); font-variant-numeric: tabular-nums; }
+.strip-multiple .badge { font-family: var(--sans); font-weight: 400; }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 24px; margin: 0 0 8px; }
 .facts > div { padding: 10px 0; border-bottom: 1px solid var(--rule); }
 .facts dt { font-size: 13px; color: var(--ink-3); }
@@ -235,6 +242,13 @@ tr.current th, tr.current td { font-weight: 700; }
   .kind { grid-template-columns: 1fr auto; }
   .kind .meter { grid-column: 1 / -1; grid-row: 2; }
   .equation li { font-size: 14px; }
+  .masthead nav { gap: 4px 14px; padding-bottom: 8px; }
+  /* Each estimate becomes a card, labelled from data-label. */
+  table.estimates thead { display: none; }
+  table.estimates tr { display: block; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+  table.estimates td { display: block; border: none; padding: 2px 0; text-align: left; }
+  table.estimates td[data-label]::before { content: attr(data-label) ": "; color: var(--ink-3); }
+  table.estimates td.est-head { font-weight: 600; font-size: 16px; }
 }
 @media (forced-colors: active) {
   .tile { border: 1px solid CanvasText; }

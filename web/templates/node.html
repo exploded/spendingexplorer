@@ -22,6 +22,9 @@
   <p class="muted">The adjustments are the difference between the published total and the sum of program lines, after removing amounts counted twice. They are {{pct (share .Adjustment .WogTotal)}} of the total. <a href="/methodology#adjustments">What they are likely to include</a>.</p>
   {{with .Investments}}<p class="muted">Not in this total: a further {{money .}} paid out in {{$.Period.FY}} as loans and equity investments, which are not expenses. <a href="/investments">Loans and investments</a>.</p>{{end}}
 </section>
+{{with $.Projects}}{{template "project-strip" .}}{{end}}
+{{else}}
+{{with .Projects}}<p class="muted small">Major projects linked to this department: {{template "project-links" .}}. <a href="/projects">Cost estimates over time</a>.</p>{{end}}
 {{end}}
 
 {{if and (not .Recon) .Total.Excluded}}

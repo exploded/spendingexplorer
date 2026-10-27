@@ -1137,3 +1137,21 @@ SELECT key, name, owner, summary, item_keys, funding_note FROM project ORDER BY 
 SELECT project_key, published, amount, amount_high, scope, scope_changed, completion,
   source_title, source_publisher, source_url, quote, secondary, video_url, video_title
 FROM project_estimate ORDER BY project_key, published, amount;
+
+-- name: ClearProjectLinks :exec
+DELETE FROM project_link;
+
+-- name: InsertProjectLink :exec
+INSERT INTO project_link (project_key, entity_id, supplier_id) VALUES (?, ?, ?);
+
+-- name: SupplierIDsByABN :many
+SELECT id FROM supplier WHERE abn = ? AND abn <> '';
+
+-- name: ProjectLinks :many
+SELECT l.project_key,
+  CAST(COALESCE(l.entity_id, 0) AS INTEGER) AS entity_id, COALESCE(e.name, '') AS entity_name,
+  CAST(COALESCE(l.supplier_id, 0) AS INTEGER) AS supplier_id, COALESCE(s.name, '') AS supplier_name
+FROM project_link l
+LEFT JOIN entity e ON e.id = l.entity_id
+LEFT JOIN supplier s ON s.id = l.supplier_id
+ORDER BY l.project_key, e.name, s.name;

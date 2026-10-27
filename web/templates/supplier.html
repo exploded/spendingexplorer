@@ -5,6 +5,7 @@
 <p class="kicker">Supplier{{if .Supplier.Abn}} · ABN <span class="mono">{{.Supplier.Abn}}</span>{{end}}{{if .Supplier.Postcode}} · {{.Supplier.Postcode}}{{end}}{{if and .Supplier.Country (ne .Supplier.Country "AUSTRALIA")}} · {{.Supplier.Country}}{{end}}</p>
 <h1>{{.Supplier.Name}}</h1>
 {{if fms .Supplier.Name}}<p><strong>This is not a company.</strong> FMS stands for Foreign Military Sales, the US Government program through which Defence buys military equipment, such as aircraft and missiles, from the US Department of Defense. Defence pays through an account at the Reserve Bank of Australia, so AusTender names that account as the supplier. The US manufacturers are not named, so this spending can’t be traced further. Each contract’s agency reference is the FMS case identifier. <a href="/methodology#fms">More about Foreign Military Sales</a></p>{{end}}
+{{with .Projects}}<p class="muted small">Major projects linked to this supplier: {{template "project-links" .}}. <a href="/projects">Cost estimates over time</a>.</p>{{end}}
 {{with .Group}}<p>Part of <a href="/group/{{.ID}}">{{.Name}}</a>, a corporate group of {{.Members}} suppliers. {{if eq .Basis "gleif"}}<a class="badge badge-reported" href="/methodology#groups">reported</a>{{else}}<a class="badge badge-ai" href="/methodology#groups">AI-grouped</a>{{end}}</p>{{end}}
 <div class="hero">
   <div class="hero-figure">
