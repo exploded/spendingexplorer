@@ -655,6 +655,67 @@ func (q *Queries) DeriveValueIncrease(ctx context.Context) error {
 	return err
 }
 
+const entityCategoryTotals = `-- name: EntityCategoryTotals :many
+SELECT l.category, CAST(l.confidence = 'low' AS INTEGER) AS low,
+  CAST(COUNT(*) AS INTEGER) AS contracts, CAST(SUM(cf.amount) AS INTEGER) AS amount
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN llm_classification l ON l.cn_id = c.cn_id AND l.task = ?1 AND l.prompt_version = ?2
+WHERE cf.fiscal_year = ?3 AND a.entity_id = ?4
+GROUP BY l.category, low
+ORDER BY amount DESC
+`
+
+type EntityCategoryTotalsParams struct {
+	Task          string
+	PromptVersion string
+	Fy            string
+	EntityID      sql.NullInt64
+}
+
+type EntityCategoryTotalsRow struct {
+	Category  string
+	Low       int64
+	Contracts int64
+	Amount    int64
+}
+
+// Annualised value in a year of an entity's AI-classified contracts, by
+// category, with low-confidence results kept apart.
+func (q *Queries) EntityCategoryTotals(ctx context.Context, arg EntityCategoryTotalsParams) ([]EntityCategoryTotalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityCategoryTotals,
+		arg.Task,
+		arg.PromptVersion,
+		arg.Fy,
+		arg.EntityID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityCategoryTotalsRow
+	for rows.Next() {
+		var i EntityCategoryTotalsRow
+		if err := rows.Scan(
+			&i.Category,
+			&i.Low,
+			&i.Contracts,
+			&i.Amount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const entityContractStats = `-- name: EntityContractStats :one
 SELECT CAST(COUNT(*) AS INTEGER) AS contracts,
   CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount,

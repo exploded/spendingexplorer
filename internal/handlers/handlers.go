@@ -147,6 +147,7 @@ type nodePage struct {
 	EntityID   int64             // entity only
 	OtherNames []string          // entity only: names in earlier PBS files and AusTender
 	Reported   *reportedSection  // entity only: Transparency Portal figures
+	Categories *categorySection  // entity only: AI-classified professional services
 }
 
 // recon reconciles program line items to the Budget Paper 1 total.
@@ -400,6 +401,10 @@ func (h *Handler) entity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if page.Reported, err = h.entityReported(ctx, id); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if page.Categories, err = h.entityCategories(ctx, id, p.FY, page.Reported); err != nil {
 		h.fail(w, err)
 		return
 	}

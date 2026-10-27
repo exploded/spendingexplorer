@@ -107,6 +107,18 @@
 </section>
 {{end}}
 
+{{with .Categories}}
+<section class="kinds" id="categories" aria-labelledby="categories-h">
+  <h2 id="categories-h" class="kicker">Professional services by kind of work</h2>
+  <p class="muted small">Contracts active in {{.FY}} that AusTender files under “management and business professionals”, sorted by an AI model reading each contract’s description. <a class="badge badge-ai" href="/methodology#ai" title="{{.Model}}, prompt {{.Prompt}}">AI-classified</a> <a class="badge badge-estimate" href="/methodology#annualised">estimate: annualised</a></p>
+  {{range .Rows}}
+  <div class="kind"><span class="kind-name">{{.Label}} <span class="muted small">{{.Contracts}}</span></span><span class="meter"><span style="width:{{pctCSS .Share}}"></span></span><span class="num">{{money .Amount}} <span class="muted">{{f1 .Share}}%</span></span></div>
+  {{end}}
+  {{if .Low}}<p class="muted small">A further {{money .Low}} across {{.LowContracts}} contract{{if ne .LowContracts 1}}s{{end}} has descriptions too vague to classify with confidence, and is left out of the categories above.</p>{{end}}
+  {{with .Compare}}<p class="small">In {{.Year}} the entity reported paying {{money .Reported}} on consultancy contracts (cash, including GST). Contracts classified as consultancy come to {{money .Classified}} for that year (AusTender values spread over each contract’s term). The two are measured differently, so they are not expected to match. <a href="/methodology#ai">How we classify</a>.</p>{{end}}
+</section>
+{{end}}
+
 {{with .Reported}}
 <section id="reported" aria-labelledby="reported-h">
   <h2 id="reported-h">Contract spending reported by the entity</h2>

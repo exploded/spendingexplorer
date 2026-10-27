@@ -832,3 +832,16 @@ WHERE doc_type = ? AND budget_year = ?;
 -- name: PolicyInvestments :many
 SELECT item, item_key, fiscal_year, amount, is_total FROM policy_investment
 WHERE source_document_id = ?;
+
+-- name: EntityCategoryTotals :many
+-- Annualised value in a year of an entity's AI-classified contracts, by
+-- category, with low-confidence results kept apart.
+SELECT l.category, CAST(l.confidence = 'low' AS INTEGER) AS low,
+  CAST(COUNT(*) AS INTEGER) AS contracts, CAST(SUM(cf.amount) AS INTEGER) AS amount
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN llm_classification l ON l.cn_id = c.cn_id AND l.task = sqlc.arg(task) AND l.prompt_version = sqlc.arg(prompt_version)
+WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id = sqlc.arg(entity_id)
+GROUP BY l.category, low
+ORDER BY amount DESC;
