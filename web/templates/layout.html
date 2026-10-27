@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
 <title>{{template "title" .}} · Federal Spending Explorer</title>
-<link rel="stylesheet" href="/static/styles.css">
-<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="{{static "styles.css"}}">
+<link rel="icon" href="{{static "favicon.svg"}}" type="image/svg+xml">
 </head>
 <body>
 <header class="masthead">
@@ -30,7 +30,7 @@
   Every number links back to its source. <a href="/methodology">How we prepare the data</a>.</p>
 </footer>
 <div id="tip" class="tip" role="tooltip" hidden></div>
-<script src="/static/htmx.min.js"></script>
-<script src="/static/app.js"></script>
+<script src="{{static "htmx.min.js"}}"></script>
+<script src="{{static "app.js"}}"></script>
 </body>
 </html>{{end}}

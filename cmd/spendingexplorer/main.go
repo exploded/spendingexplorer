@@ -13,6 +13,7 @@ import (
 
 	"spendingexplorer/internal/db"
 	"spendingexplorer/internal/handlers"
+	"spendingexplorer/internal/pagecache"
 	"spendingexplorer/web"
 )
 
@@ -33,14 +34,16 @@ func main() {
 	}
 	defer conn.Close()
 
-	h, err := handlers.New(db.New(conn), web.Templates)
+	h, err := handlers.New(db.New(conn), web.Templates, web.Static)
 	if err != nil {
 		slog.Error("load templates", "error", err)
 		os.Exit(1)
 	}
+	pages := http.NewServeMux()
+	h.Routes(pages)
 	mux := http.NewServeMux()
-	h.Routes(mux)
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(web.Static)))
+	mux.Handle("/", pagecache.New(pages, 64<<20, dbPath, dbPath+"-wal"))
+	mux.Handle("GET /static/", staticFiles(http.StripPrefix("/static/", http.FileServerFS(web.Static))))
 
 	srv := &http.Server{
 		Addr:              ":" + port,
@@ -62,6 +65,17 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	srv.Shutdown(ctx)
+}
+
+// staticFiles lets browsers keep versioned assets (URLs carrying ?v=, a hash
+// of the file) for a year; a changed file gets a new URL.
+func staticFiles(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Has("v") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func securityHeaders(next http.Handler) http.Handler {

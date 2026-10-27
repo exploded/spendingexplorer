@@ -5,7 +5,9 @@ package handlers
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"html/template"
 	"io/fs"
@@ -30,8 +32,13 @@ type Handler struct {
 	pages map[string]*template.Template
 }
 
-func New(q *db.Queries, templates fs.FS) (*Handler, error) {
+func New(q *db.Queries, templates, static fs.FS) (*Handler, error) {
+	assets, err := assetURLs(static)
+	if err != nil {
+		return nil, err
+	}
 	funcs := template.FuncMap{
+		"static":      func(name string) string { return assets[name] },
 		"money":       explore.Money,
 		"signedMoney": explore.SignedMoney,
 		"changePct": func(n explore.Node) string {
@@ -88,6 +95,25 @@ func New(q *db.Queries, templates fs.FS) (*Handler, error) {
 		h.pages[page] = t
 	}
 	return h, nil
+}
+
+// assetURLs maps each static file to its URL with a hash of its contents, so
+// browsers can keep it until it changes.
+func assetURLs(static fs.FS) (map[string]string, error) {
+	urls := map[string]string{}
+	err := fs.WalkDir(static, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := fs.ReadFile(static, path)
+		if err != nil {
+			return err
+		}
+		sum := sha256.Sum256(b)
+		urls[path] = "/static/" + path + "?v=" + hex.EncodeToString(sum[:6])
+		return nil
+	})
+	return urls, err
 }
 
 func (h *Handler) Routes(mux *http.ServeMux) {
