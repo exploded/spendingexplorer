@@ -16,7 +16,7 @@ binary.
 
 ## Load and reconcile
 
-Raw files live in `data/raw/` (not committed). Sources are on data.gov.au:
+Raw files live in `data/raw/` and are committed, so the server can rebuild the database. Sources are on data.gov.au:
 
 - 2025-26 Budget and PBS tables: https://data.gov.au/data/dataset/4f025f38-0c70-45e2-8106-4c29a5e48637
 - 2026-27 Budget and PBS tables: https://data.gov.au/data/dataset/5400a217-82f4-425c-b713-b7ba2ee78e5a
@@ -102,6 +102,24 @@ Commonwealth Entities and Companies; and $7.5 million for construction (UNSPSC s
 Thresholds were calibrated on the full load from July 2022. Each rule states its threshold,
 the rule or practice it relates to, and common legitimate explanations. The site shows them
 at `/signals`, on entity pages and on contract pages.
+
+## Contract spending reported by entities (Transparency Portal)
+
+Non-corporate entities report their consultancy and other contract spending, and the
+organisations paid the most, in their annual reports. The Transparency Portal has no bulk
+download or API we may use, so the four data sets are exported by hand from its Data
+Explorer (https://www.transparency.gov.au/): choose the data sets under "Consultancy and
+non-consultancy contracts", two at a time, with Body Type = non-corporate Commonwealth entity
+and the financial years only (up to 10). Save the exports, with the names the portal gives
+them, in `data/raw/transparency/`, then:
+
+```
+go run ./cmd/load-transparency
+```
+
+Every figure is checked against the entity's Budget expenses, its contract count and its own
+total (rules in `internal/transparency`). Figures that fail are kept as published and marked
+"looks wrong" on the site; none of these figures is used in any total.
 
 ## AI classification
 

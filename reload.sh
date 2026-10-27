@@ -13,4 +13,7 @@ go run ./cmd/load-descriptions -budget 2026-27
 if ls .local/abr/public_split_*.zip >/dev/null 2>&1; then
   go run ./cmd/load-abr
 fi
+if ls data/raw/transparency/*.csv >/dev/null 2>&1; then
+  go run ./cmd/load-transparency
+fi
 go run ./cmd/derive

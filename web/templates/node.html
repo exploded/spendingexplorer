@@ -106,6 +106,53 @@
 </section>
 {{end}}
 
+{{with .Reported}}
+<section id="reported" aria-labelledby="reported-h">
+  <h2 id="reported-h">Contract spending reported by the entity</h2>
+  <p class="muted">What the entity reported in its annual reports, from the <a href="https://www.transparency.gov.au/">Transparency Portal</a>: cash paid in each year, including GST. These are actual payments, unlike the AusTender contract values above. They are shown as published and are not used in any total on this site. <a class="badge badge-reported" href="/methodology#reported">reported</a></p>
+  <div class="scroll">
+  <table class="data narrow">
+    <thead><tr><th scope="col">Year</th><th scope="col" class="num">Consultancy</th><th scope="col" class="num">Other contracts</th></tr></thead>
+    <tbody>
+    {{range .Years}}
+      <tr>
+        <th scope="row">{{.Year}}</th>
+        <td class="num">{{template "reported-figure" .Consultancy}}</td>
+        <td class="num">{{template "reported-figure" .NonConsultancy}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+
+  {{if or .Consultancy .NonConsultancy}}
+  <h3>Organisations paid the most in {{.OrgYear}}</h3>
+  <p class="muted small">As listed by the entity, usually its five largest of each type. Organisations who are individuals are not listed. <a href="/methodology#individuals">Why</a></p>
+  {{range $label, $list := dict "Consultancy" .Consultancy "Other contracts" .NonConsultancy}}{{if $list}}
+  <div class="scroll">
+  <table class="data narrow">
+    <thead><tr><th scope="col">{{$label}}</th><th scope="col" class="num">{{$.Reported.OrgYear}}</th></tr></thead>
+    <tbody>
+    {{range $list}}
+      <tr>
+        <th scope="row">{{if .SupplierID}}<a href="/supplier/{{.SupplierID}}">{{.OrgName}}</a>{{else}}{{.OrgName}}{{end}}</th>
+        <td class="num">{{money .Amount}}{{if .Note}} <a class="badge badge-warn" href="#reported-note-{{.Note}}">looks wrong</a>{{end}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{end}}{{end}}
+  {{end}}
+
+  {{if .Notes}}
+  <ol class="notes small">
+    {{range $i, $n := .Notes}}<li id="reported-note-{{add $i 1}}">{{$n}}</li>{{end}}
+  </ol>
+  {{end}}
+</section>
+{{end}}
+
 {{if .Functions}}
 <section class="functions" aria-labelledby="fn-h">
   <h2 id="fn-h">By function</h2>

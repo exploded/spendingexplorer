@@ -103,6 +103,9 @@ thead th.num { white-space: normal; }
 .badge-estimate { background: transparent; border: 1px dashed var(--ink-3); color: var(--ink-2); }
 .badge-ai { background: transparent; border: 1px solid var(--meter); color: var(--link); }
 .badge-limited { background: var(--removed-bg); color: var(--removed-ink); }
+.badge-warn { background: var(--removed-bg); color: var(--removed-ink); border: 1px solid var(--removed-ink); }
+.suspect { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--removed-ink); }
+ol.notes { margin: 12px 0 0; padding-left: 20px; color: var(--ink-2); }
 .badge-recon {
   background: repeating-linear-gradient(45deg, var(--badge-bg) 0 4px, transparent 4px 8px);
   border: 1px solid var(--rule);

@@ -746,3 +746,72 @@ UPDATE llm_batch SET status = 'collected' WHERE batch_id = ?;
 -- name: ContractClassification :one
 SELECT category, confidence, model, prompt_version, created_at FROM llm_classification
 WHERE cn_id = ? AND task = ? ORDER BY prompt_version DESC LIMIT 1;
+
+-- Transparency Portal -------------------------------------------------------------
+
+-- name: ClearReportedSpend :exec
+DELETE FROM reported_spend;
+
+-- name: ClearReportedOrgs :exec
+DELETE FROM reported_org;
+
+-- name: InsertReportedSpend :exec
+INSERT INTO reported_spend (entity_name, entity_id, reporting_year, kind, new_contracts, new_amount,
+  ongoing_contracts, ongoing_amount, contracts, amount, check_note, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: InsertReportedOrg :exec
+INSERT INTO reported_org (entity_name, entity_id, reporting_year, kind, org_name, org_abn, amount,
+  individual, check_note, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: ListAgencyEntities :many
+SELECT name, entity_id FROM agency WHERE entity_id IS NOT NULL;
+
+-- name: EntityExpenseCeilings :many
+-- Each entity's largest yearly total expenses in any PBS publication held.
+SELECT y.entity_id, CAST(MAX(y.amount) AS INTEGER) AS expenses
+FROM (SELECT p.entity_id, pe.source_document_id, pe.fiscal_year, SUM(pe.amount) AS amount
+      FROM program_expense pe JOIN program p ON p.id = pe.program_id
+      WHERE pe.treatment = 'expense'
+      GROUP BY p.entity_id, pe.source_document_id, pe.fiscal_year) y
+GROUP BY y.entity_id;
+
+-- name: ABREntityTypes :many
+SELECT abn, entity_type FROM abr_entity;
+
+-- name: IndividualSupplierABNs :many
+SELECT s.abn FROM supplier s JOIN supplier_individual i ON i.supplier_id = s.id WHERE s.abn <> '';
+
+-- name: EntityReportedSpend :many
+SELECT reporting_year, kind, contracts, amount, check_note
+FROM reported_spend WHERE entity_id = ?
+ORDER BY reporting_year DESC, kind;
+
+-- name: EntityReportedOrgs :many
+-- Organisations who are, or may be, individuals are left out of the list.
+SELECT o.kind, o.org_name, o.org_abn, o.amount, o.check_note,
+  CAST(COALESCE((SELECT s.id FROM supplier s WHERE s.abn = o.org_abn AND o.org_abn <> '' LIMIT 1), 0) AS INTEGER) AS supplier_id
+FROM reported_org o
+WHERE o.entity_id = ? AND o.reporting_year = ? AND o.individual = 0
+ORDER BY o.kind, o.amount DESC;
+
+-- name: UnlinkAbsorbedSpend :execrows
+-- A body reporting separately before it was absorbed maps to its successor
+-- too. For each entity, year and kind, keep the published entity with the
+-- most contracts (the continuing one; counts are not affected by unit
+-- errors) and unlink the others.
+UPDATE reported_spend SET entity_id = NULL
+WHERE entity_id IS NOT NULL AND EXISTS (
+  SELECT 1 FROM reported_spend d
+  WHERE d.entity_id = reported_spend.entity_id AND d.reporting_year = reported_spend.reporting_year
+    AND d.kind = reported_spend.kind AND d.entity_name <> reported_spend.entity_name
+    AND (d.contracts > reported_spend.contracts
+         OR (d.contracts = reported_spend.contracts AND d.entity_name < reported_spend.entity_name)));
+
+-- name: UnlinkAbsorbedOrgs :execrows
+UPDATE reported_org SET entity_id = NULL
+WHERE entity_id IS NOT NULL AND EXISTS (
+  SELECT 1 FROM reported_spend s
+  WHERE s.entity_name = reported_org.entity_name AND s.reporting_year = reported_org.reporting_year
+    AND s.kind = reported_org.kind AND s.entity_id IS NULL);

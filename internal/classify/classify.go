@@ -15,7 +15,7 @@ import (
 
 const (
 	Task          = "professional-services"
-	PromptVersion = "v1"
+	PromptVersion = "v3"
 	Model         = "claude-haiku-5-5"
 	PerRequest    = 100 // contracts per request; many per request keeps cost down
 )
@@ -32,14 +32,15 @@ type Category struct {
 // distinction between consultants and contractors.
 var Categories = []Category{
 	{"consultancy", "Consultancy", "Independent expert advice, review, evaluation, research or strategy that informs a decision by the agency."},
-	{"labour_hire", "Labour hire / contractor", "A person or team filling a role the agency directs, such as a named position, an engineer, analyst or project officer."},
+	{"labour_hire", "Labour hire / contractor", "A person or team filling a role the agency directs, such as a named position, an engineer, analyst or project officer, including temporary staff supplied by a recruitment or labour-hire firm."},
 	{"it_services", "IT services", "Software, systems implementation, managed IT services, cyber security operations or technical support."},
 	{"legal", "Legal", "Legal advice, counsel, litigation or legal services."},
 	{"audit_finance", "Audit, accounting and finance", "Audit, assurance, accounting, actuarial or financial services."},
 	{"training", "Training and education", "Training courses, coaching or education delivery."},
-	{"recruitment", "Recruitment", "Recruitment, executive search or candidate assessment."},
+	{"recruitment", "Recruitment", "Recruitment, executive search or candidate assessment, to find people the agency will employ itself. Supplying temporary staff is labour hire."},
 	{"communications", "Communications and marketing", "Advertising, media, communications, events or design."},
 	{"service_delivery", "Outsourced service delivery", "Delivering a service to the public or to staff on the agency's behalf, such as call centres, case management or administration."},
+	{"property", "Property and facilities", "Leases, rent, property management, facilities management or building operating costs."},
 	{"other", "Other", "Anything that fits none of the above, or a description too vague to classify."},
 }
 
@@ -68,7 +69,7 @@ func System() string {
 	for _, c := range Categories {
 		fmt.Fprintf(&b, "- %s: %s\n", c.ID, c.Means)
 	}
-	b.WriteString("\nUse the description first and the supplier name only as supporting evidence. ")
+	b.WriteString("\nUse the description first. Use the supplier name only to resolve a vague description: when the description says what the work is, classify that, even if it differs from the supplier's best-known business. ")
 	b.WriteString("Agency abbreviations such as LH (labour hire) or ICT are common. ")
 	b.WriteString("Set confidence to low when the description is too short or vague to be sure. ")
 	b.WriteString("Return one result for every contract id you are given, and no others.")

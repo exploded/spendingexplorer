@@ -285,3 +285,45 @@ CREATE TABLE IF NOT EXISTS llm_batch_item (
   input_hash  TEXT NOT NULL,
   PRIMARY KEY (batch_id, custom_id, cn_id)
 );
+-- ContractsToClassify looks items up by contract.
+CREATE INDEX IF NOT EXISTS llm_batch_item_cn ON llm_batch_item(cn_id);
+
+-- Transparency Portal ---------------------------------------------------------
+
+-- Contract spending each non-corporate entity reported in its annual report,
+-- from the Transparency Portal's Data Explorer. Cash paid in the reporting
+-- year, GST inclusive, whole dollars. check_note is empty when the figure
+-- passes the checks in internal/transparency, otherwise the reason it looks
+-- wrong. These figures are shown on entity pages only and never summed.
+CREATE TABLE IF NOT EXISTS reported_spend (
+  entity_name         TEXT NOT NULL,            -- as published
+  entity_id           INTEGER REFERENCES entity(id),
+  reporting_year      TEXT NOT NULL,
+  kind                TEXT NOT NULL CHECK (kind IN ('consultancy', 'non_consultancy')),
+  new_contracts       INTEGER NOT NULL,
+  new_amount          INTEGER NOT NULL,
+  ongoing_contracts   INTEGER NOT NULL,
+  ongoing_amount      INTEGER NOT NULL,
+  contracts           INTEGER NOT NULL,
+  amount              INTEGER NOT NULL,
+  check_note          TEXT NOT NULL DEFAULT '',
+  source_document_id  INTEGER NOT NULL REFERENCES source_document(id),
+  PRIMARY KEY (entity_name, reporting_year, kind)
+);
+
+-- Organisations each entity reported as receiving the largest shares (usually
+-- five) of that spending. individual = 1 when the organisation is, or may be,
+-- a person; such rows are not listed.
+CREATE TABLE IF NOT EXISTS reported_org (
+  entity_name         TEXT NOT NULL,
+  entity_id           INTEGER REFERENCES entity(id),
+  reporting_year      TEXT NOT NULL,
+  kind                TEXT NOT NULL CHECK (kind IN ('consultancy', 'non_consultancy')),
+  org_name            TEXT NOT NULL,
+  org_abn             TEXT NOT NULL,
+  amount              INTEGER NOT NULL,
+  individual          INTEGER NOT NULL DEFAULT 0,
+  check_note          TEXT NOT NULL DEFAULT '',
+  source_document_id  INTEGER NOT NULL REFERENCES source_document(id)
+);
+CREATE INDEX IF NOT EXISTS reported_org_entity ON reported_org(entity_id, reporting_year);

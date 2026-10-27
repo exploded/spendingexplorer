@@ -11,6 +11,38 @@ import (
 	"time"
 )
 
+const aBREntityTypes = `-- name: ABREntityTypes :many
+SELECT abn, entity_type FROM abr_entity
+`
+
+type ABREntityTypesRow struct {
+	Abn        string
+	EntityType string
+}
+
+func (q *Queries) ABREntityTypes(ctx context.Context) ([]ABREntityTypesRow, error) {
+	rows, err := q.db.QueryContext(ctx, aBREntityTypes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ABREntityTypesRow
+	for rows.Next() {
+		var i ABREntityTypesRow
+		if err := rows.Scan(&i.Abn, &i.EntityType); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const ausTenderSourceSummary = `-- name: AusTenderSourceSummary :many
 SELECT doc_type, CAST(COUNT(*) AS INTEGER) AS documents,
   CAST(MIN(retrieved_at) AS TEXT) AS first_retrieved, CAST(MAX(retrieved_at) AS TEXT) AS last_retrieved
@@ -79,6 +111,26 @@ DELETE FROM given_name
 
 func (q *Queries) ClearGivenNames(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, clearGivenNames)
+	return err
+}
+
+const clearReportedOrgs = `-- name: ClearReportedOrgs :exec
+DELETE FROM reported_org
+`
+
+func (q *Queries) ClearReportedOrgs(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearReportedOrgs)
+	return err
+}
+
+const clearReportedSpend = `-- name: ClearReportedSpend :exec
+
+DELETE FROM reported_spend
+`
+
+// Transparency Portal -------------------------------------------------------------
+func (q *Queries) ClearReportedSpend(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearReportedSpend)
 	return err
 }
 
@@ -677,6 +729,44 @@ func (q *Queries) EntityContractTotals(ctx context.Context, fiscalYear string) (
 	return items, nil
 }
 
+const entityExpenseCeilings = `-- name: EntityExpenseCeilings :many
+SELECT y.entity_id, CAST(MAX(y.amount) AS INTEGER) AS expenses
+FROM (SELECT p.entity_id, pe.source_document_id, pe.fiscal_year, SUM(pe.amount) AS amount
+      FROM program_expense pe JOIN program p ON p.id = pe.program_id
+      WHERE pe.treatment = 'expense'
+      GROUP BY p.entity_id, pe.source_document_id, pe.fiscal_year) y
+GROUP BY y.entity_id
+`
+
+type EntityExpenseCeilingsRow struct {
+	EntityID int64
+	Expenses int64
+}
+
+// Each entity's largest yearly total expenses in any PBS publication held.
+func (q *Queries) EntityExpenseCeilings(ctx context.Context) ([]EntityExpenseCeilingsRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityExpenseCeilings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityExpenseCeilingsRow
+	for rows.Next() {
+		var i EntityExpenseCeilingsRow
+		if err := rows.Scan(&i.EntityID, &i.Expenses); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const entityIDByName = `-- name: EntityIDByName :one
 
 SELECT id FROM entity WHERE name = ?
@@ -749,6 +839,102 @@ func (q *Queries) EntityProgramDescriptions(ctx context.Context, arg EntityProgr
 	for rows.Next() {
 		var i EntityProgramDescriptionsRow
 		if err := rows.Scan(&i.ProgramID, &i.Text); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const entityReportedOrgs = `-- name: EntityReportedOrgs :many
+SELECT o.kind, o.org_name, o.org_abn, o.amount, o.check_note,
+  CAST(COALESCE((SELECT s.id FROM supplier s WHERE s.abn = o.org_abn AND o.org_abn <> '' LIMIT 1), 0) AS INTEGER) AS supplier_id
+FROM reported_org o
+WHERE o.entity_id = ? AND o.reporting_year = ? AND o.individual = 0
+ORDER BY o.kind, o.amount DESC
+`
+
+type EntityReportedOrgsParams struct {
+	EntityID      sql.NullInt64
+	ReportingYear string
+}
+
+type EntityReportedOrgsRow struct {
+	Kind       string
+	OrgName    string
+	OrgAbn     string
+	Amount     int64
+	CheckNote  string
+	SupplierID int64
+}
+
+// Organisations who are, or may be, individuals are left out of the list.
+func (q *Queries) EntityReportedOrgs(ctx context.Context, arg EntityReportedOrgsParams) ([]EntityReportedOrgsRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityReportedOrgs, arg.EntityID, arg.ReportingYear)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityReportedOrgsRow
+	for rows.Next() {
+		var i EntityReportedOrgsRow
+		if err := rows.Scan(
+			&i.Kind,
+			&i.OrgName,
+			&i.OrgAbn,
+			&i.Amount,
+			&i.CheckNote,
+			&i.SupplierID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const entityReportedSpend = `-- name: EntityReportedSpend :many
+SELECT reporting_year, kind, contracts, amount, check_note
+FROM reported_spend WHERE entity_id = ?
+ORDER BY reporting_year DESC, kind
+`
+
+type EntityReportedSpendRow struct {
+	ReportingYear string
+	Kind          string
+	Contracts     int64
+	Amount        int64
+	CheckNote     string
+}
+
+func (q *Queries) EntityReportedSpend(ctx context.Context, entityID sql.NullInt64) ([]EntityReportedSpendRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityReportedSpend, entityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityReportedSpendRow
+	for rows.Next() {
+		var i EntityReportedSpendRow
+		if err := rows.Scan(
+			&i.ReportingYear,
+			&i.Kind,
+			&i.Contracts,
+			&i.Amount,
+			&i.CheckNote,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1252,6 +1438,33 @@ func (q *Queries) GetSupplier(ctx context.Context, id int64) (Supplier, error) {
 	return i, err
 }
 
+const individualSupplierABNs = `-- name: IndividualSupplierABNs :many
+SELECT s.abn FROM supplier s JOIN supplier_individual i ON i.supplier_id = s.id WHERE s.abn <> ''
+`
+
+func (q *Queries) IndividualSupplierABNs(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, individualSupplierABNs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var abn string
+		if err := rows.Scan(&abn); err != nil {
+			return nil, err
+		}
+		items = append(items, abn)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertContractFY = `-- name: InsertContractFY :exec
 INSERT INTO contract_fy (cn_id, fiscal_year, amount) VALUES (?, ?, ?)
 `
@@ -1398,6 +1611,80 @@ func (q *Queries) InsertProgramExpense(ctx context.Context, arg InsertProgramExp
 		arg.NotPublished,
 		arg.Treatment,
 		arg.TreatmentRule,
+	)
+	return err
+}
+
+const insertReportedOrg = `-- name: InsertReportedOrg :exec
+INSERT INTO reported_org (entity_name, entity_id, reporting_year, kind, org_name, org_abn, amount,
+  individual, check_note, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type InsertReportedOrgParams struct {
+	EntityName       string
+	EntityID         sql.NullInt64
+	ReportingYear    string
+	Kind             string
+	OrgName          string
+	OrgAbn           string
+	Amount           int64
+	Individual       int64
+	CheckNote        string
+	SourceDocumentID int64
+}
+
+func (q *Queries) InsertReportedOrg(ctx context.Context, arg InsertReportedOrgParams) error {
+	_, err := q.db.ExecContext(ctx, insertReportedOrg,
+		arg.EntityName,
+		arg.EntityID,
+		arg.ReportingYear,
+		arg.Kind,
+		arg.OrgName,
+		arg.OrgAbn,
+		arg.Amount,
+		arg.Individual,
+		arg.CheckNote,
+		arg.SourceDocumentID,
+	)
+	return err
+}
+
+const insertReportedSpend = `-- name: InsertReportedSpend :exec
+INSERT INTO reported_spend (entity_name, entity_id, reporting_year, kind, new_contracts, new_amount,
+  ongoing_contracts, ongoing_amount, contracts, amount, check_note, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type InsertReportedSpendParams struct {
+	EntityName       string
+	EntityID         sql.NullInt64
+	ReportingYear    string
+	Kind             string
+	NewContracts     int64
+	NewAmount        int64
+	OngoingContracts int64
+	OngoingAmount    int64
+	Contracts        int64
+	Amount           int64
+	CheckNote        string
+	SourceDocumentID int64
+}
+
+func (q *Queries) InsertReportedSpend(ctx context.Context, arg InsertReportedSpendParams) error {
+	_, err := q.db.ExecContext(ctx, insertReportedSpend,
+		arg.EntityName,
+		arg.EntityID,
+		arg.ReportingYear,
+		arg.Kind,
+		arg.NewContracts,
+		arg.NewAmount,
+		arg.OngoingContracts,
+		arg.OngoingAmount,
+		arg.Contracts,
+		arg.Amount,
+		arg.CheckNote,
+		arg.SourceDocumentID,
 	)
 	return err
 }
@@ -1612,6 +1899,38 @@ func (q *Queries) LatestPBSDocument(ctx context.Context) (LatestPBSDocumentRow, 
 		&i.BudgetYear,
 	)
 	return i, err
+}
+
+const listAgencyEntities = `-- name: ListAgencyEntities :many
+SELECT name, entity_id FROM agency WHERE entity_id IS NOT NULL
+`
+
+type ListAgencyEntitiesRow struct {
+	Name     string
+	EntityID sql.NullInt64
+}
+
+func (q *Queries) ListAgencyEntities(ctx context.Context) ([]ListAgencyEntitiesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAgencyEntities)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAgencyEntitiesRow
+	for rows.Next() {
+		var i ListAgencyEntitiesRow
+		if err := rows.Scan(&i.Name, &i.EntityID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listEntities = `-- name: ListEntities :many
@@ -3033,6 +3352,44 @@ func (q *Queries) TreatmentTotals(ctx context.Context, arg TreatmentTotalsParams
 		return nil, err
 	}
 	return items, nil
+}
+
+const unlinkAbsorbedOrgs = `-- name: UnlinkAbsorbedOrgs :execrows
+UPDATE reported_org SET entity_id = NULL
+WHERE entity_id IS NOT NULL AND EXISTS (
+  SELECT 1 FROM reported_spend s
+  WHERE s.entity_name = reported_org.entity_name AND s.reporting_year = reported_org.reporting_year
+    AND s.kind = reported_org.kind AND s.entity_id IS NULL)
+`
+
+func (q *Queries) UnlinkAbsorbedOrgs(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, unlinkAbsorbedOrgs)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const unlinkAbsorbedSpend = `-- name: UnlinkAbsorbedSpend :execrows
+UPDATE reported_spend SET entity_id = NULL
+WHERE entity_id IS NOT NULL AND EXISTS (
+  SELECT 1 FROM reported_spend d
+  WHERE d.entity_id = reported_spend.entity_id AND d.reporting_year = reported_spend.reporting_year
+    AND d.kind = reported_spend.kind AND d.entity_name <> reported_spend.entity_name
+    AND (d.contracts > reported_spend.contracts
+         OR (d.contracts = reported_spend.contracts AND d.entity_name < reported_spend.entity_name)))
+`
+
+// A body reporting separately before it was absorbed maps to its successor
+// too. For each entity, year and kind, keep the published entity with the
+// most contracts (the continuing one; counts are not affected by unit
+// errors) and unlink the others.
+func (q *Queries) UnlinkAbsorbedSpend(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, unlinkAbsorbedSpend)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const unmatchedAgencies = `-- name: UnmatchedAgencies :many

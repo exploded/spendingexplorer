@@ -196,6 +196,34 @@ type ProgramLineage struct {
 	Confidence    sql.NullFloat64
 }
 
+type ReportedOrg struct {
+	EntityName       string
+	EntityID         sql.NullInt64
+	ReportingYear    string
+	Kind             string
+	OrgName          string
+	OrgAbn           string
+	Amount           int64
+	Individual       int64
+	CheckNote        string
+	SourceDocumentID int64
+}
+
+type ReportedSpend struct {
+	EntityName       string
+	EntityID         sql.NullInt64
+	ReportingYear    string
+	Kind             string
+	NewContracts     int64
+	NewAmount        int64
+	OngoingContracts int64
+	OngoingAmount    int64
+	Contracts        int64
+	Amount           int64
+	CheckNote        string
+	SourceDocumentID int64
+}
+
 type Signal struct {
 	RuleID     string
 	CnID       string

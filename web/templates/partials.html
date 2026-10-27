@@ -106,4 +106,6 @@
 </section>
 {{end}}
 
+{{define "reported-figure"}}{{if .}}<span{{if .Note}} class="suspect"{{end}}>{{money .Amount}}</span>{{if .Note}} <a class="badge badge-warn" href="#reported-note-{{.Note}}">looks wrong</a>{{end}}<br><span class="muted small">{{.Contracts}} contract{{if ne .Contracts 1}}s{{end}}</span>{{else}}<span class="muted">not reported</span>{{end}}{{end}}
+
 {{define "method"}}{{if eq . "limited"}}<a class="badge badge-limited" href="/methodology#limited">limited tender</a>{{else if eq . "open"}}<span class="badge">open tender</span>{{else}}<span class="badge">{{.}}</span>{{end}}{{end}}

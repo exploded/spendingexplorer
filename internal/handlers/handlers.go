@@ -67,6 +67,7 @@ func New(q *db.Queries, templates fs.FS) (*Handler, error) {
 			return m
 		},
 		"pathEscape": url.PathEscape,
+		"add":        func(a, b int) int { return a + b },
 		"cap100":     func(f float64) float64 { return min(max(f, 0), 100) },
 		"trunc": func(s string, n int) string {
 			r := []rune(s)
@@ -144,6 +145,7 @@ type nodePage struct {
 	Signals    []signalRow       // entity only
 	EntityID   int64             // entity only
 	OtherNames []string          // entity only: names in earlier PBS files and AusTender
+	Reported   *reportedSection  // entity only: Transparency Portal figures
 }
 
 // recon reconciles program line items to the Budget Paper 1 total.
@@ -388,6 +390,10 @@ func (h *Handler) entity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if page.Signals, err = h.entitySignals(r, id, p); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if page.Reported, err = h.entityReported(ctx, id); err != nil {
 		h.fail(w, err)
 		return
 	}

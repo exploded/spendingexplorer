@@ -184,7 +184,7 @@ func store(ctx context.Context, client anthropic.Client, conn *sql.DB, b db.Open
 	}
 	defer tx.Rollback()
 	tq := db.New(tx)
-	stored, failed := 0, 0
+	stored, failed, short := 0, 0, 0
 	stream := client.Messages.Batches.ResultsStreaming(ctx, b.BatchID, anthropic.MessageBatchResultsParams{})
 	for stream.Next() {
 		res := stream.Current()
@@ -211,6 +211,12 @@ func store(ctx context.Context, client anthropic.Client, conn *sql.DB, b db.Open
 			log.Printf("%s: %v", res.CustomID, err)
 			continue
 		}
+		// Contracts left out of a response stay unclassified; the next submit
+		// sends them again.
+		if missing := len(sent[res.CustomID]) - len(results); missing > 0 {
+			short += missing
+			log.Printf("%s: %d of %d contracts missing from the response", res.CustomID, missing, len(sent[res.CustomID]))
+		}
 		for _, r := range results {
 			if err := tq.UpsertLLMClassification(ctx, db.UpsertLLMClassificationParams{
 				CnID: r.CNID, Task: b.Task, PromptVersion: b.PromptVersion, Model: b.Model,
@@ -230,6 +236,6 @@ func store(ctx context.Context, client anthropic.Client, conn *sql.DB, b db.Open
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	log.Printf("batch %s: stored %d classifications, %d requests failed", b.BatchID, stored, failed)
+	log.Printf("batch %s: stored %d classifications, %d requests failed, %d contracts to resubmit", b.BatchID, stored, failed, short)
 	return nil
 }
