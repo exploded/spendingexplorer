@@ -16,6 +16,36 @@ INSERT INTO entity (name) VALUES (?)
 ON CONFLICT (name) DO UPDATE SET name = excluded.name
 RETURNING id;
 
+-- Entity names ------------------------------------------------------------------
+-- One entity keeps one row across budget years. data/entity_names.csv maps the
+-- names it is published under (renames, misspellings) to that row.
+
+-- name: EntityIDByName :one
+SELECT id FROM entity WHERE name = ?;
+
+-- name: MoveProgramsToEntity :exec
+UPDATE program SET entity_id = sqlc.arg(to_id) WHERE entity_id = sqlc.arg(from_id);
+
+-- name: MoveAgenciesToEntity :exec
+UPDATE agency SET entity_id = sqlc.arg(to_id) WHERE entity_id = sqlc.arg(from_id);
+
+-- name: DeleteEntity :exec
+DELETE FROM entity WHERE id = ?;
+
+-- name: UpsertEntityAlias :exec
+INSERT INTO entity_alias (alias, entity_id) VALUES (?, ?)
+ON CONFLICT (alias) DO UPDATE SET entity_id = excluded.entity_id;
+
+-- name: ListEntityAliases :many
+SELECT alias, entity_id FROM entity_alias ORDER BY alias;
+
+-- name: EntityOtherNames :many
+-- Names the entity is published under in the PBS or AusTender, including its own.
+SELECT ea.alias AS name FROM entity_alias ea WHERE ea.entity_id = sqlc.arg(entity_id)
+UNION
+SELECT a.name FROM agency a WHERE a.entity_id = sqlc.arg(entity_id)
+ORDER BY 1;
+
 -- name: UpsertProgram :one
 INSERT INTO program (entity_id, budget_year, portfolio, outcome, name) VALUES (?, ?, ?, ?, ?)
 ON CONFLICT (entity_id, budget_year, outcome, name) DO UPDATE SET portfolio = excluded.portfolio
@@ -391,8 +421,10 @@ FROM contract;
 -- Program descriptions ---------------------------------------------------------
 
 -- name: FindProgram :one
+-- The entity may be given by a name it was published under.
 SELECT p.id FROM program p JOIN entity e ON e.id = p.entity_id
-WHERE p.budget_year = ? AND e.name = ? AND p.name = ?;
+WHERE p.budget_year = sqlc.arg(budget_year) AND p.name = sqlc.arg(program)
+  AND (e.name = sqlc.arg(entity) OR e.id IN (SELECT entity_id FROM entity_alias WHERE alias = sqlc.arg(entity)));
 
 -- name: UpsertProgramDescription :exec
 INSERT INTO program_description (program_id, kind, text, source_url, page, source_document_id)
@@ -431,6 +463,22 @@ SELECT 'late-publication', cn_id, agency_id, supplier_id, published_fy,
 FROM contract_pub
 WHERE start_date <> '' AND published_date <> '' AND value >= 100000
   AND julianday(published_date) - julianday(start_date) > 180;
+
+-- name: DeriveNewABN :exec
+-- The ABN Bulk Extract gives only the date the current status took effect, so
+-- an ABN reactivated after cancellation looks new; status dates after award are
+-- left out for that reason. Award is the earlier of the start and publication
+-- dates. Government bodies (ABR types CG*, SG*, LG*, TG*) are not counted.
+-- Measure is the number of days the ABN had been active.
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'new-abn', c.cn_id, c.agency_id, c.supplier_id, c.published_fy, c.value,
+  julianday(c.award_date) - julianday(r.status_from)
+FROM (SELECT *, CASE WHEN start_date <> '' AND start_date < published_date THEN start_date ELSE published_date END AS award_date
+      FROM contract_pub) c
+JOIN supplier s ON s.id = c.supplier_id
+JOIN abr_entity r ON r.abn = s.abn
+WHERE r.status = 'ACT' AND r.entity_type NOT GLOB '[CSLT]G?' AND c.value >= 100000
+  AND julianday(c.award_date) - julianday(r.status_from) BETWEEN 0 AND 89;
 
 -- name: DeriveThresholdCluster :exec
 -- Measure is the number of near-threshold contracts in the agency-supplier-year group.

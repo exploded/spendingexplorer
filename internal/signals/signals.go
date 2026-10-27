@@ -105,6 +105,19 @@ var Rules = []Rule{
 		},
 		Reasons: true,
 	},
+	{
+		ID:        "new-abn",
+		Title:     "Supplier’s ABN was new",
+		Pattern:   "The supplier’s ABN had been active for less than three months when the contract started or was published.",
+		Threshold: "An ABN active for fewer than 90 days before the earlier of the contract’s start and publication dates, for contracts worth $100,000 or more. The Australian Business Register gives only the date an ABN’s current status began, so an ABN that became active after the contract started is not counted. Government bodies and suppliers who are individuals are not counted.",
+		Context:   "When assessing value for money, the Commonwealth Procurement Rules ask agencies to consider each supplier’s performance history and the relative risk of each proposal. A business with a short record has less history to assess.",
+		Innocent: []string{
+			"A joint venture, partnership or trust set up for one project or lease.",
+			"A new company formed when an established business restructured or was sold.",
+			"An Australian subsidiary set up by an established overseas supplier.",
+			"An ABN cancelled and later reactivated, which the register shows as a new start date.",
+		},
+	},
 }
 
 // ByID returns the rule with the given ID.

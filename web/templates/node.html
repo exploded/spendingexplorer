@@ -4,6 +4,7 @@
 {{template "crumbs" .Crumbs}}
 <p class="kicker">{{.Level}}</p>
 <h1>{{.Title}}</h1>
+{{with .OtherNames}}<p class="muted small">Also appears in the PBS or AusTender as {{range $i, $n := .}}{{if $i}}; {{end}}“{{$n}}”{{end}}. <a href="/methodology#names">How names are matched</a>.</p>{{end}}
 {{template "hero" .}}
 
 {{with .Recon}}

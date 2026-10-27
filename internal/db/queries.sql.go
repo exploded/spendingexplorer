@@ -421,6 +421,15 @@ func (q *Queries) ContractsToClassify(ctx context.Context, arg ContractsToClassi
 	return items, nil
 }
 
+const deleteEntity = `-- name: DeleteEntity :exec
+DELETE FROM entity WHERE id = ?
+`
+
+func (q *Queries) DeleteEntity(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteEntity, id)
+	return err
+}
+
 const deleteProgramExpensesForDoc = `-- name: DeleteProgramExpensesForDoc :exec
 DELETE FROM program_expense WHERE source_document_id = ?
 `
@@ -502,6 +511,28 @@ WHERE start_date <> '' AND published_date <> '' AND value >= 100000
 // only reference point; the 180-day margin allows for backdated start dates.
 func (q *Queries) DeriveLatePublication(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, deriveLatePublication)
+	return err
+}
+
+const deriveNewABN = `-- name: DeriveNewABN :exec
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'new-abn', c.cn_id, c.agency_id, c.supplier_id, c.published_fy, c.value,
+  julianday(c.award_date) - julianday(r.status_from)
+FROM (SELECT cn_id, ocid, agency_id, supplier_id, title, description, unspsc, method, method_detail, limited_reason, exemption, start_date, end_date, published_date, value, original_value, amendment_count, status, release_id, release_date, history_loaded, source_document_id, published_fy, tender_threshold, CASE WHEN start_date <> '' AND start_date < published_date THEN start_date ELSE published_date END AS award_date
+      FROM contract_pub) c
+JOIN supplier s ON s.id = c.supplier_id
+JOIN abr_entity r ON r.abn = s.abn
+WHERE r.status = 'ACT' AND r.entity_type NOT GLOB '[CSLT]G?' AND c.value >= 100000
+  AND julianday(c.award_date) - julianday(r.status_from) BETWEEN 0 AND 89
+`
+
+// The ABN Bulk Extract gives only the date the current status took effect, so
+// an ABN reactivated after cancellation looks new; status dates after award are
+// left out for that reason. Award is the earlier of the start and publication
+// dates. Government bodies (ABR types CG*, SG*, LG*, TG*) are not counted.
+// Measure is the number of days the ABN had been active.
+func (q *Queries) DeriveNewABN(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deriveNewABN)
 	return err
 }
 
@@ -636,6 +667,52 @@ func (q *Queries) EntityContractTotals(ctx context.Context, fiscalYear string) (
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const entityIDByName = `-- name: EntityIDByName :one
+
+SELECT id FROM entity WHERE name = ?
+`
+
+// Entity names ------------------------------------------------------------------
+// One entity keeps one row across budget years. data/entity_names.csv maps the
+// names it is published under (renames, misspellings) to that row.
+func (q *Queries) EntityIDByName(ctx context.Context, name string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, entityIDByName, name)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const entityOtherNames = `-- name: EntityOtherNames :many
+SELECT ea.alias AS name FROM entity_alias ea WHERE ea.entity_id = ?1
+UNION
+SELECT a.name FROM agency a WHERE a.entity_id = ?1
+ORDER BY 1
+`
+
+// Names the entity is published under in the PBS or AusTender, including its own.
+func (q *Queries) EntityOtherNames(ctx context.Context, entityID int64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, entityOtherNames, entityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -928,18 +1005,20 @@ func (q *Queries) EntityTotals(ctx context.Context, arg EntityTotalsParams) ([]E
 const findProgram = `-- name: FindProgram :one
 
 SELECT p.id FROM program p JOIN entity e ON e.id = p.entity_id
-WHERE p.budget_year = ? AND e.name = ? AND p.name = ?
+WHERE p.budget_year = ?1 AND p.name = ?2
+  AND (e.name = ?3 OR e.id IN (SELECT entity_id FROM entity_alias WHERE alias = ?3))
 `
 
 type FindProgramParams struct {
 	BudgetYear string
-	Name       string
-	Name_2     string
+	Program    string
+	Entity     string
 }
 
 // Program descriptions ---------------------------------------------------------
+// The entity may be given by a name it was published under.
 func (q *Queries) FindProgram(ctx context.Context, arg FindProgramParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, findProgram, arg.BudgetYear, arg.Name, arg.Name_2)
+	row := q.db.QueryRowContext(ctx, findProgram, arg.BudgetYear, arg.Program, arg.Entity)
 	var id int64
 	err := row.Scan(&id)
 	return id, err
@@ -1562,6 +1641,33 @@ func (q *Queries) ListEntities(ctx context.Context) ([]Entity, error) {
 	return items, nil
 }
 
+const listEntityAliases = `-- name: ListEntityAliases :many
+SELECT alias, entity_id FROM entity_alias ORDER BY alias
+`
+
+func (q *Queries) ListEntityAliases(ctx context.Context) ([]EntityAlias, error) {
+	rows, err := q.db.QueryContext(ctx, listEntityAliases)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityAlias
+	for rows.Next() {
+		var i EntityAlias
+		if err := rows.Scan(&i.Alias, &i.EntityID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGivenNames = `-- name: ListGivenNames :many
 SELECT name FROM given_name
 `
@@ -1718,6 +1824,34 @@ UPDATE llm_batch SET status = 'collected' WHERE batch_id = ?
 
 func (q *Queries) MarkLLMBatchCollected(ctx context.Context, batchID string) error {
 	_, err := q.db.ExecContext(ctx, markLLMBatchCollected, batchID)
+	return err
+}
+
+const moveAgenciesToEntity = `-- name: MoveAgenciesToEntity :exec
+UPDATE agency SET entity_id = ?1 WHERE entity_id = ?2
+`
+
+type MoveAgenciesToEntityParams struct {
+	ToID   sql.NullInt64
+	FromID sql.NullInt64
+}
+
+func (q *Queries) MoveAgenciesToEntity(ctx context.Context, arg MoveAgenciesToEntityParams) error {
+	_, err := q.db.ExecContext(ctx, moveAgenciesToEntity, arg.ToID, arg.FromID)
+	return err
+}
+
+const moveProgramsToEntity = `-- name: MoveProgramsToEntity :exec
+UPDATE program SET entity_id = ?1 WHERE entity_id = ?2
+`
+
+type MoveProgramsToEntityParams struct {
+	ToID   int64
+	FromID int64
+}
+
+func (q *Queries) MoveProgramsToEntity(ctx context.Context, arg MoveProgramsToEntityParams) error {
+	_, err := q.db.ExecContext(ctx, moveProgramsToEntity, arg.ToID, arg.FromID)
 	return err
 }
 
@@ -3095,6 +3229,21 @@ func (q *Queries) UpsertEntity(ctx context.Context, name string) (int64, error) 
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const upsertEntityAlias = `-- name: UpsertEntityAlias :exec
+INSERT INTO entity_alias (alias, entity_id) VALUES (?, ?)
+ON CONFLICT (alias) DO UPDATE SET entity_id = excluded.entity_id
+`
+
+type UpsertEntityAliasParams struct {
+	Alias    string
+	EntityID int64
+}
+
+func (q *Queries) UpsertEntityAlias(ctx context.Context, arg UpsertEntityAliasParams) error {
+	_, err := q.db.ExecContext(ctx, upsertEntityAlias, arg.Alias, arg.EntityID)
+	return err
 }
 
 const upsertLLMClassification = `-- name: UpsertLLMClassification :exec

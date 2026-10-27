@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/csv"
 	"flag"
 	"fmt"
 	"log"
@@ -35,6 +34,7 @@ func main() {
 	refresh := flag.Bool("refresh", false, "re-fetch windows that are already cached")
 	history := flag.Bool("history", true, "fetch full history for amended contracts")
 	aliases := flag.String("aliases", "data/agency_aliases.csv", "reviewed AusTender agency -> PBS entity names")
+	matchOnly := flag.Bool("match-only", false, "only match agency names to entities; fetch nothing")
 	flag.Parse()
 
 	start, err := time.Parse("2006-01-02", *from)
@@ -54,6 +54,12 @@ func main() {
 	defer conn.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	if *matchOnly {
+		if err := matchAgencies(ctx, db.New(conn), *aliases); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 
 	l := &loader{conn: conn, client: austender.NewClient(*cache)}
 	recent := time.Now().AddDate(0, 0, -2)
@@ -244,19 +250,30 @@ func (l *loader) history(ctx context.Context, id string) error {
 }
 
 // matchAgencies links AusTender agency names to PBS entities: first from the
-// reviewed alias file, then by exact or normalised name. It logs the names
-// left for manual or LLM matching.
+// reviewed alias file, then by exact or normalised name, including names the
+// entity was published under in an earlier PBS. An alias with no entity marks
+// an agency that is deliberately left unmatched. It logs the names left for
+// manual or LLM matching.
 func matchAgencies(ctx context.Context, q *db.Queries, aliasFile string) error {
 	ents, err := q.ListEntities(ctx)
 	if err != nil {
 		return err
 	}
-	manual, err := readAliases(aliasFile)
+	pbsNames, err := q.ListEntityAliases(ctx)
+	if err != nil {
+		return err
+	}
+	manual, err := source.ReadNames(aliasFile)
 	if err != nil {
 		return err
 	}
 	exact := map[string]int64{}
 	norm := map[string]int64{}
+	for _, a := range pbsNames {
+		exact[a.Alias] = a.EntityID
+		norm[austender.NameKey(a.Alias)] = a.EntityID
+	}
+	// Current names win over earlier ones that normalise the same way.
 	for _, e := range ents {
 		exact[e.Name] = e.ID
 		norm[austender.NameKey(e.Name)] = e.ID
@@ -266,7 +283,15 @@ func matchAgencies(ctx context.Context, q *db.Queries, aliasFile string) error {
 		return err
 	}
 	var left []string
+	excluded := 0
 	for _, a := range unmatched {
+		if entity, ok := manual[a.Name]; ok && entity == "" {
+			if err := q.SetAgencyEntity(ctx, db.SetAgencyEntityParams{MatchMethod: "excluded", ID: a.ID}); err != nil {
+				return err
+			}
+			excluded++
+			continue
+		}
 		id, method := exact[manual[a.Name]], "manual"
 		if id == 0 {
 			id, method = exact[a.Name], "exact"
@@ -282,35 +307,11 @@ func matchAgencies(ctx context.Context, q *db.Queries, aliasFile string) error {
 			return err
 		}
 	}
-	log.Printf("agencies: %d newly matched, %d unmatched", len(unmatched)-len(left), len(left))
+	log.Printf("agencies: %d newly matched, %d excluded by the alias file, %d unmatched", len(unmatched)-len(left)-excluded, excluded, len(left))
 	for _, n := range left {
 		log.Printf("  unmatched agency: %s", n)
 	}
 	return nil
-}
-
-// readAliases reads agency,entity[,note] rows; a missing file means no aliases.
-func readAliases(path string) (map[string]string, error) {
-	f, err := os.Open(path)
-	if os.IsNotExist(err) {
-		return nil, nil
-	} else if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	r := csv.NewReader(f)
-	r.FieldsPerRecord = -1
-	rows, err := r.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
-	}
-	m := map[string]string{}
-	for _, row := range rows[1:] {
-		if len(row) >= 2 {
-			m[row[0]] = row[1]
-		}
-	}
-	return m, nil
 }
 
 func boolInt(b bool) int64 {

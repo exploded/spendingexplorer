@@ -4,7 +4,9 @@ package source
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/csv"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -44,4 +46,30 @@ func RegisterHash(ctx context.Context, q *db.Queries, sha, name, title, publishe
 		DocType:    docType,
 		BudgetYear: budgetYear,
 	})
+}
+
+// ReadNames reads a reviewed name file of name,target[,note] rows after a
+// header. An empty target is kept, so callers can treat it as "no match". A
+// missing file means no names.
+func ReadNames(path string) (map[string]string, error) {
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	r := csv.NewReader(f)
+	r.FieldsPerRecord = -1
+	rows, err := r.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	m := map[string]string{}
+	for _, row := range rows[1:] {
+		if len(row) >= 2 {
+			m[row[0]] = row[1]
+		}
+	}
+	return m, nil
 }

@@ -54,7 +54,7 @@ func main() {
 	written, missing := 0, 0
 	for _, r := range rows[1:] {
 		// budget_year, entity, program, objective, source_url, page
-		id, err := q.FindProgram(ctx, db.FindProgramParams{BudgetYear: r[0], Name: r[1], Name_2: r[2]})
+		id, err := q.FindProgram(ctx, db.FindProgramParams{BudgetYear: r[0], Entity: r[1], Program: r[2]})
 		if errors.Is(err, sql.ErrNoRows) {
 			missing++
 			log.Printf("no program %q / %q", r[1], r[2])

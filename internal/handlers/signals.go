@@ -34,6 +34,8 @@ func measureLabel(ruleID string, m float64) string {
 		return fmt.Sprintf("one of %.0f limited tenders to this supplier", m)
 	case "crossed-threshold":
 		return "first published at " + explore.Money(int64(m))
+	case "new-abn":
+		return fmt.Sprintf("ABN active %.0f days before award", m)
 	}
 	return ""
 }

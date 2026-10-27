@@ -112,7 +112,7 @@ func main() {
 	}
 	for _, derive := range []func(context.Context) error{
 		q.DeriveValueIncrease, q.DeriveLatePublication, q.DeriveLateBatch, q.RemoveBatchedLate,
-		q.DeriveThresholdCluster, q.DeriveRepeatLimited, q.DeriveCrossedThreshold,
+		q.DeriveThresholdCluster, q.DeriveRepeatLimited, q.DeriveCrossedThreshold, q.DeriveNewABN,
 	} {
 		if err := derive(ctx); err != nil {
 			log.Fatal(err)

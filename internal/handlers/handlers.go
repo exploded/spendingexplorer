@@ -143,6 +143,7 @@ type nodePage struct {
 	Contracts  *contractsSection // entity only
 	Signals    []signalRow       // entity only
 	EntityID   int64             // entity only
+	OtherNames []string          // entity only: names in earlier PBS files and AusTender
 }
 
 // recon reconciles program line items to the Budget Paper 1 total.
@@ -367,6 +368,16 @@ func (h *Handler) entity(w http.ResponseWriter, r *http.Request) {
 	page.Title = ent.Name
 	page.EntityID = id
 	page.Level = "Entity"
+	names, err := h.q.EntityOtherNames(ctx, id)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	for _, n := range names {
+		if n != ent.Name {
+			page.OtherNames = append(page.OtherNames, n)
+		}
+	}
 	page.ChildLabel = "Program"
 	page.Crumbs = []crumb{{"Whole of government", "/"}, {ent.Portfolio, "/portfolio/" + url.PathEscape(ent.Portfolio)}}
 	for _, k := range kinds {

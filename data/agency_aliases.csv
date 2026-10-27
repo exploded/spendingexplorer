@@ -1,4 +1,22 @@
 agency,entity,note
 CSIRO,Commonwealth Scientific and Industrial Research Organisation,AusTender uses the abbreviation
-Organ and Tissue Authority,Australian Organ and Tissue Donation and Transplantation Authority,Name in the 2026-27 PBS
-Australian Naval Nuclear Power Safety Regulator,Australia Naval Nucelar Power Safety Regulator,Name is misspelt in the 2026-27 PBS file
+Organ and Tissue Authority,Australian Organ and Tissue Donation and Transplantation Authority,Short name
+Austrade,Australian Trade and Investment Commission,Short name
+Department of Foreign Affairs and Trade - Australian Aid Program,Department of Foreign Affairs and Trade,DFAT publishes aid contracts under a separate agency name
+Office of the eSafety Commissioner,Australian Communications and Media Authority,eSafety is funded through ACMA's PBS (Program 1.3)
+Seacare,Comcare,The Seacare Authority is supported by Comcare
+Defence and Veterans' Service Commission,Defence and Veterans' Services Commission,AusTender drops the s in Services
+National Commission for Aboriginal and Torres Stright Islander Children and Young People,National Commission for Aboriginal and Torres Strait Islander Children and Young People,Misspelt in AusTender
+Asbestos Safety and Eradication Agency,Asbestos and Silica Safety and Eradication Agency,Former name
+Administrative Appeals Tribunal,Administrative Review Tribunal,Replaced by the Administrative Review Tribunal in October 2024
+Australian Commission for Law Enforcement Integrity,National Anti-Corruption Commission,Absorbed into the National Anti-Corruption Commission on 1 July 2023
+National Recovery and Resilience Agency,National Emergency Management Agency,Merged into the National Emergency Management Agency in September 2022
+National Mental Health Commission,"Department of Health, Disability and Ageing",Moved into the Department of Health and Aged Care on 1 October 2024
+Australian Building and Construction Commission,Office of the Fair Work Ombudsman,Abolished in February 2023; functions moved to the Fair Work Ombudsman
+North Queensland Water Infrastructure Authority,"Department of Climate Change, Energy, the Environment and Water",Abolished in 2023; functions moved to the department
+National Faster Rail Agency,High Speed Rail Authority,Replaced by the High Speed Rail Authority in 2023
+Reserve Bank of Australia,,Excluded: public financial corporation outside the general government sector that the Budget total covers
+Export Finance Australia,,Excluded: public financial corporation outside the general government sector that the Budget total covers
+Commonwealth of Australia,,Excluded: whole-of-government electricity contracts reported for many participating agencies
+A Testing Agency,,Excluded: AusTender test record
+Level 3 Testing Agency,,Excluded: AusTender test record

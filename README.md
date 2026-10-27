@@ -32,7 +32,9 @@ go run ./cmd/load-bp1 -budget 2026-27 -file data/raw/bp1-2026-27-table-6.3.csv -
 go run ./cmd/reconcile
 ```
 
-`reload.sh` runs all four loaders against a fresh `spending.db`. `reconcile` prints, per publication and year: line items by treatment rule, the itemised
+`reload.sh` runs all four loaders against a fresh `spending.db`. An entity keeps one row across
+budget years: `data/entity_names.csv` maps renamed, misspelt or shortened PBS names to it, and
+`load-pbs` merges any entity row an earlier load created under such a name. `reconcile` prints, per publication and year: line items by treatment rule, the itemised
 total, the BP1 total expenses, and the difference ("whole-of-government adjustments").
 Treatment rules are in `internal/pbs/treatment.go`.
 
@@ -44,9 +46,15 @@ go run ./cmd/derive                            # rebuild annualised contract_fy
 ```
 
 The loader keeps the latest release of each contract, fetches the full history of amended
-contracts to record their original value, and matches agency names to PBS entities
-(reviewed aliases in `data/agency_aliases.csv`). Re-running only fetches what is not cached,
-plus the most recent week.
+contracts to record their original value, and matches agency names to PBS entities, including
+names from earlier PBS files. Reviewed aliases are in `data/agency_aliases.csv`; a row with no
+entity leaves that agency unmatched on purpose (for example the Reserve Bank, which is outside
+the general government sector). Re-running only fetches what is not cached, plus the most
+recent week. To re-match agency names after editing either name file, without fetching:
+
+```
+go run ./cmd/load-austender -match-only
+```
 
 ## Supplier entity types (ABR)
 
@@ -85,7 +93,8 @@ PM&C's site blocks automated requests, so its documents need adding by hand.
 `go run ./cmd/derive` rebuilds the `signal` table from the rules in `internal/signals`:
 value increased after award, published long after it started (singly, or in a batch of ten
 or more from one agency on one day), several contracts just under the open-tender threshold,
-repeated limited tenders to one supplier, and limited tenders that grew past the threshold.
+repeated limited tenders to one supplier, limited tenders that grew past the threshold, and
+suppliers whose ABN had been active for under 90 days at award (from the ABR status date).
 The threshold follows CPR paragraph 9.7 (the `tender_threshold` column of the `contract_pub`
 view): $80,000, or $125,000 for contracts published from 17 November 2025; $400,000 for
 corporate entities, listed in `data/corporate_agencies.csv` from Finance's List of
