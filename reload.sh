@@ -11,6 +11,7 @@ go run ./cmd/load-bp1 -budget 2025-26 -file data/raw/bp1-2025-26-table-5.3.csv -
 go run ./cmd/load-bp1 -budget 2026-27 -file data/raw/bp1-2026-27-table-6.3.csv -url "https://data.gov.au/data/dataset/5400a217-82f4-425c-b713-b7ba2ee78e5a/resource/e8615266-48a4-4258-9c3b-9283f4c593cd/download/budget-paper-no.1-tables.zip"
 go run ./cmd/load-descriptions -budget 2026-27
 go run ./cmd/load-investments
+go run ./cmd/load-projects
 if ls .local/abr/public_split_*.zip >/dev/null 2>&1; then
   go run ./cmd/load-abr
 fi

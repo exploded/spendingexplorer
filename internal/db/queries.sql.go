@@ -199,6 +199,24 @@ func (q *Queries) ClearGrantFY(ctx context.Context) error {
 	return err
 }
 
+const clearProjectEstimates = `-- name: ClearProjectEstimates :exec
+DELETE FROM project_estimate
+`
+
+func (q *Queries) ClearProjectEstimates(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearProjectEstimates)
+	return err
+}
+
+const clearProjects = `-- name: ClearProjects :exec
+DELETE FROM project
+`
+
+func (q *Queries) ClearProjects(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearProjects)
+	return err
+}
+
 const clearReportedOrgs = `-- name: ClearReportedOrgs :exec
 DELETE FROM reported_org
 `
@@ -2383,6 +2401,79 @@ func (q *Queries) InsertProgramExpense(ctx context.Context, arg InsertProgramExp
 	return err
 }
 
+const insertProject = `-- name: InsertProject :exec
+INSERT INTO project (key, name, owner, summary, item_keys, funding_note, sort)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type InsertProjectParams struct {
+	Key         string
+	Name        string
+	Owner       string
+	Summary     string
+	ItemKeys    string
+	FundingNote string
+	Sort        int64
+}
+
+func (q *Queries) InsertProject(ctx context.Context, arg InsertProjectParams) error {
+	_, err := q.db.ExecContext(ctx, insertProject,
+		arg.Key,
+		arg.Name,
+		arg.Owner,
+		arg.Summary,
+		arg.ItemKeys,
+		arg.FundingNote,
+		arg.Sort,
+	)
+	return err
+}
+
+const insertProjectEstimate = `-- name: InsertProjectEstimate :exec
+INSERT INTO project_estimate (project_key, published, amount, amount_high, scope, scope_changed, completion,
+  source_title, source_publisher, source_url, quote, secondary, video_url, video_title, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type InsertProjectEstimateParams struct {
+	ProjectKey       string
+	Published        string
+	Amount           int64
+	AmountHigh       sql.NullInt64
+	Scope            string
+	ScopeChanged     int64
+	Completion       string
+	SourceTitle      string
+	SourcePublisher  string
+	SourceUrl        string
+	Quote            string
+	Secondary        int64
+	VideoUrl         string
+	VideoTitle       string
+	SourceDocumentID int64
+}
+
+func (q *Queries) InsertProjectEstimate(ctx context.Context, arg InsertProjectEstimateParams) error {
+	_, err := q.db.ExecContext(ctx, insertProjectEstimate,
+		arg.ProjectKey,
+		arg.Published,
+		arg.Amount,
+		arg.AmountHigh,
+		arg.Scope,
+		arg.ScopeChanged,
+		arg.Completion,
+		arg.SourceTitle,
+		arg.SourcePublisher,
+		arg.SourceUrl,
+		arg.Quote,
+		arg.Secondary,
+		arg.VideoUrl,
+		arg.VideoTitle,
+		arg.SourceDocumentID,
+	)
+	return err
+}
+
 const insertReportedOrg = `-- name: InsertReportedOrg :exec
 INSERT INTO reported_org (entity_name, entity_id, reporting_year, kind, org_name, org_abn, amount,
   individual, check_note, source_document_id)
@@ -2957,6 +3048,110 @@ func (q *Queries) ListPBSDocuments(ctx context.Context) ([]ListPBSDocumentsRow, 
 	for rows.Next() {
 		var i ListPBSDocumentsRow
 		if err := rows.Scan(&i.ID, &i.Title, &i.BudgetYear); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectEstimates = `-- name: ListProjectEstimates :many
+SELECT project_key, published, amount, amount_high, scope, scope_changed, completion,
+  source_title, source_publisher, source_url, quote, secondary, video_url, video_title
+FROM project_estimate ORDER BY project_key, published, amount
+`
+
+type ListProjectEstimatesRow struct {
+	ProjectKey      string
+	Published       string
+	Amount          int64
+	AmountHigh      sql.NullInt64
+	Scope           string
+	ScopeChanged    int64
+	Completion      string
+	SourceTitle     string
+	SourcePublisher string
+	SourceUrl       string
+	Quote           string
+	Secondary       int64
+	VideoUrl        string
+	VideoTitle      string
+}
+
+func (q *Queries) ListProjectEstimates(ctx context.Context) ([]ListProjectEstimatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectEstimates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProjectEstimatesRow
+	for rows.Next() {
+		var i ListProjectEstimatesRow
+		if err := rows.Scan(
+			&i.ProjectKey,
+			&i.Published,
+			&i.Amount,
+			&i.AmountHigh,
+			&i.Scope,
+			&i.ScopeChanged,
+			&i.Completion,
+			&i.SourceTitle,
+			&i.SourcePublisher,
+			&i.SourceUrl,
+			&i.Quote,
+			&i.Secondary,
+			&i.VideoUrl,
+			&i.VideoTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjects = `-- name: ListProjects :many
+SELECT key, name, owner, summary, item_keys, funding_note FROM project ORDER BY sort
+`
+
+type ListProjectsRow struct {
+	Key         string
+	Name        string
+	Owner       string
+	Summary     string
+	ItemKeys    string
+	FundingNote string
+}
+
+func (q *Queries) ListProjects(ctx context.Context) ([]ListProjectsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProjects)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProjectsRow
+	for rows.Next() {
+		var i ListProjectsRow
+		if err := rows.Scan(
+			&i.Key,
+			&i.Name,
+			&i.Owner,
+			&i.Summary,
+			&i.ItemKeys,
+			&i.FundingNote,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

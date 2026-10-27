@@ -21,6 +21,8 @@ type investmentRow struct {
 	HasEarlier bool
 	Forward    int64 // current year to the last forward estimate
 	Other      bool  // Treasury's "Net other": not itemised
+	Key        string
+	Projects   []projectView // major projects this item funds
 }
 
 type investmentsPage struct {
@@ -33,6 +35,7 @@ type investmentsPage struct {
 	Budget   db.InvestmentDocumentRow
 	Earlier  *db.InvestmentDocumentRow // previous Budget, for revisions
 	Outcome  *db.InvestmentDocumentRow // previous year's Final Budget Outcome
+	Projects []projectView
 }
 
 func (h *Handler) investments(w http.ResponseWriter, r *http.Request) {
@@ -59,7 +62,7 @@ func (h *Handler) investments(w http.ResponseWriter, r *http.Request) {
 			return &page.Total
 		}
 		if rows[key] == nil {
-			rows[key] = &investmentRow{Name: name, Other: key == "net other"}
+			rows[key] = &investmentRow{Name: name, Key: key, Other: key == "net other"}
 		}
 		return rows[key]
 	}
@@ -126,7 +129,13 @@ func (h *Handler) investments(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if page.Projects, err = h.projects(ctx); err != nil {
+		h.fail(w, err)
+		return
+	}
+	links := projectLinks(page.Projects)
 	for _, ir := range rows {
+		ir.Projects = links[ir.Key]
 		page.Rows = append(page.Rows, *ir)
 		if !ir.Other {
 			page.Itemised += ir.Cur

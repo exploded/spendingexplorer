@@ -268,6 +268,34 @@ type ProgramLineage struct {
 	Confidence    sql.NullFloat64
 }
 
+type Project struct {
+	Key         string
+	Name        string
+	Owner       string
+	Summary     string
+	ItemKeys    string
+	FundingNote string
+	Sort        int64
+}
+
+type ProjectEstimate struct {
+	ProjectKey       string
+	Published        string
+	Amount           int64
+	AmountHigh       sql.NullInt64
+	Scope            string
+	ScopeChanged     int64
+	Completion       string
+	SourceTitle      string
+	SourcePublisher  string
+	SourceUrl        string
+	Quote            string
+	Secondary        int64
+	VideoUrl         string
+	VideoTitle       string
+	SourceDocumentID int64
+}
+
 type ReportedOrg struct {
 	EntityName       string
 	EntityID         sql.NullInt64

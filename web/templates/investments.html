@@ -38,7 +38,7 @@
     <tbody>
     {{range .Rows}}
       <tr>
-        <th scope="row">{{.Name}}{{if .Other}}<span class="row-note">Not itemised: commercial-in-confidence transactions and decisions not yet announced.</span>{{end}}</th>
+        <th scope="row">{{.Name}}{{if .Other}}<span class="row-note">Not itemised: commercial-in-confidence transactions and decisions not yet announced.</span>{{end}}{{if .Projects}}<span class="row-note">{{if .Other}}Includes{{else}}Funds{{end}} {{range $i, $p := .Projects}}{{if $i}}, {{end}}<a href="#project-{{$p.Key}}">{{$p.Name}}</a>{{end}}: <a href="#projects">cost estimates</a></span>{{end}}</th>
         <td class="num">{{money .PrevActual}}</td>
         <td class="num">{{money .Cur}}</td>
         {{if $.Earlier}}<td class="num">{{if .HasEarlier}}{{money .Earlier}}{{else}}<span class="muted" title="Not itemised in that Budget; it may have been in “Net other”">not itemised</span>{{end}}</td>{{end}}
@@ -58,6 +58,44 @@
   </table>
   </div>
 </section>
+
+{{with .Projects}}
+<section id="projects" aria-labelledby="projects-h">
+  <h2 id="projects-h">Project cost estimates</h2>
+  <p class="muted">Major projects funded through these loans and investments, with each cost estimate published for them. Amounts are as published, in dollars of the day, not adjusted for inflation. Where scope or price basis changed, estimates are marked “not like for like”. <a href="/methodology#projects">How these are compiled</a>.</p>
+  {{range .}}
+  <article class="project" id="project-{{.Key}}">
+    <h3>{{.Name}}</h3>
+    <p class="muted small">{{.Owner}}. {{.Summary}}{{with .FundingNote}} {{.}}{{end}}</p>
+    <dl class="stats">
+      <div><dt>First published estimate</dt><dd>{{.First.Amount}} <span class="muted small">{{.First.Date}}</span></dd></div>
+      <div><dt>Latest estimate</dt><dd>{{.Latest.Amount}} <span class="muted small">{{.Latest.Date}}</span></dd></div>
+      {{if .Multiple}}<div><dt>Latest as a multiple of first</dt><dd>{{.Multiple}}{{if .ScopeChanged}} <span class="badge" title="Scope or price basis differs between these estimates">not like for like</span>{{end}}</dd></div>{{end}}
+      {{if and .First.Completion .Latest.Completion}}<div><dt>Expected completion</dt><dd>{{.Latest.Completion}} <span class="muted small">first stated as {{.First.Completion}}</span></dd></div>{{end}}
+    </dl>
+    <details>
+      <summary>All {{len .Estimates}} estimates and sources</summary>
+      <div class="scroll">
+      <table class="data">
+        <thead><tr><th scope="col">Date</th><th scope="col" class="num">Estimate</th><th scope="col">Covers</th><th scope="col">Completion</th><th scope="col">Source</th></tr></thead>
+        <tbody>
+        {{range .Estimates}}
+          <tr>
+            <td class="small">{{.Date}}</td>
+            <td class="num">{{.Amount}}</td>
+            <td class="small">{{.Scope}}{{if .ScopeChanged}} <span class="badge" title="Scope or price basis differs from the previous estimate">not like for like</span>{{end}}</td>
+            <td class="small">{{.Completion}}</td>
+            <td class="small"><a href="{{.SourceUrl}}">{{.SourceTitle}}</a>, {{.SourcePublisher}}{{if .Secondary}} <span class="badge badge-reported" title="A news report; no primary source was found">news report</span>{{end}}{{if .VideoUrl}}<br><a href="{{.VideoUrl}}" title="{{.VideoTitle}}">Video</a>{{end}}<span class="row-note">“{{.Quote}}”</span></td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+      </div>
+    </details>
+  </article>
+  {{end}}
+</section>
+{{end}}
 
 <h2>Sources</h2>
 <ul class="small">

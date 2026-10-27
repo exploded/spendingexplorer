@@ -181,6 +181,9 @@ h3 { font: 600 17px/1.3 var(--sans); margin: 28px 0 4px; }
 .stats dt { font-size: 13px; color: var(--ink-3); }
 .stats dd { margin: 4px 0 0; font: 600 22px/1.2 var(--serif); font-variant-numeric: tabular-nums; }
 .stats dd .small { font-family: var(--sans); font-weight: 400; }
+.project { border-top: 1px solid var(--rule); padding-top: 8px; margin-top: 24px; }
+.project details { margin: 0 0 8px; }
+.project summary { cursor: pointer; color: var(--link); font-size: 14px; padding: 4px 0; }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 24px; margin: 0 0 8px; }
 .facts > div { padding: 10px 0; border-bottom: 1px solid var(--rule); }
 .facts dt { font-size: 13px; color: var(--ink-3); }

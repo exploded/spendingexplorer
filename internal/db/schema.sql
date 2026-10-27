@@ -452,3 +452,38 @@ CREATE TABLE IF NOT EXISTS grant_fy (
   PRIMARY KEY (ga_id, fiscal_year)
 );
 CREATE INDEX IF NOT EXISTS grant_fy_year ON grant_fy(fiscal_year);
+
+-- Project cost estimates ------------------------------------------------------
+
+-- Major projects the government funds through loans and equity, and every
+-- published estimate of their cost. Curated by hand in data/projects.csv and
+-- data/project_estimates.csv; each estimate cites its own source. Amounts are
+-- nominal dollars as published, not adjusted for inflation.
+CREATE TABLE IF NOT EXISTS project (
+  key          TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  owner        TEXT NOT NULL,           -- company or agency delivering it
+  summary      TEXT NOT NULL,
+  item_keys    TEXT NOT NULL DEFAULT '', -- policy_investment item keys that fund it, separated by |
+  funding_note TEXT NOT NULL DEFAULT '', -- where its funding sits when it is not itemised
+  sort         INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS project_estimate (
+  project_key         TEXT NOT NULL REFERENCES project(key),
+  published           TEXT NOT NULL,      -- YYYY-MM-DD or YYYY-MM: when the estimate was made if the source says, else when published
+  amount              INTEGER NOT NULL,   -- whole dollars; the low end of a range
+  amount_high         INTEGER,            -- high end of a range, else NULL
+  scope               TEXT NOT NULL,      -- what the figure covers
+  scope_changed       INTEGER NOT NULL DEFAULT 0, -- 1 when scope or price basis differs from the previous estimate
+  completion          TEXT NOT NULL DEFAULT '',   -- completion date stated at the time
+  source_title        TEXT NOT NULL,
+  source_publisher    TEXT NOT NULL,
+  source_url          TEXT NOT NULL,
+  quote               TEXT NOT NULL,      -- the source's words containing the figure
+  secondary           INTEGER NOT NULL DEFAULT 0, -- 1 when the source is a news report
+  video_url           TEXT NOT NULL DEFAULT '',
+  video_title         TEXT NOT NULL DEFAULT '',
+  source_document_id  INTEGER NOT NULL REFERENCES source_document(id),
+  PRIMARY KEY (project_key, published, scope)
+);

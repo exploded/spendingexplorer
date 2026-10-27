@@ -1114,3 +1114,26 @@ SELECT g.entity_id, CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount
 FROM grant_fy gf JOIN grant_award g ON g.ga_id = gf.ga_id
 WHERE gf.fiscal_year = ? AND g.entity_id IS NOT NULL
 GROUP BY g.entity_id;
+
+-- name: ClearProjects :exec
+DELETE FROM project;
+
+-- name: ClearProjectEstimates :exec
+DELETE FROM project_estimate;
+
+-- name: InsertProject :exec
+INSERT INTO project (key, name, owner, summary, item_keys, funding_note, sort)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- name: InsertProjectEstimate :exec
+INSERT INTO project_estimate (project_key, published, amount, amount_high, scope, scope_changed, completion,
+  source_title, source_publisher, source_url, quote, secondary, video_url, video_title, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: ListProjects :many
+SELECT key, name, owner, summary, item_keys, funding_note FROM project ORDER BY sort;
+
+-- name: ListProjectEstimates :many
+SELECT project_key, published, amount, amount_high, scope, scope_changed, completion,
+  source_title, source_publisher, source_url, quote, secondary, video_url, video_title
+FROM project_estimate ORDER BY project_key, published, amount;
