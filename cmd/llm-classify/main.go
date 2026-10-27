@@ -4,8 +4,11 @@
 //	llm-classify submit [-limit N]   # queue unclassified contracts
 //	llm-classify collect             # store results of finished batches
 //
-// Run it on the server, where ANTHROPIC_API_KEY is set in the service
-// environment. Never set that variable on a development PC.
+// On a development PC the API key is read from a file (-key-file, default
+// .local/anthropic.key) and passed to the client directly. Never set
+// ANTHROPIC_API_KEY there: Claude Code would use it in place of the
+// subscription login. On the server the key may come from the service
+// environment instead.
 package main
 
 import (
@@ -16,8 +19,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
 
 	"spendingexplorer/internal/classify"
 	"spendingexplorer/internal/db"
@@ -32,10 +37,16 @@ func main() {
 	dbPath := fs.String("db", "spending.db", "SQLite database path")
 	limit := fs.Int("limit", 5000, "submit: most contracts to queue")
 	segment := fs.String("unspsc", "80", "submit: UNSPSC prefix to classify (80 = management and business professionals)")
+	keyFile := fs.String("key-file", ".local/anthropic.key", "file holding the API key; used when ANTHROPIC_API_KEY is not set")
 	fs.Parse(os.Args[2:])
 
-	if os.Getenv("ANTHROPIC_API_KEY") == "" {
-		log.Fatal("ANTHROPIC_API_KEY is not set; run this on the server")
+	key := os.Getenv("ANTHROPIC_API_KEY")
+	if key == "" {
+		b, err := os.ReadFile(*keyFile)
+		if err != nil {
+			log.Fatalf("no API key: ANTHROPIC_API_KEY is not set and %s cannot be read", *keyFile)
+		}
+		key = strings.TrimSpace(string(b))
 	}
 	conn, err := db.Open(*dbPath)
 	if err != nil {
@@ -43,7 +54,7 @@ func main() {
 	}
 	defer conn.Close()
 	ctx := context.Background()
-	client := anthropic.NewClient()
+	client := anthropic.NewClient(option.WithAPIKey(key))
 
 	switch cmd {
 	case "submit":

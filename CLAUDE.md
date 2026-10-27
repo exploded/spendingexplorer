@@ -66,8 +66,10 @@ sits inside a known whole-of-government total, and every box shows how much of i
 - First LLM job: match programs across budget years (lineage). Second: reclassify AusTender
   contract descriptions (consultancy flag is unreliable); start with the "management and
   business professionals" category.
-- The API key lives only in the service environment on the Debian server. Never set
-  ANTHROPIC_API_KEY in the Windows environment (it would override the Claude Code subscription login).
+- On the PC the API key lives in `.local/anthropic.key` (gitignored, Default workspace,
+  30-day expiry); `llm-classify` reads it and passes it to the client directly. Never set
+  ANTHROPIC_API_KEY in the Windows environment (it would override the Claude Code subscription
+  login). On the server it may sit in the service `.env` instead.
 
 ## First step
 

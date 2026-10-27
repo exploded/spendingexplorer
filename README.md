@@ -103,18 +103,19 @@ Thresholds were calibrated on the full load from July 2022. Each rule states its
 the rule or practice it relates to, and common legitimate explanations. The site shows them
 at `/signals`, on entity pages and on contract pages.
 
-## AI classification (server only)
+## AI classification
 
 `cmd/llm-classify` sends contract descriptions to Claude (`claude-haiku-5-5`) through the
 Message Batches API, 100 contracts per request, with a fixed prompt and a structured-output
 schema. Results are stored per task and prompt version in `llm_classification`.
 
-On the Linode (`ssh -p 2222 deploy@194.195.254.92`), with `ANTHROPIC_API_KEY` in the
-service `.env`:
+It reads the API key from `.local/anthropic.key` (not committed), or from `ANTHROPIC_API_KEY`
+when that is set, as in a server's service `.env`. Never set `ANTHROPIC_API_KEY` on the
+Windows PC; it would override the Claude Code login.
+
+PowerShell on your PC, in `C:\Projects\go\spendingexplorer`:
 
 ```
-llm-classify submit -limit 5000   # queue unclassified UNSPSC 80 contracts
-llm-classify collect              # store results once batches have ended
+go run ./cmd/llm-classify submit -limit 5000   # queue unclassified UNSPSC 80 contracts
+go run ./cmd/llm-classify collect              # store results once batches have ended
 ```
-
-Never set `ANTHROPIC_API_KEY` on the Windows PC; it would override the Claude Code login.
