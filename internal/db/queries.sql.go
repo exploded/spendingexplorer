@@ -179,6 +179,26 @@ func (q *Queries) ClearGivenNames(ctx context.Context) error {
 	return err
 }
 
+const clearGrantAwards = `-- name: ClearGrantAwards :exec
+DELETE FROM grant_award
+`
+
+func (q *Queries) ClearGrantAwards(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearGrantAwards)
+	return err
+}
+
+const clearGrantFY = `-- name: ClearGrantFY :exec
+
+DELETE FROM grant_fy
+`
+
+// GrantConnect ----------------------------------------------------------------------
+func (q *Queries) ClearGrantFY(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearGrantFY)
+	return err
+}
+
 const clearReportedOrgs = `-- name: ClearReportedOrgs :exec
 DELETE FROM reported_org
 `
@@ -921,6 +941,169 @@ func (q *Queries) EntityExpenseCeilings(ctx context.Context) ([]EntityExpenseCei
 	for rows.Next() {
 		var i EntityExpenseCeilingsRow
 		if err := rows.Scan(&i.EntityID, &i.Expenses); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const entityGrantCategories = `-- name: EntityGrantCategories :many
+SELECT g.category, CAST(COUNT(*) AS INTEGER) AS grants, CAST(SUM(gf.amount) AS INTEGER) AS amount
+FROM grant_fy gf JOIN grant_award g ON g.ga_id = gf.ga_id
+WHERE gf.fiscal_year = ?1 AND g.entity_id = ?2
+GROUP BY g.category
+ORDER BY amount DESC
+LIMIT ?3
+`
+
+type EntityGrantCategoriesParams struct {
+	Fy       string
+	EntityID sql.NullInt64
+	Lim      int64
+}
+
+type EntityGrantCategoriesRow struct {
+	Category string
+	Grants   int64
+	Amount   int64
+}
+
+func (q *Queries) EntityGrantCategories(ctx context.Context, arg EntityGrantCategoriesParams) ([]EntityGrantCategoriesRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityGrantCategories, arg.Fy, arg.EntityID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityGrantCategoriesRow
+	for rows.Next() {
+		var i EntityGrantCategoriesRow
+		if err := rows.Scan(&i.Category, &i.Grants, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const entityGrantRecipients = `-- name: EntityGrantRecipients :many
+SELECT g.recipient, CAST(COUNT(*) AS INTEGER) AS grants, CAST(SUM(gf.amount) AS INTEGER) AS amount
+FROM grant_fy gf JOIN grant_award g ON g.ga_id = gf.ga_id
+WHERE gf.fiscal_year = ?1 AND g.entity_id = ?2 AND g.individual = 0 AND g.unnamed = 0
+GROUP BY g.recipient
+ORDER BY amount DESC
+LIMIT ?3
+`
+
+type EntityGrantRecipientsParams struct {
+	Fy       string
+	EntityID sql.NullInt64
+	Lim      int64
+}
+
+type EntityGrantRecipientsRow struct {
+	Recipient string
+	Grants    int64
+	Amount    int64
+}
+
+// Rankings leave out recipients whose names read as a person's, and awards
+// with no named recipient.
+func (q *Queries) EntityGrantRecipients(ctx context.Context, arg EntityGrantRecipientsParams) ([]EntityGrantRecipientsRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityGrantRecipients, arg.Fy, arg.EntityID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityGrantRecipientsRow
+	for rows.Next() {
+		var i EntityGrantRecipientsRow
+		if err := rows.Scan(&i.Recipient, &i.Grants, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const entityGrantStats = `-- name: EntityGrantStats :one
+SELECT CAST(COUNT(*) AS INTEGER) AS grants,
+  CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount,
+  CAST(COUNT(DISTINCT g.recipient) AS INTEGER) AS recipients,
+  CAST(COALESCE(SUM(CASE WHEN g.go_id = '' THEN gf.amount END), 0) AS INTEGER) AS adhoc_amount,
+  CAST(COALESCE(SUM(CASE WHEN g.aggregate = 1 THEN gf.amount END), 0) AS INTEGER) AS aggregate_amount
+FROM grant_fy gf JOIN grant_award g ON g.ga_id = gf.ga_id
+WHERE gf.fiscal_year = ?1 AND g.entity_id = ?2
+`
+
+type EntityGrantStatsParams struct {
+	Fy       string
+	EntityID sql.NullInt64
+}
+
+type EntityGrantStatsRow struct {
+	Grants          int64
+	Amount          int64
+	Recipients      int64
+	AdhocAmount     int64
+	AggregateAmount int64
+}
+
+// Grants active in a year for one entity, annualised.
+func (q *Queries) EntityGrantStats(ctx context.Context, arg EntityGrantStatsParams) (EntityGrantStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, entityGrantStats, arg.Fy, arg.EntityID)
+	var i EntityGrantStatsRow
+	err := row.Scan(
+		&i.Grants,
+		&i.Amount,
+		&i.Recipients,
+		&i.AdhocAmount,
+		&i.AggregateAmount,
+	)
+	return i, err
+}
+
+const entityGrantTotals = `-- name: EntityGrantTotals :many
+SELECT g.entity_id, CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount
+FROM grant_fy gf JOIN grant_award g ON g.ga_id = gf.ga_id
+WHERE gf.fiscal_year = ? AND g.entity_id IS NOT NULL
+GROUP BY g.entity_id
+`
+
+type EntityGrantTotalsRow struct {
+	EntityID sql.NullInt64
+	Amount   int64
+}
+
+// Annualised grant value in a year, by entity.
+func (q *Queries) EntityGrantTotals(ctx context.Context, fiscalYear string) ([]EntityGrantTotalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityGrantTotals, fiscalYear)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityGrantTotalsRow
+	for rows.Next() {
+		var i EntityGrantTotalsRow
+		if err := rows.Scan(&i.EntityID, &i.Amount); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1973,6 +2156,70 @@ type InsertGivenNameParams struct {
 
 func (q *Queries) InsertGivenName(ctx context.Context, arg InsertGivenNameParams) error {
 	_, err := q.db.ExecContext(ctx, insertGivenName, arg.Name, arg.Registrations)
+	return err
+}
+
+const insertGrantAward = `-- name: InsertGrantAward :exec
+INSERT INTO grant_award (ga_id, version_id, activity, agency_name, entity_id, publish_date, category,
+  start_date, end_date, value, go_id, recipient, individual, unnamed, one_off, aggregate, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type InsertGrantAwardParams struct {
+	GaID             string
+	VersionID        string
+	Activity         string
+	AgencyName       string
+	EntityID         sql.NullInt64
+	PublishDate      string
+	Category         string
+	StartDate        string
+	EndDate          string
+	Value            int64
+	GoID             string
+	Recipient        string
+	Individual       int64
+	Unnamed          int64
+	OneOff           int64
+	Aggregate        int64
+	SourceDocumentID int64
+}
+
+func (q *Queries) InsertGrantAward(ctx context.Context, arg InsertGrantAwardParams) error {
+	_, err := q.db.ExecContext(ctx, insertGrantAward,
+		arg.GaID,
+		arg.VersionID,
+		arg.Activity,
+		arg.AgencyName,
+		arg.EntityID,
+		arg.PublishDate,
+		arg.Category,
+		arg.StartDate,
+		arg.EndDate,
+		arg.Value,
+		arg.GoID,
+		arg.Recipient,
+		arg.Individual,
+		arg.Unnamed,
+		arg.OneOff,
+		arg.Aggregate,
+		arg.SourceDocumentID,
+	)
+	return err
+}
+
+const insertGrantFY = `-- name: InsertGrantFY :exec
+INSERT INTO grant_fy (ga_id, fiscal_year, amount) VALUES (?, ?, ?)
+`
+
+type InsertGrantFYParams struct {
+	GaID       string
+	FiscalYear string
+	Amount     int64
+}
+
+func (q *Queries) InsertGrantFY(ctx context.Context, arg InsertGrantFYParams) error {
+	_, err := q.db.ExecContext(ctx, insertGrantFY, arg.GaID, arg.FiscalYear, arg.Amount)
 	return err
 }
 

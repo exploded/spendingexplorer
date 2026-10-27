@@ -20,4 +20,7 @@ fi
 if ls data/raw/transparency/*.csv >/dev/null 2>&1; then
   go run ./cmd/load-transparency
 fi
+if ls data/raw/grantconnect/*.xlsx >/dev/null 2>&1; then
+  go run ./cmd/load-grants
+fi
 go run ./cmd/derive

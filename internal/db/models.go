@@ -128,6 +128,32 @@ type GleifParent struct {
 	SourceDocumentID int64
 }
 
+type GrantAward struct {
+	GaID             string
+	VersionID        string
+	Activity         string
+	AgencyName       string
+	EntityID         sql.NullInt64
+	PublishDate      string
+	Category         string
+	StartDate        string
+	EndDate          string
+	Value            int64
+	GoID             string
+	Recipient        string
+	Individual       int64
+	Unnamed          int64
+	OneOff           int64
+	Aggregate        int64
+	SourceDocumentID int64
+}
+
+type GrantFy struct {
+	GaID       string
+	FiscalYear string
+	Amount     int64
+}
+
 type LlmBatch struct {
 	BatchID       string
 	Task          string

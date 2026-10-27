@@ -416,3 +416,39 @@ CREATE TABLE IF NOT EXISTS policy_investment (
   is_total            INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (source_document_id, item_key, fiscal_year)
 );
+
+-- GrantConnect -----------------------------------------------------------------
+
+-- Grant awards from GrantConnect exports, one row per award (its latest
+-- version). value is the award's total over its whole term, in whole dollars,
+-- as published. Rebuilt in full by cmd/load-grants.
+CREATE TABLE IF NOT EXISTS grant_award (
+  ga_id               TEXT PRIMARY KEY,     -- without the version, e.g. GA270901
+  version_id          TEXT NOT NULL,        -- as published, e.g. GA270901-V1
+  activity            TEXT NOT NULL,
+  agency_name         TEXT NOT NULL,
+  entity_id           INTEGER REFERENCES entity(id),
+  publish_date        TEXT NOT NULL,
+  category            TEXT NOT NULL,
+  start_date          TEXT NOT NULL,
+  end_date            TEXT NOT NULL,
+  value               INTEGER NOT NULL,
+  go_id               TEXT NOT NULL,        -- grant opportunity; '' for ad hoc grants
+  recipient           TEXT NOT NULL,
+  individual          INTEGER NOT NULL DEFAULT 0,  -- recipient's name reads as a person's
+  unnamed             INTEGER NOT NULL DEFAULT 0,  -- aggregated ("Multiple") or withheld ("n/a") recipient
+  one_off             INTEGER NOT NULL,
+  aggregate           INTEGER NOT NULL,
+  source_document_id  INTEGER NOT NULL REFERENCES source_document(id)
+);
+CREATE INDEX IF NOT EXISTS grant_award_entity ON grant_award(entity_id);
+
+-- Each award's value spread evenly over its term by financial year (an
+-- estimate, like contract_fy). Rebuilt by cmd/load-grants, not by derive.
+CREATE TABLE IF NOT EXISTS grant_fy (
+  ga_id        TEXT NOT NULL REFERENCES grant_award(ga_id),
+  fiscal_year  TEXT NOT NULL,
+  amount       INTEGER NOT NULL,
+  PRIMARY KEY (ga_id, fiscal_year)
+);
+CREATE INDEX IF NOT EXISTS grant_fy_year ON grant_fy(fiscal_year);

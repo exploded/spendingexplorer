@@ -119,6 +119,42 @@
 </section>
 {{end}}
 
+{{with .Grants}}
+<section id="grants" aria-labelledby="grants-h">
+  <h2 id="grants-h">Grants awarded</h2>
+  <p class="muted">Grants active in {{$.Period.FY}}, from GrantConnect. Each grant’s total value is spread across its term. <a class="badge badge-estimate" href="/methodology#grants">estimate: annualised</a></p>
+  <dl class="stats">
+    <div><dt>Grants active</dt><dd>{{.Stats.Grants}}</dd></div>
+    <div><dt>{{$.Period.FY}} est.</dt><dd>{{money .Stats.Amount}}</dd></div>
+    <div><dt>Recipients</dt><dd>{{.Stats.Recipients}}</dd></div>
+    <div><dt><a href="/methodology#grants">Without an open round</a></dt><dd>{{f1 (share .Stats.AdhocAmount .Stats.Amount)}}% <span class="muted small">of value</span></dd></div>
+  </dl>
+  {{if .Stats.AggregateAmount}}<p class="muted small">Includes {{money .Stats.AggregateAmount}} in awards the agency reported in aggregate, for many recipients at once, such as disaster payments.</p>{{end}}
+
+  {{if .Categories}}
+  <h3>By category</h3>
+  {{range .Categories}}
+  <div class="kind"><span class="kind-name">{{.Category}} <span class="muted small">{{.Grants}}</span></span><span class="meter"><span style="width:{{pctCSS .Share}}"></span></span><span class="num">{{money .Amount}} <span class="muted">{{f1 .Share}}%</span></span></div>
+  {{end}}
+  {{end}}
+
+  {{if .Recipients}}
+  <h3>Largest recipients</h3>
+  <p class="muted small">Recipients who are individuals, and awards that name no single recipient, are counted above but not listed. <a href="/methodology#individuals">Why</a></p>
+  <div class="scroll">
+  <table class="data narrow">
+    <thead><tr><th scope="col">Recipient</th><th scope="col" class="num">Grants</th><th scope="col" class="num">{{$.Period.FY}} est.</th></tr></thead>
+    <tbody>
+    {{range .Recipients}}
+      <tr><th scope="row">{{.Recipient}}</th><td class="num">{{.Grants}}</td><td class="num">{{money .Amount}}</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+  {{end}}
+</section>
+{{end}}
+
 {{with .Reported}}
 <section id="reported" aria-labelledby="reported-h">
   <h2 id="reported-h">Contract spending reported by the entity</h2>

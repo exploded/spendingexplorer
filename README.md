@@ -159,6 +159,23 @@ Every figure is checked against the entity's Budget expenses, its contract count
 total (rules in `internal/transparency`). Figures that fail are kept as published and marked
 "looks wrong" on the site; none of these figures is used in any total.
 
+## Grants (GrantConnect)
+
+GrantConnect has no API, and its Grant Award List search exports at most 50,000 awards. Its
+export also repeats blocks of 10,000 rows in large searches, so search by Publish Date over
+ranges that return 10,000 awards or fewer ("Showing 1-15 of N records"), and use Download
+Results for each. Save the exports, with the names GrantConnect gives them, in
+`data/raw/grantconnect/`, then:
+
+```
+go run ./cmd/load-grants
+```
+
+The loader skips capped exports, counts each award once by its GA ID (latest version), matches
+agencies to entities, and spreads each award over its term in `grant_fy` (labelled estimate).
+It writes only its own tables. Check its log: the files' award counts should add up to the
+search's total for the whole period.
+
 ## AI classification
 
 `cmd/llm-classify` sends contract descriptions to Claude (`claude-haiku-5-5`) through the

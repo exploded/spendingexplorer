@@ -1055,3 +1055,54 @@ JOIN llm_classification l ON l.cn_id = c.cn_id AND l.task = sqlc.arg(task) AND l
 WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id = sqlc.arg(entity_id)
 GROUP BY l.category, low
 ORDER BY amount DESC;
+
+-- GrantConnect ----------------------------------------------------------------------
+
+-- name: ClearGrantFY :exec
+DELETE FROM grant_fy;
+
+-- name: ClearGrantAwards :exec
+DELETE FROM grant_award;
+
+-- name: InsertGrantAward :exec
+INSERT INTO grant_award (ga_id, version_id, activity, agency_name, entity_id, publish_date, category,
+  start_date, end_date, value, go_id, recipient, individual, unnamed, one_off, aggregate, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: InsertGrantFY :exec
+INSERT INTO grant_fy (ga_id, fiscal_year, amount) VALUES (?, ?, ?);
+
+-- name: EntityGrantStats :one
+-- Grants active in a year for one entity, annualised.
+SELECT CAST(COUNT(*) AS INTEGER) AS grants,
+  CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount,
+  CAST(COUNT(DISTINCT g.recipient) AS INTEGER) AS recipients,
+  CAST(COALESCE(SUM(CASE WHEN g.go_id = '' THEN gf.amount END), 0) AS INTEGER) AS adhoc_amount,
+  CAST(COALESCE(SUM(CASE WHEN g.aggregate = 1 THEN gf.amount END), 0) AS INTEGER) AS aggregate_amount
+FROM grant_fy gf JOIN grant_award g ON g.ga_id = gf.ga_id
+WHERE gf.fiscal_year = sqlc.arg(fy) AND g.entity_id = sqlc.arg(entity_id);
+
+-- name: EntityGrantCategories :many
+SELECT g.category, CAST(COUNT(*) AS INTEGER) AS grants, CAST(SUM(gf.amount) AS INTEGER) AS amount
+FROM grant_fy gf JOIN grant_award g ON g.ga_id = gf.ga_id
+WHERE gf.fiscal_year = sqlc.arg(fy) AND g.entity_id = sqlc.arg(entity_id)
+GROUP BY g.category
+ORDER BY amount DESC
+LIMIT sqlc.arg(lim);
+
+-- name: EntityGrantRecipients :many
+-- Rankings leave out recipients whose names read as a person's, and awards
+-- with no named recipient.
+SELECT g.recipient, CAST(COUNT(*) AS INTEGER) AS grants, CAST(SUM(gf.amount) AS INTEGER) AS amount
+FROM grant_fy gf JOIN grant_award g ON g.ga_id = gf.ga_id
+WHERE gf.fiscal_year = sqlc.arg(fy) AND g.entity_id = sqlc.arg(entity_id) AND g.individual = 0 AND g.unnamed = 0
+GROUP BY g.recipient
+ORDER BY amount DESC
+LIMIT sqlc.arg(lim);
+
+-- name: EntityGrantTotals :many
+-- Annualised grant value in a year, by entity.
+SELECT g.entity_id, CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount
+FROM grant_fy gf JOIN grant_award g ON g.ga_id = gf.ga_id
+WHERE gf.fiscal_year = ? AND g.entity_id IS NOT NULL
+GROUP BY g.entity_id;
