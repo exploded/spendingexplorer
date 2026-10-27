@@ -58,7 +58,7 @@
     {{range .Results}}
       <tr>
         <th scope="row"><a href="/supplier/{{.ID}}">{{.Name}}</a>{{template "fms-tag" .Name}}{{if .GroupID}}<br><span class="muted small">Part of <a href="/group/{{.GroupID}}">{{.GroupName}}</a></span>{{end}}</th>
-        <td class="small mono">{{.Abn}}</td>
+        <td class="small">{{template "abn" .Abn}}</td>
         <td class="num">{{.Contracts}}</td>
         <td class="num">{{money .Value}}</td>
       </tr>

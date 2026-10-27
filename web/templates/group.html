@@ -21,7 +21,7 @@
   {{range .Members}}
     <tr>
       <th scope="row"><a href="/supplier/{{.ID}}">{{.Name}}</a>{{template "fms-tag" .Name}}{{if and .Country (ne .Country "AUSTRALIA")}} <span class="muted small">{{.Country}}</span>{{end}}</th>
-      <td class="small mono">{{.Abn}}</td>
+      <td class="small">{{template "abn" .Abn}}</td>
       <td>{{if eq .Basis "gleif"}}<a class="badge badge-reported" href="https://search.gleif.org/#/record/{{.Lei}}">reported</a> <span class="small muted">parent in LEI register</span>{{else}}<a class="badge badge-ai" href="/methodology#groups">AI-grouped</a> <span class="small muted">by name</span>{{end}}</td>
       <td class="num">{{.Contracts}}</td>
       <td class="num">{{money .Value}}</td>

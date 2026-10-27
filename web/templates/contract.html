@@ -15,7 +15,7 @@
 </div>
 
 <dl class="facts">
-  <div><dt>Supplier</dt><dd>{{if .Contract.SupplierID.Valid}}<a href="/supplier/{{.Contract.SupplierID.Int64}}">{{.Contract.Supplier.String}}</a>{{if .Contract.SupplierAbn.String}} <span class="muted small mono">ABN {{.Contract.SupplierAbn.String}}</span>{{end}}{{if fms .Contract.Supplier.String}}<br><span class="small">A purchase from the US Government under Foreign Military Sales (FMS), paid through Defence’s account at the Reserve Bank. <a href="/methodology#fms">What this means</a></span>{{end}}{{else}}–{{end}}</dd></div>
+  <div><dt>Supplier</dt><dd>{{if .Contract.SupplierID.Valid}}<a href="/supplier/{{.Contract.SupplierID.Int64}}">{{.Contract.Supplier.String}}</a>{{if .Contract.SupplierAbn.String}} <span class="muted small">ABN {{template "abn" .Contract.SupplierAbn.String}}</span>{{end}}{{if fms .Contract.Supplier.String}}<br><span class="small">A purchase from the US Government under Foreign Military Sales (FMS), paid through Defence’s account at the Reserve Bank. <a href="/methodology#fms">What this means</a></span>{{end}}{{else}}–{{end}}</dd></div>
   <div><dt>Agency</dt><dd>{{if .Contract.EntityID.Valid}}<a href="/entity/{{.Contract.EntityID.Int64}}">{{.Contract.Agency}}</a>{{else}}{{.Contract.Agency}}{{end}}</dd></div>
   <div><dt>Procurement method</dt><dd>{{template "method" .Contract.Method}}</dd></div>
   {{if .Contract.LimitedReason}}<div><dt>Reason given</dt><dd>{{.Contract.LimitedReason}}</dd></div>{{end}}

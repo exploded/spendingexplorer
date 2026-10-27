@@ -110,4 +110,6 @@
 
 {{define "fms-tag"}}{{if fms .}} <a class="badge" href="/methodology#fms" title="FMS: Foreign Military Sales, bought from the US Government">US Foreign Military Sales</a>{{end}}{{end}}
 
+{{define "abn"}}{{if .}}<a class="mono" href="https://abr.business.gov.au/ABN/View/{{.}}" title="Look up this ABN in the Australian Business Register">{{.}}</a>{{end}}{{end}}
+
 {{define "method"}}{{if eq . "limited"}}<a class="badge badge-limited" href="/methodology#limited">limited tender</a>{{else if eq . "open"}}<span class="badge">open tender</span>{{else}}<span class="badge">{{.}}</span>{{end}}{{end}}
