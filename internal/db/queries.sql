@@ -723,7 +723,7 @@ VALUES (?, ?, ?, ?, ?, 'submitted');
 INSERT INTO llm_batch_item (batch_id, custom_id, cn_id, input_hash) VALUES (?, ?, ?, ?);
 
 -- name: OpenLLMBatches :many
-SELECT batch_id, task, prompt_version, model FROM llm_batch WHERE status = 'submitted' ORDER BY submitted_at;
+SELECT batch_id, task, prompt_version, model FROM llm_batch WHERE status = 'submitted' AND task = ? ORDER BY submitted_at;
 
 -- name: LLMBatchItems :many
 SELECT custom_id, i.cn_id, i.input_hash, c.description, a.name AS agency, COALESCE(s.name, '') AS supplier
@@ -746,6 +746,216 @@ UPDATE llm_batch SET status = 'collected' WHERE batch_id = ?;
 -- name: ContractClassification :one
 SELECT category, confidence, model, prompt_version, created_at FROM llm_classification
 WHERE cn_id = ? AND task = ? ORDER BY prompt_version DESC LIMIT 1;
+
+-- GLEIF and corporate groups ------------------------------------------------------
+
+-- name: ClearGLEIFEntities :exec
+DELETE FROM gleif_entity;
+
+-- name: ClearGLEIFParents :exec
+DELETE FROM gleif_parent;
+
+-- name: InsertGLEIFEntity :exec
+INSERT INTO gleif_entity (lei, legal_name, country, abn, status, source_document_id) VALUES (?, ?, ?, ?, ?, ?);
+
+-- name: InsertGLEIFParent :exec
+INSERT INTO gleif_parent (lei, parent_lei, source_document_id) VALUES (?, ?, ?);
+
+-- name: SuppliersForGrouping :many
+-- Suppliers with contracts who are not individuals, with what the model is
+-- told about each.
+SELECT s.id, s.name, s.country,
+  CAST(COALESCE(a.entity_type_text, '') AS TEXT) AS entity_type,
+  CAST(COALESCE(pe.legal_name, '') AS TEXT) AS gleif_parent
+FROM supplier s
+LEFT JOIN abr_entity a ON a.abn = s.abn
+LEFT JOIN gleif_entity ge ON ge.abn = s.abn AND s.abn <> ''
+LEFT JOIN gleif_parent gp ON gp.lei = ge.lei
+LEFT JOIN gleif_entity pe ON pe.lei = gp.parent_lei
+WHERE s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+  AND EXISTS (SELECT 1 FROM contract c WHERE c.supplier_id = s.id);
+
+-- name: GroupedClusterHashes :many
+-- Clusters already answered under a prompt version, with the input they had.
+SELECT DISTINCT cluster_key, input_hash FROM llm_supplier_group WHERE prompt_version = ?;
+
+-- name: PendingGroupClusters :many
+-- Clusters waiting in a batch under a prompt version that has not been collected.
+SELECT DISTINCT i.cluster_key FROM llm_group_batch_item i
+JOIN llm_batch b ON b.batch_id = i.batch_id
+WHERE b.status = 'submitted' AND b.prompt_version = ?;
+
+-- name: InsertLLMGroupBatchItem :exec
+INSERT INTO llm_group_batch_item (batch_id, custom_id, cluster_key, input_hash, supplier_id) VALUES (?, ?, ?, ?, ?);
+
+-- name: LLMGroupBatchItems :many
+SELECT i.custom_id, i.cluster_key, i.input_hash, i.supplier_id, s.name
+FROM llm_group_batch_item i JOIN supplier s ON s.id = i.supplier_id
+WHERE i.batch_id = ?
+ORDER BY i.custom_id, i.cluster_key, i.supplier_id;
+
+-- name: DeleteLLMSupplierGroupCluster :exec
+DELETE FROM llm_supplier_group WHERE cluster_key = ? AND prompt_version = ?;
+
+-- name: UpsertLLMSupplierGroup :exec
+INSERT INTO llm_supplier_group (supplier_id, prompt_version, cluster_key, input_hash, group_label, group_name, confidence, model, batch_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (supplier_id, prompt_version) DO UPDATE SET
+  cluster_key = excluded.cluster_key, input_hash = excluded.input_hash, group_label = excluded.group_label,
+  group_name = excluded.group_name, confidence = excluded.confidence, model = excluded.model,
+  batch_id = excluded.batch_id, created_at = CURRENT_TIMESTAMP;
+
+-- name: GLEIFSupplierLinks :many
+-- Suppliers with an LEI, and the parent it reports.
+SELECT s.id, s.name, ge.lei, ge.legal_name,
+  CAST(COALESCE(gp.parent_lei, '') AS TEXT) AS parent_lei,
+  CAST(COALESCE(pe.legal_name, '') AS TEXT) AS parent_name
+FROM supplier s
+JOIN gleif_entity ge ON ge.abn = s.abn AND s.abn <> ''
+LEFT JOIN gleif_parent gp ON gp.lei = ge.lei
+LEFT JOIN gleif_entity pe ON pe.lei = gp.parent_lei
+WHERE s.id NOT IN (SELECT supplier_id FROM supplier_individual);
+
+-- name: AISupplierGroups :many
+-- Suppliers the model placed in a group with high or medium confidence.
+SELECT l.supplier_id, s.name, l.cluster_key, l.group_label, l.group_name
+FROM llm_supplier_group l JOIN supplier s ON s.id = l.supplier_id
+WHERE l.prompt_version = ? AND l.group_label <> '' AND l.confidence IN ('high', 'medium')
+  AND l.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual);
+
+-- name: ClearSupplierGroups :exec
+DELETE FROM supplier_group;
+
+-- name: ClearSupplierGroupMembers :exec
+DELETE FROM supplier_group_member;
+
+-- name: InsertSupplierGroup :exec
+INSERT INTO supplier_group (id, name, name_basis, parent_lei) VALUES (?, ?, ?, ?);
+
+-- name: InsertSupplierGroupMember :exec
+INSERT INTO supplier_group_member (supplier_id, group_id, basis) VALUES (?, ?, ?);
+
+-- Suppliers in the web app --------------------------------------------------------
+
+-- name: TopSuppliers :many
+-- Suppliers ranked by contract value falling in a year (annualised estimate),
+-- for agencies matched to an entity. Rankings leave out suppliers who are, or
+-- may be, individuals.
+SELECT s.id, s.name,
+  CAST(COUNT(DISTINCT c.cn_id) AS INTEGER) AS contracts,
+  CAST(SUM(cf.amount) AS INTEGER) AS amount,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN cf.amount END), 0) AS INTEGER) AS limited_amount,
+  CAST(COUNT(DISTINCT a.entity_id) AS INTEGER) AS entities
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN supplier s ON s.id = c.supplier_id
+WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id IS NOT NULL
+  AND s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+GROUP BY s.id, s.name
+ORDER BY amount DESC
+LIMIT sqlc.arg(lim);
+
+-- name: TopSupplierGroups :many
+-- As TopSuppliers, with the members of each corporate group combined into
+-- one row. is_group says whether id is a group's or a supplier's.
+SELECT CAST(COALESCE(m.group_id, s.id) AS INTEGER) AS id,
+  CAST(m.group_id IS NOT NULL AS INTEGER) AS is_group,
+  CAST(COALESCE(g.name, s.name) AS TEXT) AS name,
+  CAST(COALESCE(g.name_basis, '') AS TEXT) AS name_basis,
+  CAST(COUNT(DISTINCT s.id) AS INTEGER) AS suppliers,
+  CAST(COUNT(DISTINCT c.cn_id) AS INTEGER) AS contracts,
+  CAST(SUM(cf.amount) AS INTEGER) AS amount,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN cf.amount END), 0) AS INTEGER) AS limited_amount,
+  CAST(COUNT(DISTINCT a.entity_id) AS INTEGER) AS entities
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN supplier s ON s.id = c.supplier_id
+LEFT JOIN supplier_group_member m ON m.supplier_id = s.id
+LEFT JOIN supplier_group g ON g.id = m.group_id
+WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id IS NOT NULL
+  AND s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+GROUP BY COALESCE(m.group_id, -s.id)
+ORDER BY amount DESC
+LIMIT sqlc.arg(lim);
+
+-- name: SupplierGroupStats :one
+SELECT CAST(COUNT(*) AS INTEGER) AS group_count,
+  CAST(COALESCE((SELECT COUNT(*) FROM supplier_group_member), 0) AS INTEGER) AS members
+FROM supplier_group;
+
+-- name: SearchSuppliers :many
+-- Suppliers whose name contains the pattern or whose ABN matches, largest
+-- first. Individuals are included: a search for a name is not a ranking.
+SELECT s.id, s.name, s.abn,
+  CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(SUM(c.value) AS INTEGER) AS value,
+  CAST(COALESCE(m.group_id, 0) AS INTEGER) AS group_id,
+  CAST(COALESCE(g.name, '') AS TEXT) AS group_name
+FROM supplier s
+JOIN contract c ON c.supplier_id = s.id
+LEFT JOIN supplier_group_member m ON m.supplier_id = s.id
+LEFT JOIN supplier_group g ON g.id = m.group_id
+WHERE instr(upper(s.name), upper(sqlc.arg(fragment))) > 0 OR (CAST(sqlc.arg(abn) AS TEXT) <> '' AND s.abn = sqlc.arg(abn))
+GROUP BY s.id, s.name, s.abn
+ORDER BY value DESC
+LIMIT sqlc.arg(lim);
+
+-- name: SupplierGroupOf :one
+SELECT g.id, g.name, g.name_basis, m.basis,
+  CAST((SELECT COUNT(*) FROM supplier_group_member x WHERE x.group_id = g.id) AS INTEGER) AS members
+FROM supplier_group_member m JOIN supplier_group g ON g.id = m.group_id
+WHERE m.supplier_id = ?;
+
+-- name: GetSupplierGroup :one
+SELECT g.id, g.name, g.name_basis, g.parent_lei,
+  CAST(COALESCE(pe.legal_name, '') AS TEXT) AS parent_name,
+  CAST(COALESCE(pe.country, '') AS TEXT) AS parent_country
+FROM supplier_group g LEFT JOIN gleif_entity pe ON pe.lei = g.parent_lei
+WHERE g.id = ?;
+
+-- name: SupplierGroupMembers :many
+SELECT s.id, s.name, s.abn, s.country, m.basis,
+  CAST(COALESCE(ge.lei, '') AS TEXT) AS lei,
+  CAST(COUNT(c.cn_id) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(c.value), 0) AS INTEGER) AS value
+FROM supplier_group_member m
+JOIN supplier s ON s.id = m.supplier_id
+LEFT JOIN gleif_entity ge ON ge.abn = s.abn AND s.abn <> ''
+LEFT JOIN contract c ON c.supplier_id = s.id
+WHERE m.group_id = ?
+GROUP BY s.id, s.name, s.abn, s.country, m.basis, ge.lei
+ORDER BY value DESC;
+
+-- name: GroupTotals :one
+SELECT CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(value), 0) AS INTEGER) AS value,
+  CAST(COALESCE(SUM(CASE WHEN method = 'limited' THEN value END), 0) AS INTEGER) AS limited_value,
+  CAST(COALESCE(SUM(CASE WHEN method = 'limited' THEN 1 END), 0) AS INTEGER) AS limited_contracts,
+  CAST(COALESCE(MIN(published_date), '') AS TEXT) AS first_published,
+  CAST(COALESCE(MAX(published_date), '') AS TEXT) AS last_published
+FROM contract WHERE supplier_id IN (SELECT supplier_id FROM supplier_group_member WHERE group_id = ?);
+
+-- name: GroupAgencies :many
+SELECT a.name AS agency, a.entity_id,
+  CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(SUM(c.value) AS INTEGER) AS value,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN c.value END), 0) AS INTEGER) AS limited_value
+FROM contract c JOIN agency a ON a.id = c.agency_id
+WHERE c.supplier_id IN (SELECT supplier_id FROM supplier_group_member WHERE group_id = ?)
+GROUP BY a.name, a.entity_id
+ORDER BY value DESC;
+
+-- name: GroupContracts :many
+SELECT c.cn_id, c.description, c.method, c.start_date, c.end_date, c.published_date, c.value,
+  c.original_value, c.amendment_count, a.name AS agency, s.id AS supplier_id, s.name AS supplier
+FROM contract c
+JOIN agency a ON a.id = c.agency_id
+JOIN supplier s ON s.id = c.supplier_id
+WHERE c.supplier_id IN (SELECT supplier_id FROM supplier_group_member WHERE group_id = sqlc.arg(group_id))
+ORDER BY c.value DESC
+LIMIT sqlc.arg(lim);
 
 -- Transparency Portal -------------------------------------------------------------
 

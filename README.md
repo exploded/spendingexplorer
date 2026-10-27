@@ -72,6 +72,29 @@ The loader scans about 20 million records in seconds and keeps only supplier ABN
 stores no individual's name, only counts of given names (kept at 200 registrations or
 more), which `derive` uses to spot people's names among suppliers with no ABN.
 
+## Corporate groups of suppliers
+
+`/suppliers` ranks suppliers with companies of one corporate group combined (for example
+Boeing's Australian and US companies, or KPMG's partnership and its service companies). A
+group is formed in two ways, and each member's page and the group's page say which:
+
+- **GLEIF parent (reported).** Download the LEI-CDF and relationship-record full files, CSV
+  format, from https://www.gleif.org/en/lei-data/gleif-golden-copy/download-the-golden-copy
+  (about 500 MB, CC0) into `.local/gleif`. `load-gleif` matches Australian LEI records to
+  supplier ABNs by ACN and keeps each one's current ultimate parent.
+- **AI-grouped.** `llm-group` clusters suppliers by the first word of their names and asks
+  Claude (`claude-haiku-5-5`, Batch API) which of them belong together. Only clusters that
+  are new or changed are sent; the first full run (about 3,900 clusters) costs well under $1.
+
+PowerShell on your PC, in `C:\Projects\go\spendingexplorer`:
+
+```
+go run ./cmd/load-gleif           # LEI records and parents for supplier companies
+go run ./cmd/llm-group submit     # -n shows what would be sent
+go run ./cmd/llm-group collect    # once the batch has ended
+go run ./cmd/derive               # rebuild supplier_group
+```
+
 ## Loans and investments
 
 Loans and equity the government provides are not expenses, so they sit outside the total. Treasury

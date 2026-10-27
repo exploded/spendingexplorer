@@ -61,6 +61,7 @@ type supplierPage struct {
 	Totals    db.SupplierTotalsRow
 	Agencies  []db.SupplierAgenciesRow
 	Contracts []db.SupplierContractsRow
+	Group     *db.SupplierGroupOfRow
 	Crumbs    []crumb
 }
 
@@ -84,7 +85,13 @@ func (h *Handler) supplier(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
-	page := supplierPage{Period: p, Supplier: s, Crumbs: []crumb{{"Whole of government", "/"}}}
+	page := supplierPage{Period: p, Supplier: s, Crumbs: []crumb{{"Whole of government", "/"}, {"Suppliers", "/suppliers"}}}
+	if g, err := h.q.SupplierGroupOf(ctx, id); err == nil {
+		page.Group = &g
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		h.fail(w, err)
+		return
+	}
 	if page.Totals, err = h.q.SupplierTotals(ctx, sql.NullInt64{Int64: id, Valid: true}); err != nil {
 		h.fail(w, err)
 		return

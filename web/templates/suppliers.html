@@ -1,0 +1,75 @@
+{{define "title"}}Suppliers{{end}}
+
+{{define "content"}}
+{{template "crumbs" .Crumbs}}
+<p class="kicker">Suppliers</p>
+<h1>Who the government contracts with</h1>
+
+<form class="search" action="/suppliers" method="get" role="search">
+  <label for="q">Find a supplier by name or ABN</label>
+  <div class="search-row">
+    <input id="q" name="q" type="search" value="{{.Query}}" autocomplete="off" spellcheck="false"
+           hx-get="/suppliers" hx-trigger="input changed delay:300ms, search" hx-target="#search-results" hx-swap="outerHTML">
+    {{if not .Grouped}}<input type="hidden" name="view" value="abn">{{end}}
+    <button type="submit">Search</button>
+  </div>
+</form>
+{{template "search-results" .}}
+
+<section aria-labelledby="ranking-h">
+  <h2 id="ranking-h">Largest suppliers in {{.Period.FY}}</h2>
+  <div class="sorts" role="group" aria-label="View">
+    <a href="/suppliers" class="{{if .Grouped}}active{{end}}">Corporate groups</a>
+    <a href="/suppliers?view=abn" class="{{if not .Grouped}}active{{end}}">Each ABN</a>
+  </div>
+  <p class="muted small">Contract value falling in {{.Period.FY}}, with each contract’s value spread evenly from its start to end date. <a class="badge badge-estimate" href="/methodology#annualised">estimate: annualised</a> The share is of {{money .Total.Amount}}, all contract value in {{.Period.FY}} at agencies in the Budget. Suppliers who are individuals are counted in that total but not listed. <a href="/methodology#individuals">Why</a></p>
+  {{if .Grouped}}
+  <p class="muted small">Companies that belong to one corporate group are combined: {{.Groups.Members}} suppliers in {{.Groups.GroupCount}} groups, joined by the parent company each reports to the global LEI register <a class="badge badge-reported" href="/methodology#groups">reported</a> or by an AI reading of their names <a class="badge badge-ai" href="/methodology#groups">AI-grouped</a>. Each group’s page lists its members and why each is included.</p>
+  {{end}}
+  <div class="scroll">
+  <table class="data">
+    <thead><tr><th scope="col">#</th><th scope="col">Supplier</th><th scope="col" class="num">{{.Period.FY}} est.</th><th scope="col" class="num">Share</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">Entities</th><th scope="col" class="num">Limited tender</th></tr></thead>
+    <tbody>
+    {{range $i, $r := .Rows}}
+      <tr>
+        <td class="muted small">{{add $i 1}}</td>
+        <th scope="row">{{if .IsGroup}}<a href="/group/{{.ID}}">{{.Name}}</a> <span class="muted small">{{.Suppliers}} compan{{if eq .Suppliers 1}}y{{else}}ies{{end}}</span>{{else}}<a href="/supplier/{{.ID}}">{{.Name}}</a>{{end}}</th>
+        <td class="num">{{money .Amount}}</td>
+        <td class="num">{{f1 .Share}}%</td>
+        <td class="num">{{.Contracts}}</td>
+        <td class="num">{{.Entities}}</td>
+        <td class="num">{{f1 (share .LimitedAmount .Amount)}}%</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+</section>
+{{end}}
+
+{{define "search-results"}}
+<div id="search-results" aria-live="polite">
+{{if .Searched}}
+  {{if .Results}}
+  <div class="scroll">
+  <table class="data">
+    <thead><tr><th scope="col">Supplier</th><th scope="col">ABN</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">Total value</th></tr></thead>
+    <tbody>
+    {{range .Results}}
+      <tr>
+        <th scope="row"><a href="/supplier/{{.ID}}">{{.Name}}</a>{{if .GroupID}}<br><span class="muted small">Part of <a href="/group/{{.GroupID}}">{{.GroupName}}</a></span>{{end}}</th>
+        <td class="small mono">{{.Abn}}</td>
+        <td class="num">{{.Contracts}}</td>
+        <td class="num">{{money .Value}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small">Whole-of-life value of every contract loaded, as published on AusTender, including suppliers who are individuals.{{if eq (len .Results) 50}} Showing the 50 largest matches.{{end}}</p>
+  {{else}}
+  <p class="muted">No supplier matches “{{.Query}}”.</p>
+  {{end}}
+{{end}}
+</div>
+{{end}}

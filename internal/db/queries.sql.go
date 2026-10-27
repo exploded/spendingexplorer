@@ -43,6 +43,51 @@ func (q *Queries) ABREntityTypes(ctx context.Context) ([]ABREntityTypesRow, erro
 	return items, nil
 }
 
+const aISupplierGroups = `-- name: AISupplierGroups :many
+SELECT l.supplier_id, s.name, l.cluster_key, l.group_label, l.group_name
+FROM llm_supplier_group l JOIN supplier s ON s.id = l.supplier_id
+WHERE l.prompt_version = ? AND l.group_label <> '' AND l.confidence IN ('high', 'medium')
+  AND l.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual)
+`
+
+type AISupplierGroupsRow struct {
+	SupplierID int64
+	Name       string
+	ClusterKey string
+	GroupLabel string
+	GroupName  string
+}
+
+// Suppliers the model placed in a group with high or medium confidence.
+func (q *Queries) AISupplierGroups(ctx context.Context, promptVersion string) ([]AISupplierGroupsRow, error) {
+	rows, err := q.db.QueryContext(ctx, aISupplierGroups, promptVersion)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AISupplierGroupsRow
+	for rows.Next() {
+		var i AISupplierGroupsRow
+		if err := rows.Scan(
+			&i.SupplierID,
+			&i.Name,
+			&i.ClusterKey,
+			&i.GroupLabel,
+			&i.GroupName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const ausTenderSourceSummary = `-- name: AusTenderSourceSummary :many
 SELECT doc_type, CAST(COUNT(*) AS INTEGER) AS documents,
   CAST(MIN(retrieved_at) AS TEXT) AS first_retrieved, CAST(MAX(retrieved_at) AS TEXT) AS last_retrieved
@@ -105,6 +150,26 @@ func (q *Queries) ClearCorporateAgencies(ctx context.Context) error {
 	return err
 }
 
+const clearGLEIFEntities = `-- name: ClearGLEIFEntities :exec
+
+DELETE FROM gleif_entity
+`
+
+// GLEIF and corporate groups ------------------------------------------------------
+func (q *Queries) ClearGLEIFEntities(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearGLEIFEntities)
+	return err
+}
+
+const clearGLEIFParents = `-- name: ClearGLEIFParents :exec
+DELETE FROM gleif_parent
+`
+
+func (q *Queries) ClearGLEIFParents(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearGLEIFParents)
+	return err
+}
+
 const clearGivenNames = `-- name: ClearGivenNames :exec
 DELETE FROM given_name
 `
@@ -142,6 +207,24 @@ DELETE FROM signal
 // Signals (derived) ----------------------------------------------------------------
 func (q *Queries) ClearSignals(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, clearSignals)
+	return err
+}
+
+const clearSupplierGroupMembers = `-- name: ClearSupplierGroupMembers :exec
+DELETE FROM supplier_group_member
+`
+
+func (q *Queries) ClearSupplierGroupMembers(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearSupplierGroupMembers)
+	return err
+}
+
+const clearSupplierGroups = `-- name: ClearSupplierGroups :exec
+DELETE FROM supplier_group
+`
+
+func (q *Queries) ClearSupplierGroups(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearSupplierGroups)
 	return err
 }
 
@@ -479,6 +562,20 @@ DELETE FROM entity WHERE id = ?
 
 func (q *Queries) DeleteEntity(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteEntity, id)
+	return err
+}
+
+const deleteLLMSupplierGroupCluster = `-- name: DeleteLLMSupplierGroupCluster :exec
+DELETE FROM llm_supplier_group WHERE cluster_key = ? AND prompt_version = ?
+`
+
+type DeleteLLMSupplierGroupClusterParams struct {
+	ClusterKey    string
+	PromptVersion string
+}
+
+func (q *Queries) DeleteLLMSupplierGroupCluster(ctx context.Context, arg DeleteLLMSupplierGroupClusterParams) error {
+	_, err := q.db.ExecContext(ctx, deleteLLMSupplierGroupCluster, arg.ClusterKey, arg.PromptVersion)
 	return err
 }
 
@@ -1326,6 +1423,57 @@ func (q *Queries) FunctionTotals(ctx context.Context, arg FunctionTotalsParams) 
 	return items, nil
 }
 
+const gLEIFSupplierLinks = `-- name: GLEIFSupplierLinks :many
+SELECT s.id, s.name, ge.lei, ge.legal_name,
+  CAST(COALESCE(gp.parent_lei, '') AS TEXT) AS parent_lei,
+  CAST(COALESCE(pe.legal_name, '') AS TEXT) AS parent_name
+FROM supplier s
+JOIN gleif_entity ge ON ge.abn = s.abn AND s.abn <> ''
+LEFT JOIN gleif_parent gp ON gp.lei = ge.lei
+LEFT JOIN gleif_entity pe ON pe.lei = gp.parent_lei
+WHERE s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+`
+
+type GLEIFSupplierLinksRow struct {
+	ID         int64
+	Name       string
+	Lei        string
+	LegalName  string
+	ParentLei  string
+	ParentName string
+}
+
+// Suppliers with an LEI, and the parent it reports.
+func (q *Queries) GLEIFSupplierLinks(ctx context.Context) ([]GLEIFSupplierLinksRow, error) {
+	rows, err := q.db.QueryContext(ctx, gLEIFSupplierLinks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GLEIFSupplierLinksRow
+	for rows.Next() {
+		var i GLEIFSupplierLinksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Lei,
+			&i.LegalName,
+			&i.ParentLei,
+			&i.ParentName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getContract = `-- name: GetContract :one
 SELECT c.cn_id, c.ocid, c.title, c.description, c.unspsc, c.method, c.method_detail,
   c.limited_reason, c.exemption, c.start_date, c.end_date, c.published_date, c.value,
@@ -1508,6 +1656,218 @@ func (q *Queries) GetSupplier(ctx context.Context, id int64) (Supplier, error) {
 	return i, err
 }
 
+const getSupplierGroup = `-- name: GetSupplierGroup :one
+SELECT g.id, g.name, g.name_basis, g.parent_lei,
+  CAST(COALESCE(pe.legal_name, '') AS TEXT) AS parent_name,
+  CAST(COALESCE(pe.country, '') AS TEXT) AS parent_country
+FROM supplier_group g LEFT JOIN gleif_entity pe ON pe.lei = g.parent_lei
+WHERE g.id = ?
+`
+
+type GetSupplierGroupRow struct {
+	ID            int64
+	Name          string
+	NameBasis     string
+	ParentLei     string
+	ParentName    string
+	ParentCountry string
+}
+
+func (q *Queries) GetSupplierGroup(ctx context.Context, id int64) (GetSupplierGroupRow, error) {
+	row := q.db.QueryRowContext(ctx, getSupplierGroup, id)
+	var i GetSupplierGroupRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.NameBasis,
+		&i.ParentLei,
+		&i.ParentName,
+		&i.ParentCountry,
+	)
+	return i, err
+}
+
+const groupAgencies = `-- name: GroupAgencies :many
+SELECT a.name AS agency, a.entity_id,
+  CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(SUM(c.value) AS INTEGER) AS value,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN c.value END), 0) AS INTEGER) AS limited_value
+FROM contract c JOIN agency a ON a.id = c.agency_id
+WHERE c.supplier_id IN (SELECT supplier_id FROM supplier_group_member WHERE group_id = ?)
+GROUP BY a.name, a.entity_id
+ORDER BY value DESC
+`
+
+type GroupAgenciesRow struct {
+	Agency       string
+	EntityID     sql.NullInt64
+	Contracts    int64
+	Value        int64
+	LimitedValue int64
+}
+
+func (q *Queries) GroupAgencies(ctx context.Context, groupID int64) ([]GroupAgenciesRow, error) {
+	rows, err := q.db.QueryContext(ctx, groupAgencies, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GroupAgenciesRow
+	for rows.Next() {
+		var i GroupAgenciesRow
+		if err := rows.Scan(
+			&i.Agency,
+			&i.EntityID,
+			&i.Contracts,
+			&i.Value,
+			&i.LimitedValue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const groupContracts = `-- name: GroupContracts :many
+SELECT c.cn_id, c.description, c.method, c.start_date, c.end_date, c.published_date, c.value,
+  c.original_value, c.amendment_count, a.name AS agency, s.id AS supplier_id, s.name AS supplier
+FROM contract c
+JOIN agency a ON a.id = c.agency_id
+JOIN supplier s ON s.id = c.supplier_id
+WHERE c.supplier_id IN (SELECT supplier_id FROM supplier_group_member WHERE group_id = ?1)
+ORDER BY c.value DESC
+LIMIT ?2
+`
+
+type GroupContractsParams struct {
+	GroupID int64
+	Lim     int64
+}
+
+type GroupContractsRow struct {
+	CnID           string
+	Description    string
+	Method         string
+	StartDate      string
+	EndDate        string
+	PublishedDate  string
+	Value          int64
+	OriginalValue  sql.NullInt64
+	AmendmentCount int64
+	Agency         string
+	SupplierID     int64
+	Supplier       string
+}
+
+func (q *Queries) GroupContracts(ctx context.Context, arg GroupContractsParams) ([]GroupContractsRow, error) {
+	rows, err := q.db.QueryContext(ctx, groupContracts, arg.GroupID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GroupContractsRow
+	for rows.Next() {
+		var i GroupContractsRow
+		if err := rows.Scan(
+			&i.CnID,
+			&i.Description,
+			&i.Method,
+			&i.StartDate,
+			&i.EndDate,
+			&i.PublishedDate,
+			&i.Value,
+			&i.OriginalValue,
+			&i.AmendmentCount,
+			&i.Agency,
+			&i.SupplierID,
+			&i.Supplier,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const groupTotals = `-- name: GroupTotals :one
+SELECT CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(value), 0) AS INTEGER) AS value,
+  CAST(COALESCE(SUM(CASE WHEN method = 'limited' THEN value END), 0) AS INTEGER) AS limited_value,
+  CAST(COALESCE(SUM(CASE WHEN method = 'limited' THEN 1 END), 0) AS INTEGER) AS limited_contracts,
+  CAST(COALESCE(MIN(published_date), '') AS TEXT) AS first_published,
+  CAST(COALESCE(MAX(published_date), '') AS TEXT) AS last_published
+FROM contract WHERE supplier_id IN (SELECT supplier_id FROM supplier_group_member WHERE group_id = ?)
+`
+
+type GroupTotalsRow struct {
+	Contracts        int64
+	Value            int64
+	LimitedValue     int64
+	LimitedContracts int64
+	FirstPublished   string
+	LastPublished    string
+}
+
+func (q *Queries) GroupTotals(ctx context.Context, groupID int64) (GroupTotalsRow, error) {
+	row := q.db.QueryRowContext(ctx, groupTotals, groupID)
+	var i GroupTotalsRow
+	err := row.Scan(
+		&i.Contracts,
+		&i.Value,
+		&i.LimitedValue,
+		&i.LimitedContracts,
+		&i.FirstPublished,
+		&i.LastPublished,
+	)
+	return i, err
+}
+
+const groupedClusterHashes = `-- name: GroupedClusterHashes :many
+SELECT DISTINCT cluster_key, input_hash FROM llm_supplier_group WHERE prompt_version = ?
+`
+
+type GroupedClusterHashesRow struct {
+	ClusterKey string
+	InputHash  string
+}
+
+// Clusters already answered under a prompt version, with the input they had.
+func (q *Queries) GroupedClusterHashes(ctx context.Context, promptVersion string) ([]GroupedClusterHashesRow, error) {
+	rows, err := q.db.QueryContext(ctx, groupedClusterHashes, promptVersion)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GroupedClusterHashesRow
+	for rows.Next() {
+		var i GroupedClusterHashesRow
+		if err := rows.Scan(&i.ClusterKey, &i.InputHash); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const individualSupplierABNs = `-- name: IndividualSupplierABNs :many
 SELECT s.abn FROM supplier s JOIN supplier_individual i ON i.supplier_id = s.id WHERE s.abn <> ''
 `
@@ -1560,6 +1920,46 @@ func (q *Queries) InsertCorporateAgency(ctx context.Context, name string) (int64
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const insertGLEIFEntity = `-- name: InsertGLEIFEntity :exec
+INSERT INTO gleif_entity (lei, legal_name, country, abn, status, source_document_id) VALUES (?, ?, ?, ?, ?, ?)
+`
+
+type InsertGLEIFEntityParams struct {
+	Lei              string
+	LegalName        string
+	Country          string
+	Abn              string
+	Status           string
+	SourceDocumentID int64
+}
+
+func (q *Queries) InsertGLEIFEntity(ctx context.Context, arg InsertGLEIFEntityParams) error {
+	_, err := q.db.ExecContext(ctx, insertGLEIFEntity,
+		arg.Lei,
+		arg.LegalName,
+		arg.Country,
+		arg.Abn,
+		arg.Status,
+		arg.SourceDocumentID,
+	)
+	return err
+}
+
+const insertGLEIFParent = `-- name: InsertGLEIFParent :exec
+INSERT INTO gleif_parent (lei, parent_lei, source_document_id) VALUES (?, ?, ?)
+`
+
+type InsertGLEIFParentParams struct {
+	Lei              string
+	ParentLei        string
+	SourceDocumentID int64
+}
+
+func (q *Queries) InsertGLEIFParent(ctx context.Context, arg InsertGLEIFParentParams) error {
+	_, err := q.db.ExecContext(ctx, insertGLEIFParent, arg.Lei, arg.ParentLei, arg.SourceDocumentID)
+	return err
 }
 
 const insertGivenName = `-- name: InsertGivenName :exec
@@ -1617,6 +2017,29 @@ func (q *Queries) InsertLLMBatchItem(ctx context.Context, arg InsertLLMBatchItem
 		arg.CustomID,
 		arg.CnID,
 		arg.InputHash,
+	)
+	return err
+}
+
+const insertLLMGroupBatchItem = `-- name: InsertLLMGroupBatchItem :exec
+INSERT INTO llm_group_batch_item (batch_id, custom_id, cluster_key, input_hash, supplier_id) VALUES (?, ?, ?, ?, ?)
+`
+
+type InsertLLMGroupBatchItemParams struct {
+	BatchID    string
+	CustomID   string
+	ClusterKey string
+	InputHash  string
+	SupplierID int64
+}
+
+func (q *Queries) InsertLLMGroupBatchItem(ctx context.Context, arg InsertLLMGroupBatchItemParams) error {
+	_, err := q.db.ExecContext(ctx, insertLLMGroupBatchItem,
+		arg.BatchID,
+		arg.CustomID,
+		arg.ClusterKey,
+		arg.InputHash,
+		arg.SupplierID,
 	)
 	return err
 }
@@ -1787,6 +2210,42 @@ func (q *Queries) InsertReportedSpend(ctx context.Context, arg InsertReportedSpe
 	return err
 }
 
+const insertSupplierGroup = `-- name: InsertSupplierGroup :exec
+INSERT INTO supplier_group (id, name, name_basis, parent_lei) VALUES (?, ?, ?, ?)
+`
+
+type InsertSupplierGroupParams struct {
+	ID        int64
+	Name      string
+	NameBasis string
+	ParentLei string
+}
+
+func (q *Queries) InsertSupplierGroup(ctx context.Context, arg InsertSupplierGroupParams) error {
+	_, err := q.db.ExecContext(ctx, insertSupplierGroup,
+		arg.ID,
+		arg.Name,
+		arg.NameBasis,
+		arg.ParentLei,
+	)
+	return err
+}
+
+const insertSupplierGroupMember = `-- name: InsertSupplierGroupMember :exec
+INSERT INTO supplier_group_member (supplier_id, group_id, basis) VALUES (?, ?, ?)
+`
+
+type InsertSupplierGroupMemberParams struct {
+	SupplierID int64
+	GroupID    int64
+	Basis      string
+}
+
+func (q *Queries) InsertSupplierGroupMember(ctx context.Context, arg InsertSupplierGroupMemberParams) error {
+	_, err := q.db.ExecContext(ctx, insertSupplierGroupMember, arg.SupplierID, arg.GroupID, arg.Basis)
+	return err
+}
+
 const insertSupplierIndividual = `-- name: InsertSupplierIndividual :exec
 INSERT OR IGNORE INTO supplier_individual (supplier_id, basis) VALUES (?, ?)
 `
@@ -1931,6 +2390,50 @@ func (q *Queries) LLMBatchItems(ctx context.Context, batchID string) ([]LLMBatch
 			&i.Description,
 			&i.Agency,
 			&i.Supplier,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lLMGroupBatchItems = `-- name: LLMGroupBatchItems :many
+SELECT i.custom_id, i.cluster_key, i.input_hash, i.supplier_id, s.name
+FROM llm_group_batch_item i JOIN supplier s ON s.id = i.supplier_id
+WHERE i.batch_id = ?
+ORDER BY i.custom_id, i.cluster_key, i.supplier_id
+`
+
+type LLMGroupBatchItemsRow struct {
+	CustomID   string
+	ClusterKey string
+	InputHash  string
+	SupplierID int64
+	Name       string
+}
+
+func (q *Queries) LLMGroupBatchItems(ctx context.Context, batchID string) ([]LLMGroupBatchItemsRow, error) {
+	rows, err := q.db.QueryContext(ctx, lLMGroupBatchItems, batchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LLMGroupBatchItemsRow
+	for rows.Next() {
+		var i LLMGroupBatchItemsRow
+		if err := rows.Scan(
+			&i.CustomID,
+			&i.ClusterKey,
+			&i.InputHash,
+			&i.SupplierID,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -2298,7 +2801,7 @@ func (q *Queries) MoveProgramsToEntity(ctx context.Context, arg MoveProgramsToEn
 }
 
 const openLLMBatches = `-- name: OpenLLMBatches :many
-SELECT batch_id, task, prompt_version, model FROM llm_batch WHERE status = 'submitted' ORDER BY submitted_at
+SELECT batch_id, task, prompt_version, model FROM llm_batch WHERE status = 'submitted' AND task = ? ORDER BY submitted_at
 `
 
 type OpenLLMBatchesRow struct {
@@ -2308,8 +2811,8 @@ type OpenLLMBatchesRow struct {
 	Model         string
 }
 
-func (q *Queries) OpenLLMBatches(ctx context.Context) ([]OpenLLMBatchesRow, error) {
-	rows, err := q.db.QueryContext(ctx, openLLMBatches)
+func (q *Queries) OpenLLMBatches(ctx context.Context, task string) ([]OpenLLMBatchesRow, error) {
+	rows, err := q.db.QueryContext(ctx, openLLMBatches, task)
 	if err != nil {
 		return nil, err
 	}
@@ -2326,6 +2829,36 @@ func (q *Queries) OpenLLMBatches(ctx context.Context) ([]OpenLLMBatchesRow, erro
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const pendingGroupClusters = `-- name: PendingGroupClusters :many
+SELECT DISTINCT i.cluster_key FROM llm_group_batch_item i
+JOIN llm_batch b ON b.batch_id = i.batch_id
+WHERE b.status = 'submitted' AND b.prompt_version = ?
+`
+
+// Clusters waiting in a batch under a prompt version that has not been collected.
+func (q *Queries) PendingGroupClusters(ctx context.Context, promptVersion string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, pendingGroupClusters, promptVersion)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var cluster_key string
+		if err := rows.Scan(&cluster_key); err != nil {
+			return nil, err
+		}
+		items = append(items, cluster_key)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -3035,6 +3568,71 @@ func (q *Queries) RuleTotals(ctx context.Context, arg RuleTotalsParams) ([]RuleT
 	return items, nil
 }
 
+const searchSuppliers = `-- name: SearchSuppliers :many
+SELECT s.id, s.name, s.abn,
+  CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(SUM(c.value) AS INTEGER) AS value,
+  CAST(COALESCE(m.group_id, 0) AS INTEGER) AS group_id,
+  CAST(COALESCE(g.name, '') AS TEXT) AS group_name
+FROM supplier s
+JOIN contract c ON c.supplier_id = s.id
+LEFT JOIN supplier_group_member m ON m.supplier_id = s.id
+LEFT JOIN supplier_group g ON g.id = m.group_id
+WHERE instr(upper(s.name), upper(?1)) > 0 OR (CAST(?2 AS TEXT) <> '' AND s.abn = ?2)
+GROUP BY s.id, s.name, s.abn
+ORDER BY value DESC
+LIMIT ?3
+`
+
+type SearchSuppliersParams struct {
+	Fragment string
+	Abn      string
+	Lim      int64
+}
+
+type SearchSuppliersRow struct {
+	ID        int64
+	Name      string
+	Abn       string
+	Contracts int64
+	Value     int64
+	GroupID   int64
+	GroupName string
+}
+
+// Suppliers whose name contains the pattern or whose ABN matches, largest
+// first. Individuals are included: a search for a name is not a ranking.
+func (q *Queries) SearchSuppliers(ctx context.Context, arg SearchSuppliersParams) ([]SearchSuppliersRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchSuppliers, arg.Fragment, arg.Abn, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchSuppliersRow
+	for rows.Next() {
+		var i SearchSuppliersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Abn,
+			&i.Contracts,
+			&i.Value,
+			&i.GroupID,
+			&i.GroupName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setAgencyEntity = `-- name: SetAgencyEntity :exec
 UPDATE agency SET entity_id = ?, match_method = ? WHERE id = ?
 `
@@ -3331,6 +3929,109 @@ func (q *Queries) SupplierContracts(ctx context.Context, arg SupplierContractsPa
 	return items, nil
 }
 
+const supplierGroupMembers = `-- name: SupplierGroupMembers :many
+SELECT s.id, s.name, s.abn, s.country, m.basis,
+  CAST(COALESCE(ge.lei, '') AS TEXT) AS lei,
+  CAST(COUNT(c.cn_id) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(c.value), 0) AS INTEGER) AS value
+FROM supplier_group_member m
+JOIN supplier s ON s.id = m.supplier_id
+LEFT JOIN gleif_entity ge ON ge.abn = s.abn AND s.abn <> ''
+LEFT JOIN contract c ON c.supplier_id = s.id
+WHERE m.group_id = ?
+GROUP BY s.id, s.name, s.abn, s.country, m.basis, ge.lei
+ORDER BY value DESC
+`
+
+type SupplierGroupMembersRow struct {
+	ID        int64
+	Name      string
+	Abn       string
+	Country   string
+	Basis     string
+	Lei       string
+	Contracts int64
+	Value     int64
+}
+
+func (q *Queries) SupplierGroupMembers(ctx context.Context, groupID int64) ([]SupplierGroupMembersRow, error) {
+	rows, err := q.db.QueryContext(ctx, supplierGroupMembers, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SupplierGroupMembersRow
+	for rows.Next() {
+		var i SupplierGroupMembersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Abn,
+			&i.Country,
+			&i.Basis,
+			&i.Lei,
+			&i.Contracts,
+			&i.Value,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const supplierGroupOf = `-- name: SupplierGroupOf :one
+SELECT g.id, g.name, g.name_basis, m.basis,
+  CAST((SELECT COUNT(*) FROM supplier_group_member x WHERE x.group_id = g.id) AS INTEGER) AS members
+FROM supplier_group_member m JOIN supplier_group g ON g.id = m.group_id
+WHERE m.supplier_id = ?
+`
+
+type SupplierGroupOfRow struct {
+	ID        int64
+	Name      string
+	NameBasis string
+	Basis     string
+	Members   int64
+}
+
+func (q *Queries) SupplierGroupOf(ctx context.Context, supplierID int64) (SupplierGroupOfRow, error) {
+	row := q.db.QueryRowContext(ctx, supplierGroupOf, supplierID)
+	var i SupplierGroupOfRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.NameBasis,
+		&i.Basis,
+		&i.Members,
+	)
+	return i, err
+}
+
+const supplierGroupStats = `-- name: SupplierGroupStats :one
+SELECT CAST(COUNT(*) AS INTEGER) AS group_count,
+  CAST(COALESCE((SELECT COUNT(*) FROM supplier_group_member), 0) AS INTEGER) AS members
+FROM supplier_group
+`
+
+type SupplierGroupStatsRow struct {
+	GroupCount int64
+	Members    int64
+}
+
+func (q *Queries) SupplierGroupStats(ctx context.Context) (SupplierGroupStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, supplierGroupStats)
+	var i SupplierGroupStatsRow
+	err := row.Scan(&i.GroupCount, &i.Members)
+	return i, err
+}
+
 const supplierIndividualCounts = `-- name: SupplierIndividualCounts :many
 SELECT basis, CAST(COUNT(*) AS INTEGER) AS suppliers FROM supplier_individual GROUP BY basis
 `
@@ -3430,6 +4131,58 @@ func (q *Queries) SupplierTotals(ctx context.Context, supplierID sql.NullInt64) 
 	return i, err
 }
 
+const suppliersForGrouping = `-- name: SuppliersForGrouping :many
+SELECT s.id, s.name, s.country,
+  CAST(COALESCE(a.entity_type_text, '') AS TEXT) AS entity_type,
+  CAST(COALESCE(pe.legal_name, '') AS TEXT) AS gleif_parent
+FROM supplier s
+LEFT JOIN abr_entity a ON a.abn = s.abn
+LEFT JOIN gleif_entity ge ON ge.abn = s.abn AND s.abn <> ''
+LEFT JOIN gleif_parent gp ON gp.lei = ge.lei
+LEFT JOIN gleif_entity pe ON pe.lei = gp.parent_lei
+WHERE s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+  AND EXISTS (SELECT 1 FROM contract c WHERE c.supplier_id = s.id)
+`
+
+type SuppliersForGroupingRow struct {
+	ID          int64
+	Name        string
+	Country     string
+	EntityType  string
+	GleifParent string
+}
+
+// Suppliers with contracts who are not individuals, with what the model is
+// told about each.
+func (q *Queries) SuppliersForGrouping(ctx context.Context) ([]SuppliersForGroupingRow, error) {
+	rows, err := q.db.QueryContext(ctx, suppliersForGrouping)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SuppliersForGroupingRow
+	for rows.Next() {
+		var i SuppliersForGroupingRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Country,
+			&i.EntityType,
+			&i.GleifParent,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const suppliersWithoutABR = `-- name: SuppliersWithoutABR :many
 SELECT s.id, s.name FROM supplier s
 WHERE NOT EXISTS (SELECT 1 FROM abr_entity a WHERE a.abn = s.abn)
@@ -3451,6 +4204,147 @@ func (q *Queries) SuppliersWithoutABR(ctx context.Context) ([]SuppliersWithoutAB
 	for rows.Next() {
 		var i SuppliersWithoutABRRow
 		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const topSupplierGroups = `-- name: TopSupplierGroups :many
+SELECT CAST(COALESCE(m.group_id, s.id) AS INTEGER) AS id,
+  CAST(m.group_id IS NOT NULL AS INTEGER) AS is_group,
+  CAST(COALESCE(g.name, s.name) AS TEXT) AS name,
+  CAST(COALESCE(g.name_basis, '') AS TEXT) AS name_basis,
+  CAST(COUNT(DISTINCT s.id) AS INTEGER) AS suppliers,
+  CAST(COUNT(DISTINCT c.cn_id) AS INTEGER) AS contracts,
+  CAST(SUM(cf.amount) AS INTEGER) AS amount,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN cf.amount END), 0) AS INTEGER) AS limited_amount,
+  CAST(COUNT(DISTINCT a.entity_id) AS INTEGER) AS entities
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN supplier s ON s.id = c.supplier_id
+LEFT JOIN supplier_group_member m ON m.supplier_id = s.id
+LEFT JOIN supplier_group g ON g.id = m.group_id
+WHERE cf.fiscal_year = ?1 AND a.entity_id IS NOT NULL
+  AND s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+GROUP BY COALESCE(m.group_id, -s.id)
+ORDER BY amount DESC
+LIMIT ?2
+`
+
+type TopSupplierGroupsParams struct {
+	Fy  string
+	Lim int64
+}
+
+type TopSupplierGroupsRow struct {
+	ID            int64
+	IsGroup       int64
+	Name          string
+	NameBasis     string
+	Suppliers     int64
+	Contracts     int64
+	Amount        int64
+	LimitedAmount int64
+	Entities      int64
+}
+
+// As TopSuppliers, with the members of each corporate group combined into
+// one row. is_group says whether id is a group's or a supplier's.
+func (q *Queries) TopSupplierGroups(ctx context.Context, arg TopSupplierGroupsParams) ([]TopSupplierGroupsRow, error) {
+	rows, err := q.db.QueryContext(ctx, topSupplierGroups, arg.Fy, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TopSupplierGroupsRow
+	for rows.Next() {
+		var i TopSupplierGroupsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.IsGroup,
+			&i.Name,
+			&i.NameBasis,
+			&i.Suppliers,
+			&i.Contracts,
+			&i.Amount,
+			&i.LimitedAmount,
+			&i.Entities,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const topSuppliers = `-- name: TopSuppliers :many
+
+SELECT s.id, s.name,
+  CAST(COUNT(DISTINCT c.cn_id) AS INTEGER) AS contracts,
+  CAST(SUM(cf.amount) AS INTEGER) AS amount,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN cf.amount END), 0) AS INTEGER) AS limited_amount,
+  CAST(COUNT(DISTINCT a.entity_id) AS INTEGER) AS entities
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN supplier s ON s.id = c.supplier_id
+WHERE cf.fiscal_year = ?1 AND a.entity_id IS NOT NULL
+  AND s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+GROUP BY s.id, s.name
+ORDER BY amount DESC
+LIMIT ?2
+`
+
+type TopSuppliersParams struct {
+	Fy  string
+	Lim int64
+}
+
+type TopSuppliersRow struct {
+	ID            int64
+	Name          string
+	Contracts     int64
+	Amount        int64
+	LimitedAmount int64
+	Entities      int64
+}
+
+// Suppliers in the web app --------------------------------------------------------
+// Suppliers ranked by contract value falling in a year (annualised estimate),
+// for agencies matched to an entity. Rankings leave out suppliers who are, or
+// may be, individuals.
+func (q *Queries) TopSuppliers(ctx context.Context, arg TopSuppliersParams) ([]TopSuppliersRow, error) {
+	rows, err := q.db.QueryContext(ctx, topSuppliers, arg.Fy, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TopSuppliersRow
+	for rows.Next() {
+		var i TopSuppliersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Contracts,
+			&i.Amount,
+			&i.LimitedAmount,
+			&i.Entities,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3796,6 +4690,42 @@ func (q *Queries) UpsertLLMClassification(ctx context.Context, arg UpsertLLMClas
 		arg.Category,
 		arg.Confidence,
 		arg.InputHash,
+		arg.BatchID,
+	)
+	return err
+}
+
+const upsertLLMSupplierGroup = `-- name: UpsertLLMSupplierGroup :exec
+INSERT INTO llm_supplier_group (supplier_id, prompt_version, cluster_key, input_hash, group_label, group_name, confidence, model, batch_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (supplier_id, prompt_version) DO UPDATE SET
+  cluster_key = excluded.cluster_key, input_hash = excluded.input_hash, group_label = excluded.group_label,
+  group_name = excluded.group_name, confidence = excluded.confidence, model = excluded.model,
+  batch_id = excluded.batch_id, created_at = CURRENT_TIMESTAMP
+`
+
+type UpsertLLMSupplierGroupParams struct {
+	SupplierID    int64
+	PromptVersion string
+	ClusterKey    string
+	InputHash     string
+	GroupLabel    string
+	GroupName     string
+	Confidence    string
+	Model         string
+	BatchID       string
+}
+
+func (q *Queries) UpsertLLMSupplierGroup(ctx context.Context, arg UpsertLLMSupplierGroupParams) error {
+	_, err := q.db.ExecContext(ctx, upsertLLMSupplierGroup,
+		arg.SupplierID,
+		arg.PromptVersion,
+		arg.ClusterKey,
+		arg.InputHash,
+		arg.GroupLabel,
+		arg.GroupName,
+		arg.Confidence,
+		arg.Model,
 		arg.BatchID,
 	)
 	return err

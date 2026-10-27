@@ -1,0 +1,71 @@
+{{define "title"}}{{.Group.Name}}{{end}}
+
+{{define "content"}}
+{{template "crumbs" .Crumbs}}
+<p class="kicker">Corporate group · {{len .Members}} suppliers</p>
+<h1>{{.Group.Name}}</h1>
+<div class="hero">
+  <div class="hero-figure">
+    <span class="hero-number">{{money .Totals.Value}}</span>
+    <span class="hero-caption">total value of {{.Totals.Contracts}} contract{{if ne .Totals.Contracts 1}}s{{end}} published {{.Totals.FirstPublished}} to {{.Totals.LastPublished}}</span>
+  </div>
+</div>
+<p class="note">Whole-of-life contract values as published on AusTender, including amendments. They are commitments, not payments. {{if .Totals.LimitedContracts}}{{.Totals.LimitedContracts}} of these contracts ({{f1 (share .Totals.LimitedValue .Totals.Value)}}% of value) were awarded by <a href="/methodology#limited">limited tender</a>.{{end}}</p>
+
+<h2>Companies in this group</h2>
+<p class="muted">AusTender lists each company under its own name and ABN. We combine them here{{if .Group.ParentName}}. The ultimate parent reported to the global LEI register is <strong>{{.Group.ParentName}}</strong>{{if .Group.ParentCountry}} ({{.Group.ParentCountry}}){{end}}{{end}}.{{if eq .Group.NameBasis "ai"}} The group’s name is the AI’s.{{end}} <a href="/methodology#groups">How groups are formed</a></p>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Supplier</th><th scope="col">ABN</th><th scope="col">Why included</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">Total value</th></tr></thead>
+  <tbody>
+  {{range .Members}}
+    <tr>
+      <th scope="row"><a href="/supplier/{{.ID}}">{{.Name}}</a>{{if and .Country (ne .Country "AUSTRALIA")}} <span class="muted small">{{.Country}}</span>{{end}}</th>
+      <td class="small mono">{{.Abn}}</td>
+      <td>{{if eq .Basis "gleif"}}<a class="badge badge-reported" href="https://search.gleif.org/#/record/{{.Lei}}">reported</a> <span class="small muted">parent in LEI register</span>{{else}}<a class="badge badge-ai" href="/methodology#groups">AI-grouped</a> <span class="small muted">by name</span>{{end}}</td>
+      <td class="num">{{.Contracts}}</td>
+      <td class="num">{{money .Value}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{if .ByAI}}<p class="muted small">An AI judged that the names of {{.ByAI}} of these suppliers show they belong to the group. It can be wrong. <a href="https://github.com/exploded/spendingexplorer/issues">Report a wrong grouping</a>.</p>{{end}}
+
+<h2>By agency</h2>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Agency</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">Total value</th><th scope="col" class="num">Limited tender</th></tr></thead>
+  <tbody>
+  {{range .Agencies}}
+    <tr>
+      <th scope="row">{{if .EntityID.Valid}}<a href="/entity/{{.EntityID.Int64}}">{{.Agency}}</a>{{else}}{{.Agency}}{{end}}</th>
+      <td class="num">{{.Contracts}}</td>
+      <td class="num">{{money .Value}}</td>
+      <td class="num">{{f1 (share .LimitedValue .Value)}}%</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+
+<h2>Contracts</h2>
+<p class="muted">Largest first{{if gt .Totals.Contracts 100}}, showing 100 of {{.Totals.Contracts}}{{end}}.</p>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Contract</th><th scope="col">Supplier</th><th scope="col">Agency</th><th scope="col">Method</th><th scope="col">Term</th><th scope="col" class="num">Value</th></tr></thead>
+  <tbody>
+  {{range .Contracts}}
+    <tr>
+      <th scope="row"><a href="/contract/{{.CnID}}">{{trunc .Description 70}}</a><br><span class="muted small mono">{{.CnID}}</span></th>
+      <td class="small"><a href="/supplier/{{.SupplierID}}">{{.Supplier}}</a></td>
+      <td class="small">{{.Agency}}</td>
+      <td>{{template "method" .Method}}</td>
+      <td class="small">{{.StartDate}} to {{.EndDate}}</td>
+      <td class="num">{{money .Value}}{{if and .OriginalValue.Valid (gt .Value .OriginalValue.Int64)}}<br><span class="muted small">was {{money .OriginalValue.Int64}}</span>{{end}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}

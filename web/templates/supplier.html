@@ -4,6 +4,7 @@
 {{template "crumbs" .Crumbs}}
 <p class="kicker">Supplier{{if .Supplier.Abn}} · ABN <span class="mono">{{.Supplier.Abn}}</span>{{end}}{{if .Supplier.Postcode}} · {{.Supplier.Postcode}}{{end}}{{if and .Supplier.Country (ne .Supplier.Country "AUSTRALIA")}} · {{.Supplier.Country}}{{end}}</p>
 <h1>{{.Supplier.Name}}</h1>
+{{with .Group}}<p>Part of <a href="/group/{{.ID}}">{{.Name}}</a>, a corporate group of {{.Members}} suppliers. {{if eq .Basis "gleif"}}<a class="badge badge-reported" href="/methodology#groups">reported</a>{{else}}<a class="badge badge-ai" href="/methodology#groups">AI-grouped</a>{{end}}</p>{{end}}
 <div class="hero">
   <div class="hero-figure">
     <span class="hero-number">{{money .Totals.Value}}</span>

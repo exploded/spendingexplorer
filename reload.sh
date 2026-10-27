@@ -14,6 +14,9 @@ go run ./cmd/load-investments
 if ls .local/abr/public_split_*.zip >/dev/null 2>&1; then
   go run ./cmd/load-abr
 fi
+if ls .local/gleif/*lei2*.csv.zip >/dev/null 2>&1; then
+  go run ./cmd/load-gleif
+fi
 if ls data/raw/transparency/*.csv >/dev/null 2>&1; then
   go run ./cmd/load-transparency
 fi

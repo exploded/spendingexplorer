@@ -205,6 +205,76 @@ CREATE TABLE IF NOT EXISTS supplier_individual (
   basis        TEXT NOT NULL CHECK (basis IN ('abr', 'name'))
 );
 
+-- Legal Entity Identifier records from GLEIF's golden copy for supplier
+-- companies (matched by ACN or ABN), and for the ultimate parents they report.
+-- Only these are kept. abn is the supplier ABN a record matched, at most one
+-- record per ABN; it is empty for records kept only as parents.
+CREATE TABLE IF NOT EXISTS gleif_entity (
+  lei                 TEXT PRIMARY KEY,
+  legal_name          TEXT NOT NULL,
+  country             TEXT NOT NULL,
+  abn                 TEXT NOT NULL DEFAULT '',
+  status              TEXT NOT NULL,              -- ACTIVE | INACTIVE
+  source_document_id  INTEGER NOT NULL REFERENCES source_document(id)
+);
+CREATE INDEX IF NOT EXISTS gleif_entity_abn ON gleif_entity(abn) WHERE abn <> '';
+
+-- Each kept entity's ultimate accounting consolidating parent, as reported to
+-- GLEIF (relationship IS_ULTIMATELY_CONSOLIDATED_BY, status active).
+CREATE TABLE IF NOT EXISTS gleif_parent (
+  lei                 TEXT PRIMARY KEY,
+  parent_lei          TEXT NOT NULL,
+  source_document_id  INTEGER NOT NULL REFERENCES source_document(id)
+);
+
+-- LLM judgements of which suppliers sharing a leading name word belong to one
+-- corporate group. One row per supplier sent; group_label is unique within
+-- the cluster, and empty when the supplier stands alone. Kept per prompt
+-- version, like llm_classification.
+CREATE TABLE IF NOT EXISTS llm_supplier_group (
+  supplier_id     INTEGER NOT NULL,
+  prompt_version  TEXT NOT NULL,
+  cluster_key     TEXT NOT NULL,
+  input_hash      TEXT NOT NULL,   -- fingerprint of the whole cluster sent
+  group_label     TEXT NOT NULL,
+  group_name      TEXT NOT NULL,
+  confidence      TEXT NOT NULL,
+  model           TEXT NOT NULL,
+  batch_id        TEXT NOT NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (supplier_id, prompt_version)
+);
+CREATE INDEX IF NOT EXISTS llm_supplier_group_cluster ON llm_supplier_group(cluster_key, prompt_version);
+
+-- The suppliers in each request of a supplier-grouping batch.
+CREATE TABLE IF NOT EXISTS llm_group_batch_item (
+  batch_id     TEXT NOT NULL,
+  custom_id    TEXT NOT NULL,
+  cluster_key  TEXT NOT NULL,
+  input_hash   TEXT NOT NULL,
+  supplier_id  INTEGER NOT NULL,
+  PRIMARY KEY (batch_id, supplier_id)
+);
+
+-- Derived: corporate groups of two or more suppliers, joined by a GLEIF parent
+-- or by the LLM's grouping. id is the lowest member supplier id, so a group's
+-- URL survives rebuilds. Individuals are never members. Rebuilt by cmd/derive.
+CREATE TABLE IF NOT EXISTS supplier_group (
+  id          INTEGER PRIMARY KEY,
+  name        TEXT NOT NULL,
+  name_basis  TEXT NOT NULL CHECK (name_basis IN ('gleif', 'ai')),
+  parent_lei  TEXT NOT NULL DEFAULT ''
+);
+
+-- basis: 'gleif' when the supplier reports the group's parent (or is it),
+-- 'ai' when only the LLM's grouping joins it.
+CREATE TABLE IF NOT EXISTS supplier_group_member (
+  supplier_id  INTEGER PRIMARY KEY,
+  group_id     INTEGER NOT NULL,
+  basis        TEXT NOT NULL CHECK (basis IN ('gleif', 'ai'))
+);
+CREATE INDEX IF NOT EXISTS supplier_group_member_group ON supplier_group_member(group_id);
+
 -- Agencies that are corporate Commonwealth entities, from Finance's List of
 -- Commonwealth Entities and Companies (reviewed in data/corporate_agencies.csv).
 -- Rebuilt by cmd/derive.

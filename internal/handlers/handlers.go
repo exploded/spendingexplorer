@@ -78,7 +78,7 @@ func New(q *db.Queries, templates fs.FS) (*Handler, error) {
 		},
 	}
 	h := &Handler{q: q, pages: map[string]*template.Template{}}
-	for _, page := range []string{"node.html", "program.html", "methodology.html", "sources.html", "supplier.html", "contract.html", "signals.html", "signal.html", "investments.html"} {
+	for _, page := range []string{"node.html", "program.html", "methodology.html", "sources.html", "supplier.html", "suppliers.html", "group.html", "contract.html", "signals.html", "signal.html", "investments.html"} {
 		t, err := template.New("").Funcs(funcs).ParseFS(templates, "layout.html", "partials.html", page)
 		if err != nil {
 			return nil, err
@@ -93,7 +93,9 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /portfolio/{name}", h.portfolio)
 	mux.HandleFunc("GET /entity/{id}", h.entity)
 	mux.HandleFunc("GET /program/{id}", h.program)
+	mux.HandleFunc("GET /suppliers", h.suppliers)
 	mux.HandleFunc("GET /supplier/{id}", h.supplier)
+	mux.HandleFunc("GET /group/{id}", h.supplierGroup)
 	mux.HandleFunc("GET /contract/{cn}", h.contract)
 	mux.HandleFunc("GET /signals", h.signalsIndex)
 	mux.HandleFunc("GET /signals/{rule}", h.signalRule)

@@ -197,6 +197,19 @@ tr.current th, tr.current td { font-weight: 700; }
 .rules dt { font-weight: 600; margin-top: 16px; }
 .rules dd { margin: 4px 0 0; color: var(--ink-2); }
 
+.search { margin: 16px 0; max-width: 560px; }
+.search label { display: block; font-size: 14px; color: var(--ink-2); margin-bottom: 4px; }
+.search-row { display: flex; gap: 8px; }
+.search input[type="search"] {
+  flex: 1; min-width: 0; font: inherit; padding: 8px 10px; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 6px;
+}
+.search input[type="search"]:focus { outline: 2px solid var(--meter); outline-offset: 1px; }
+.search button {
+  font: inherit; padding: 8px 14px; color: var(--ink); background: var(--badge-bg);
+  border: 1px solid var(--rule); border-radius: 6px; cursor: pointer;
+}
+
 .site-footer { border-top: 1px solid var(--rule); padding-top: 16px; padding-bottom: 32px; font-size: 13px; color: var(--ink-3); }
 
 .tip {

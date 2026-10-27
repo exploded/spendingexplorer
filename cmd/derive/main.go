@@ -1,6 +1,7 @@
 // Command derive rebuilds derived tables from loaded data: each contract's
 // value spread across financial years (contract_fy), suppliers who may be
-// individuals (supplier_individual), corporate entities from the reviewed list
+// individuals (supplier_individual), corporate groups of suppliers
+// (supplier_group), corporate entities from the reviewed list
 // (corporate_agency), and the "worth a closer look" signals (signal). Run it
 // after any loader.
 package main
@@ -12,8 +13,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 
 	"spendingexplorer/internal/austender"
+	"spendingexplorer/internal/corpgroup"
 	"spendingexplorer/internal/db"
 	"spendingexplorer/internal/fiscal"
 )
@@ -99,6 +102,10 @@ func main() {
 		fmt.Printf("individual suppliers (%s): %d\n", c.Basis, c.Suppliers)
 	}
 
+	if err := deriveGroups(ctx, q); err != nil {
+		log.Fatal(err)
+	}
+
 	// Corporate entities have a higher open-tender threshold; the contract_pub
 	// view reads this table, so it must be loaded before the signals.
 	if err := loadCorporate(ctx, q, *corporate); err != nil {
@@ -128,6 +135,151 @@ func main() {
 	if err := tx.Commit(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// unionFind joins string nodes into components.
+type unionFind map[string]string
+
+func (u unionFind) find(x string) string {
+	if _, ok := u[x]; !ok {
+		u[x] = x
+	}
+	for u[x] != x {
+		u[x] = u[u[x]]
+		x = u[x]
+	}
+	return x
+}
+
+func (u unionFind) union(a, b string) { u[u.find(a)] = u.find(b) }
+
+func supNode(id int64) string { return fmt.Sprintf("s%d", id) }
+
+// deriveGroups rebuilds supplier_group: suppliers joined because they report
+// the same ultimate parent to GLEIF (or one is the others' parent), or because
+// the LLM placed them in one group. Suppliers contracting as trustee for a
+// trust are not joined through GLEIF.
+func deriveGroups(ctx context.Context, q *db.Queries) error {
+	links, err := q.GLEIFSupplierLinks(ctx)
+	if err != nil {
+		return err
+	}
+	ai, err := q.AISupplierGroups(ctx, corpgroup.PromptVersion)
+	if err != nil {
+		return err
+	}
+
+	all, gleif := unionFind{}, unionFind{}
+	isSupplier := map[string]int64{}
+	parentName := map[string]string{} // LEI -> legal name, for parents
+	familyOf := map[int64]string{}    // supplier -> the parent LEI it reports, or its own LEI
+	isParent := map[string]bool{}
+	for _, l := range links {
+		if l.ParentLei != "" {
+			isParent[l.ParentLei] = true
+			parentName[l.ParentLei] = l.ParentName
+		}
+	}
+	for _, l := range links {
+		if corpgroup.ActsForTrust(l.Name) {
+			continue
+		}
+		s := supNode(l.ID)
+		isSupplier[s] = l.ID
+		for _, u := range []unionFind{all, gleif} {
+			u.union(s, "lei:"+l.Lei)
+			if l.ParentLei != "" {
+				u.union("lei:"+l.Lei, "lei:"+l.ParentLei)
+			}
+		}
+		switch {
+		case l.ParentLei != "":
+			familyOf[l.ID] = l.ParentLei
+		case isParent[l.Lei]:
+			familyOf[l.ID] = l.Lei
+			parentName[l.Lei] = l.LegalName
+		}
+	}
+	aiName := map[int64]string{}
+	for _, a := range ai {
+		// A supplier renamed since it was sent no longer belongs to the cluster.
+		if corpgroup.Key(a.Name) != a.ClusterKey || corpgroup.ActsForTrust(a.Name) {
+			continue
+		}
+		s := supNode(a.SupplierID)
+		isSupplier[s] = a.SupplierID
+		all.union(s, "ai:"+a.ClusterKey+"/"+a.GroupLabel)
+		aiName[a.SupplierID] = a.GroupName
+	}
+
+	// Suppliers per component, and per GLEIF-only component.
+	members := map[string][]int64{}
+	gleifSize := map[string]int{}
+	for s, id := range isSupplier {
+		members[all.find(s)] = append(members[all.find(s)], id)
+		if _, ok := gleif[s]; ok {
+			gleifSize[gleif.find(s)]++
+		}
+	}
+	if err := q.ClearSupplierGroupMembers(ctx); err != nil {
+		return err
+	}
+	if err := q.ClearSupplierGroups(ctx); err != nil {
+		return err
+	}
+	groups, joined, byGLEIF := 0, 0, 0
+	for _, ids := range members {
+		if len(ids) < 2 {
+			continue
+		}
+		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+		// Name the group as the model did (most common name among members),
+		// else by the parent most members report.
+		names, parents := map[string]int{}, map[string]int{}
+		for _, id := range ids {
+			if n := aiName[id]; n != "" {
+				names[n]++
+			}
+			if p := familyOf[id]; p != "" {
+				parents[p]++
+			}
+		}
+		parent, name, basis := mostCommon(parents), mostCommon(names), "ai"
+		if name == "" {
+			name, basis = parentName[parent], "gleif"
+		}
+		if name == "" {
+			continue // cannot happen: every group has an AI name or a GLEIF parent
+		}
+		if err := q.InsertSupplierGroup(ctx, db.InsertSupplierGroupParams{ID: ids[0], Name: name, NameBasis: basis, ParentLei: parent}); err != nil {
+			return err
+		}
+		for _, id := range ids {
+			b := "ai"
+			if s := supNode(id); gleif[s] != "" && gleifSize[gleif.find(s)] >= 2 {
+				b = "gleif"
+				byGLEIF++
+			}
+			if err := q.InsertSupplierGroupMember(ctx, db.InsertSupplierGroupMemberParams{SupplierID: id, GroupID: ids[0], Basis: b}); err != nil {
+				return err
+			}
+		}
+		groups++
+		joined += len(ids)
+	}
+	fmt.Printf("supplier groups: %d, joining %d suppliers (%d through a GLEIF parent)\n", groups, joined, byGLEIF)
+	return nil
+}
+
+// mostCommon returns the key with the highest count, ties to the smallest key.
+func mostCommon(counts map[string]int) string {
+	best, n := "", 0
+	for k, c := range counts {
+		if c > n || (c == n && k < best) {
+			best, n = k, c
+		}
+	}
+	return best
 }
 
 // loadCorporate replaces corporate_agency with the agencies in the reviewed

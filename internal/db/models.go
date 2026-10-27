@@ -113,6 +113,21 @@ type GivenName struct {
 	Registrations int64
 }
 
+type GleifEntity struct {
+	Lei              string
+	LegalName        string
+	Country          string
+	Abn              string
+	Status           string
+	SourceDocumentID int64
+}
+
+type GleifParent struct {
+	Lei              string
+	ParentLei        string
+	SourceDocumentID int64
+}
+
 type LlmBatch struct {
 	BatchID       string
 	Task          string
@@ -138,6 +153,27 @@ type LlmClassification struct {
 	Category      string
 	Confidence    string
 	InputHash     string
+	BatchID       string
+	CreatedAt     time.Time
+}
+
+type LlmGroupBatchItem struct {
+	BatchID    string
+	CustomID   string
+	ClusterKey string
+	InputHash  string
+	SupplierID int64
+}
+
+type LlmSupplierGroup struct {
+	SupplierID    int64
+	PromptVersion string
+	ClusterKey    string
+	InputHash     string
+	GroupLabel    string
+	GroupName     string
+	Confidence    string
+	Model         string
 	BatchID       string
 	CreatedAt     time.Time
 }
@@ -263,6 +299,19 @@ type Supplier struct {
 	Name     string
 	Country  string
 	Postcode string
+}
+
+type SupplierGroup struct {
+	ID        int64
+	Name      string
+	NameBasis string
+	ParentLei string
+}
+
+type SupplierGroupMember struct {
+	SupplierID int64
+	GroupID    int64
+	Basis      string
 }
 
 type SupplierIndividual struct {

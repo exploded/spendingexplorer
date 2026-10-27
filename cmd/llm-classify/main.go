@@ -144,7 +144,7 @@ func submit(ctx context.Context, client anthropic.Client, conn *sql.DB, segment 
 
 func collect(ctx context.Context, client anthropic.Client, conn *sql.DB) error {
 	q := db.New(conn)
-	open, err := q.OpenLLMBatches(ctx)
+	open, err := q.OpenLLMBatches(ctx, classify.Task)
 	if err != nil {
 		return err
 	}
