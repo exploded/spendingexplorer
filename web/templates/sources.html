@@ -21,8 +21,16 @@
 </table>
 </div>
 
+{{if .AusTender}}
+<h2>AusTender contract notices</h2>
+<p>{{.Contracts.Contracts}} contract notices published between {{.Contracts.FirstPublished}} and {{.Contracts.LastPublished}}, from the <a href="https://api.tenders.gov.au/ocds">AusTender OCDS API</a> (Department of Finance, CC BY 3.0 AU). Each API response is fingerprinted like the files above.</p>
+<ul class="small">
+{{range .AusTender}}<li>{{if eq .DocType "austender_ocds"}}Weekly publication windows{{else}}Full histories of amended contracts{{end}}: {{.Documents}} responses, retrieved {{slice .FirstRetrieved 0 10}} to {{slice .LastRetrieved 0 10}}</li>{{end}}
+</ul>
+{{end}}
+
 <h2>Data changelog</h2>
-<p class="muted">Every data load, newest first.</p>
+<p class="muted">The 200 most recent data loads, newest first.</p>
 <div class="scroll">
 <table class="data">
   <thead><tr><th scope="col">When</th><th scope="col">Loader</th><th scope="col">Document</th><th scope="col" class="num">Rows read</th><th scope="col" class="num">Amounts written</th><th scope="col">Notes</th></tr></thead>

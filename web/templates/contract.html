@@ -1,0 +1,63 @@
+{{define "title"}}{{.Contract.CnID}}{{end}}
+
+{{define "content"}}
+{{template "crumbs" .Crumbs}}
+<p class="kicker">Contract notice <span class="mono">{{.Contract.CnID}}</span> · {{.Contract.Agency}}</p>
+<h1>{{.Contract.Description}}</h1>
+<div class="hero">
+  <div class="hero-figure">
+    <span class="hero-number">{{money .Contract.Value}}</span>
+    <span class="hero-caption">whole-of-life value{{if .Contract.AmendmentCount}}, after {{.Contract.AmendmentCount}} amendment{{if ne .Contract.AmendmentCount 1}}s{{end}}{{end}}</span>
+  </div>
+  {{if and .Change.Prev (ne .Change.Cur .Change.Prev)}}
+  <p class="hero-change"><strong>{{signedMoney .Change.Change}}</strong> ({{changePct .Change}}) since first published at {{money .Change.Prev}}</p>
+  {{end}}
+</div>
+
+<dl class="facts">
+  <div><dt>Supplier</dt><dd>{{if .Contract.SupplierID.Valid}}<a href="/supplier/{{.Contract.SupplierID.Int64}}">{{.Contract.Supplier.String}}</a>{{if .Contract.SupplierAbn.String}} <span class="muted small mono">ABN {{.Contract.SupplierAbn.String}}</span>{{end}}{{else}}–{{end}}</dd></div>
+  <div><dt>Agency</dt><dd>{{if .Contract.EntityID.Valid}}<a href="/entity/{{.Contract.EntityID.Int64}}">{{.Contract.Agency}}</a>{{else}}{{.Contract.Agency}}{{end}}</dd></div>
+  <div><dt>Procurement method</dt><dd>{{template "method" .Contract.Method}}</dd></div>
+  {{if .Contract.LimitedReason}}<div><dt>Reason given</dt><dd>{{.Contract.LimitedReason}}</dd></div>{{end}}
+  {{if .Contract.Exemption}}<div><dt>Exemption</dt><dd>{{.Contract.Exemption}}</dd></div>{{end}}
+  <div><dt>Term</dt><dd>{{.Contract.StartDate}} to {{.Contract.EndDate}}</dd></div>
+  <div><dt>Published</dt><dd>{{.Contract.PublishedDate}}</dd></div>
+  <div><dt>Category (UNSPSC)</dt><dd class="mono">{{.Contract.Unspsc}}</dd></div>
+  {{with .AIClass}}<div><dt>Kind of work</dt><dd>{{$.AILabel}} <span class="muted small">({{.Confidence}} confidence)</span> <a class="badge badge-ai" href="/methodology#ai" title="{{.Model}}, prompt {{.PromptVersion}}">AI-classified</a></dd></div>{{end}}
+  {{if .Contract.Title}}<div><dt>Agency reference</dt><dd class="mono">{{.Contract.Title}}</dd></div>{{end}}
+</dl>
+
+{{if .Signals}}
+<section class="closer" aria-labelledby="closer-h">
+  <h2 id="closer-h">Worth a closer look</h2>
+  {{range .Signals}}
+  <div class="closer-item">
+    <p><a href="/signals/{{.Rule.ID}}"><strong>{{.Rule.Title}}</strong></a>: {{measure .Rule.ID .Measure}}. {{.Rule.Context}}</p>
+    <p class="muted small">Common explanations: {{range $i, $e := .Rule.Innocent}}{{if $i}} {{end}}{{$e}}{{end}}</p>
+  </div>
+  {{end}}
+</section>
+{{end}}
+
+<h2>Value by financial year</h2>
+<p class="muted">The total value spread evenly from start to end date. <a class="badge badge-estimate" href="/methodology#annualised">estimate: annualised</a></p>
+<div class="scroll">
+<table class="data narrow">
+  <thead><tr><th scope="col">Financial year</th><th scope="col" class="num">Estimated amount</th></tr></thead>
+  <tbody>
+  {{range .Years}}<tr{{if eq .FiscalYear $.Period.FY}} class="current"{{end}}><th scope="row">{{.FiscalYear}}</th><td class="num">{{money .Amount}}</td></tr>{{end}}
+  </tbody>
+</table>
+</div>
+
+<h2>Published versions</h2>
+<p class="muted">Every version of this notice we have loaded{{if not .Contract.HistoryLoaded}}; earlier versions have not been fetched yet{{end}}. Source: <a href="{{.APIURL}}">AusTender OCDS API</a>.</p>
+<div class="scroll">
+<table class="data narrow">
+  <thead><tr><th scope="col">Date</th><th scope="col">Version</th><th scope="col" class="num">Value</th></tr></thead>
+  <tbody>
+  {{range .Releases}}<tr><th scope="row">{{.ReleaseDate}}</th><td>{{if .Amendment}}amendment{{else}}original notice{{end}}</td><td class="num">{{money .Value}}</td></tr>{{end}}
+  </tbody>
+</table>
+</div>
+{{end}}

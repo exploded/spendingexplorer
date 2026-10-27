@@ -1,0 +1,219 @@
+{
+ "uri": "https://api.tenders.gov.au/ocds/findById/CN4258440",
+ "publisher": {
+  "name": "Department of Finance"
+ },
+ "publishedDate": "2026-07-07T05:13:50Z",
+ "version": "1.1",
+ "releases": [
+  {
+   "ocid": "prod-27ccadea23aa4c0580db2f5bb0bbec5c",
+   "id": "prod-27ccadea23aa4c0580db2f5bb0bbec5c-fd51b5013a3d301cac4edcb8708f942a",
+   "date": "2026-07-07T05:13:50Z",
+   "initiationType": "tender",
+   "language": "EN",
+   "parties": [
+    {
+     "id": "3d31a7993c7e40adb9b923753813a0d9",
+     "name": "Simone Andrea Johnston",
+     "additionalIdentifiers": [
+      {
+       "id": "22670672332",
+       "scheme": "AU-ABN"
+      }
+     ],
+     "address": {
+      "locality": "Melbourne",
+      "region": "VIC",
+      "postalCode": "3000",
+      "countryName": "AUSTRALIA"
+     },
+     "contactPoint": {
+      "name": "CDPPP Procurement",
+      "email": "Procurement@cdpp.gov.au"
+     },
+     "roles": [
+      "supplier"
+     ]
+    },
+    {
+     "id": "0ec93e8eac1f1b82ce7c0611f0219239",
+     "name": "Office of the Director of Public Prosecutions",
+     "roles": [
+      "procuringEntity"
+     ],
+     "additionalIdentifiers": [
+      {
+       "id": "41036606436",
+       "scheme": "AU-ABN"
+      }
+     ],
+     "address": {},
+     "contactPoint": {
+      "email": "tenders@finance.gov.au"
+     }
+    }
+   ],
+   "awards": [
+    {
+     "id": "CN4258440-7135fbb5d04d424a95251163797d0539",
+     "suppliers": [
+      {
+       "id": "3d31a7993c7e40adb9b923753813a0d9",
+       "name": "Simone Andrea Johnston"
+      }
+     ],
+     "date": "2026-07-07T05:13:50Z"
+    }
+   ],
+   "contracts": [
+    {
+     "id": "CN4258440",
+     "awardID": "CN4258440-7135fbb5d04d424a95251163797d0539",
+     "dateSigned": "2026-07-07T05:13:50Z",
+     "description": "Engagement of prosecution counsel",
+     "title": "N006076",
+     "items": [
+      {
+       "id": "80120000-7135fbb5d04d424a95251163797d0539",
+       "classification": {
+        "scheme": "UNSPSC",
+        "id": "80120000"
+       }
+      }
+     ],
+     "period": {
+      "startDate": "2023-10-15T13:00:00Z",
+      "endDate": "2033-10-14T13:00:00Z"
+     },
+     "value": {
+      "currency": "AUD",
+      "amount": "108800.00"
+     },
+     "status": "active"
+    }
+   ],
+   "tag": [
+    "contract"
+   ],
+   "tender": {
+    "id": "prod-27ccadea23aa4c0580db2f5bb0bbec5c",
+    "procurementMethod": "limited",
+    "procurementMethodDetails": "Limited tender",
+    "limitedTenderExempt": "1",
+    "exemptionCode": "EN",
+    "exemption": "App A: 7. Expert or neutral person (including counsel or barristers)."
+   }
+  },
+  {
+   "ocid": "prod-27ccadea23aa4c0580db2f5bb0bbec5c",
+   "id": "prod-27ccadea23aa4c0580db2f5bb0bbec5c-c26e870e3d4b3456aa364c6bde3d7757",
+   "date": "2026-09-16T07:50:32Z",
+   "initiationType": "tender",
+   "language": "EN",
+   "parties": [
+    {
+     "id": "3d31a7993c7e40adb9b923753813a0d9",
+     "name": "Simone Andrea Johnston",
+     "additionalIdentifiers": [
+      {
+       "id": "22670672332",
+       "scheme": "AU-ABN"
+      }
+     ],
+     "address": {
+      "locality": "Melbourne",
+      "region": "VIC",
+      "postalCode": "3000",
+      "countryName": "AUSTRALIA"
+     },
+     "contactPoint": {
+      "name": "CDPPP Procurement",
+      "email": "Procurement@cdpp.gov.au"
+     },
+     "roles": [
+      "supplier"
+     ]
+    },
+    {
+     "id": "0ec93e8eac1f1b82ce7c0611f0219239",
+     "name": "Office of the Director of Public Prosecutions",
+     "roles": [
+      "procuringEntity"
+     ],
+     "additionalIdentifiers": [
+      {
+       "id": "41036606436",
+       "scheme": "AU-ABN"
+      }
+     ],
+     "address": {},
+     "contactPoint": {
+      "email": "tenders@finance.gov.au"
+     }
+    }
+   ],
+   "awards": [
+    {
+     "id": "CN4258440-7135fbb5d04d424a95251163797d0539",
+     "suppliers": [
+      {
+       "id": "3d31a7993c7e40adb9b923753813a0d9",
+       "name": "Simone Andrea Johnston"
+      }
+     ],
+     "status": "active",
+     "date": "2026-07-07T05:13:50Z"
+    }
+   ],
+   "contracts": [
+    {
+     "id": "CN4258440",
+     "awardID": "CN4258440-7135fbb5d04d424a95251163797d0539",
+     "dateSigned": "2026-07-07T05:13:50Z",
+     "description": "Engagement of prosecution counsel",
+     "title": "N006076",
+     "items": [
+      {
+       "id": "80120000-be8904347007440c80202d4880136b49",
+       "classification": {
+        "scheme": "UNSPSC",
+        "id": "80120000"
+       }
+      }
+     ],
+     "period": {
+      "startDate": "2023-10-15T13:00:00Z",
+      "endDate": "2033-10-14T13:00:00Z"
+     },
+     "value": {
+      "currency": "AUD",
+      "amount": "153800.00"
+     },
+     "status": "active",
+     "amendments": [
+      {
+       "id": "CN4258440-A1",
+       "releaseID": "prod-27ccadea23aa4c0580db2f5bb0bbec5c-c26e870e3d4b3456aa364c6bde3d7757",
+       "amendsReleaseID": "prod-27ccadea23aa4c0580db2f5bb0bbec5c-fd51b5013a3d301cac4edcb8708f942a"
+      }
+     ]
+    }
+   ],
+   "tag": [
+    "contractAmendment"
+   ],
+   "tender": {
+    "id": "prod-27ccadea23aa4c0580db2f5bb0bbec5c",
+    "procurementMethod": "limited",
+    "procurementMethodDetails": "Limited tender",
+    "limitedTenderExempt": "1",
+    "exemptionCode": "EN",
+    "exemption": "App A: 7. Expert or neutral person (including counsel or barristers)."
+   }
+  }
+ ],
+ "extensions": [
+  "http://cdn.tenders.gov.au/ocds/schema/extension.json"
+ ]
+}

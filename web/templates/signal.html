@@ -1,0 +1,53 @@
+{{define "title"}}{{.Rule.Title}}{{end}}
+
+{{define "content"}}
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/signals">Worth a closer look</a><span aria-hidden="true"> / </span></nav>
+<p class="kicker">{{if .Entity}}{{.Entity}}{{else}}All agencies{{end}}</p>
+<h1>{{.Rule.Title}}</h1>
+<dl class="facts">
+  <div><dt>What it measures</dt><dd>{{.Rule.Pattern}}</dd></div>
+  <div><dt>When it applies</dt><dd>{{.Rule.Threshold}}</dd></div>
+  <div><dt>Why it matters</dt><dd>{{.Rule.Context}}</dd></div>
+  <div><dt>Common explanations</dt><dd>{{range $i, $e := .Rule.Innocent}}{{if $i}} {{end}}{{$e}}{{end}}</dd></div>
+</dl>
+{{if .Entity}}<p class="muted small">Showing {{.Entity}} only. <a href="/signals/{{.Rule.ID}}">Show all agencies</a>.</p>{{end}}
+
+{{if .Agencies}}
+<h2>By agency</h2>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Agency</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">Amount involved</th></tr></thead>
+  <tbody>
+  {{range .Agencies}}
+    <tr>
+      <th scope="row">{{if .EntityID.Valid}}<a href="/signals/{{$.Rule.ID}}?entity={{.EntityID.Int64}}">{{.Agency}}</a>{{else}}{{.Agency}}{{end}}</th>
+      <td class="num">{{.Contracts}}</td>
+      <td class="num">{{money .Amount}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}
+
+<h2>Contracts</h2>
+<p class="muted">Contracts published in {{.Period.Prev}} and {{.Period.FY}} to date, largest amount first{{if eq (len .Contracts) 100}}; showing the first 100{{end}}.</p>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Contract</th><th scope="col">Agency</th><th scope="col">Published</th><th scope="col">Detail</th><th scope="col" class="num">Amount involved</th></tr></thead>
+  <tbody>
+  {{range .Contracts}}
+    <tr>
+      <th scope="row"><a href="/contract/{{.CnID}}">{{trunc .Description 70}}</a><br><span class="muted small mono">{{.CnID}}</span></th>
+      <td class="small">{{.Agency}}</td>
+      <td class="small">{{.PublishedDate}}</td>
+      <td class="small">{{measure $.Rule.ID .Measure}}</td>
+      <td class="num">{{money .Amount}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="5" class="muted">No contracts match this rule in this period.</td></tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}

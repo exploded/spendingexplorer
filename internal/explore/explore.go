@@ -5,6 +5,7 @@ package explore
 import (
 	"fmt"
 	"math"
+	"regexp"
 )
 
 // Node is one box in the hierarchy (portfolio, entity or program).
@@ -14,7 +15,9 @@ type Node struct {
 	Cur      int64 // current fiscal year, whole dollars
 	Prev     int64 // previous fiscal year from the same publication
 	Excluded int64 // removed as double counting or non-expense, current year
+	Itemised int64 // annualised contract value traced to this node (estimate)
 	Children int
+	Note     string // short description shown under the name, e.g. a program objective
 }
 
 // Change is the year-on-year change in dollars.
@@ -81,6 +84,14 @@ func Share(part, whole int64) float64 {
 		return 0
 	}
 	return 100 * float64(part) / float64(whole)
+}
+
+var footnoteMarks = regexp.MustCompile(`\s*[(\[][a-z][)\]]`)
+
+// DisplayName drops footnote markers such as "(b) (c)" that the PBS tables
+// carry in program names; the published name is kept in the database.
+func DisplayName(name string) string {
+	return footnoteMarks.ReplaceAllString(name, "")
 }
 
 // PreviousYear returns the fiscal year before fy, e.g. 2026-27 -> 2025-26.

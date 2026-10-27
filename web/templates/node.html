@@ -35,12 +35,73 @@
 </section>
 {{end}}
 
-{{if not .Recon}}{{template "coverage" .}}{{end}}
+{{template "coverage" .}}
 
 {{template "treemap" .}}
 {{if .Omitted}}<p class="muted">Not shown in the chart because the {{.Period.FY}} amount is zero or negative: {{range $i, $o := .Omitted}}{{if $i}}, {{end}}{{$o.Name}} ({{money $o.Cur}}){{end}}.</p>{{end}}
 
 {{template "table" .}}
+
+{{if .Signals}}
+<section class="closer" aria-labelledby="closer-h">
+  <h2 id="closer-h">Worth a closer look</h2>
+  <p class="muted">Patterns in this agency’s contract notices published in {{.Period.Prev}} and {{.Period.FY}} to date. Each is a measurable pattern with common legitimate explanations; none is a finding of wrongdoing. <a href="/signals">How these are defined</a>.</p>
+  <ul class="closer-list">
+  {{range .Signals}}
+    <li><a href="/signals/{{.Rule.ID}}?entity={{$.EntityID}}">{{.Rule.Title}}</a> <span class="num">{{.Contracts}} contract{{if ne .Contracts 1}}s{{end}} · {{money .Amount}}</span><br><span class="muted small">{{.Rule.Pattern}}</span></li>
+  {{end}}
+  </ul>
+</section>
+{{end}}
+
+{{with .Contracts}}
+<section id="contracts" aria-labelledby="contracts-h">
+  <h2 id="contracts-h">Who gets paid</h2>
+  <p class="muted">Contracts active in {{$.Period.FY}}, from AusTender. Amounts for the year are each contract’s value spread across its term. <a class="badge badge-estimate" href="/methodology#annualised">estimate: annualised</a></p>
+  <dl class="stats">
+    <div><dt>Contracts active</dt><dd>{{.Stats.Contracts}}</dd></div>
+    <div><dt>Suppliers</dt><dd>{{.Stats.Suppliers}}</dd></div>
+    <div><dt><a href="/methodology#limited">Limited tender</a></dt><dd>{{f1 (share .Stats.LimitedAmount .Stats.Amount)}}% <span class="muted small">of value · {{.Stats.LimitedContracts}} contracts</span></dd></div>
+    <div><dt><a href="/methodology#amendments">Value added by amendments</a></dt><dd>{{money .Stats.AmendedIncrease}} <span class="muted small">across {{.Stats.AmendedContracts}} amended contracts</span></dd></div>
+  </dl>
+
+  <h3>Largest suppliers</h3>
+  <div class="scroll">
+  <table class="data">
+    <thead><tr><th scope="col">Supplier</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">{{$.Period.FY}} est.</th><th scope="col" class="num">Limited tender</th></tr></thead>
+    <tbody>
+    {{range .Suppliers}}
+      <tr>
+        <th scope="row"><a href="/supplier/{{.ID}}">{{.Name}}</a></th>
+        <td class="num">{{.Contracts}}</td>
+        <td class="num">{{money .Amount}}</td>
+        <td class="num">{{f1 (share .LimitedAmount .Amount)}}%</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Largest contracts</h3>
+  <div class="scroll">
+  <table class="data">
+    <thead><tr><th scope="col">Contract</th><th scope="col">Supplier</th><th scope="col">Method</th><th scope="col">Term</th><th scope="col" class="num">Total value</th><th scope="col" class="num">{{$.Period.FY}} est.</th></tr></thead>
+    <tbody>
+    {{range .Contracts}}
+      <tr>
+        <th scope="row"><a href="/contract/{{.CnID}}">{{trunc .Description 70}}</a><br><span class="muted small mono">{{.CnID}}</span></th>
+        <td>{{if .SupplierID.Valid}}<a href="/supplier/{{.SupplierID.Int64}}">{{.Supplier.String}}</a>{{end}}</td>
+        <td>{{template "method" .Method}}</td>
+        <td class="small">{{.StartDate}} to {{.EndDate}}</td>
+        <td class="num">{{money .Value}}{{if and .OriginalValue.Valid (gt .Value .OriginalValue.Int64)}}<br><span class="muted small">was {{money .OriginalValue.Int64}}</span>{{end}}</td>
+        <td class="num">{{money .Amount}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+</section>
+{{end}}
 
 {{if .Functions}}
 <section class="functions" aria-labelledby="fn-h">

@@ -37,7 +37,7 @@ func New(q *db.Queries, templates fs.FS) (*Handler, error) {
 			if p, ok := n.ChangePct(); ok {
 				return explore.Pct(p)
 			}
-			if n.Cur != 0 {
+			if n.Prev == 0 && n.Cur > 0 {
 				return "new"
 			}
 			return "–"
@@ -56,6 +56,8 @@ func New(q *db.Queries, templates fs.FS) (*Handler, error) {
 		},
 		"estimateType": pbs.EstimateType,
 		"tone":         tone,
+		"measure":      measureLabel,
+		"display":      explore.DisplayName,
 		"lower":        strings.ToLower,
 		"dict": func(kv ...any) map[string]any {
 			m := map[string]any{}
@@ -65,9 +67,17 @@ func New(q *db.Queries, templates fs.FS) (*Handler, error) {
 			return m
 		},
 		"pathEscape": url.PathEscape,
+		"cap100":     func(f float64) float64 { return min(max(f, 0), 100) },
+		"trunc": func(s string, n int) string {
+			r := []rune(s)
+			if len(r) <= n {
+				return s
+			}
+			return strings.TrimSpace(string(r[:n])) + "…"
+		},
 	}
 	h := &Handler{q: q, pages: map[string]*template.Template{}}
-	for _, page := range []string{"node.html", "program.html", "methodology.html", "sources.html"} {
+	for _, page := range []string{"node.html", "program.html", "methodology.html", "sources.html", "supplier.html", "contract.html", "signals.html", "signal.html"} {
 		t, err := template.New("").Funcs(funcs).ParseFS(templates, "layout.html", "partials.html", page)
 		if err != nil {
 			return nil, err
@@ -82,6 +92,10 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /portfolio/{name}", h.portfolio)
 	mux.HandleFunc("GET /entity/{id}", h.entity)
 	mux.HandleFunc("GET /program/{id}", h.program)
+	mux.HandleFunc("GET /supplier/{id}", h.supplier)
+	mux.HandleFunc("GET /contract/{cn}", h.contract)
+	mux.HandleFunc("GET /signals", h.signalsIndex)
+	mux.HandleFunc("GET /signals/{rule}", h.signalRule)
 	mux.HandleFunc("GET /methodology", h.methodology)
 	mux.HandleFunc("GET /sources", h.sources)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
@@ -124,6 +138,11 @@ type nodePage struct {
 	Functions  []row          // home only
 	Kinds      []row          // entity only
 	Omitted    []explore.Node // children left out of the treemap (zero or negative)
+	Coverage   coverage
+	Itemised   bool              // rows carry contract coverage
+	Contracts  *contractsSection // entity only
+	Signals    []signalRow       // entity only
+	EntityID   int64             // entity only
 }
 
 // recon reconciles program line items to the Budget Paper 1 total.
@@ -175,6 +194,19 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	page.ChildLabel = "Portfolio"
 	page.Recon = rc
 	page.Functions = funcs
+	byPortfolio, err := h.q.PortfolioContractTotals(ctx, db.PortfolioContractTotalsParams{BudgetYear: p.FY, Fy: p.FY})
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	var traced int64
+	amounts := map[string]int64{}
+	for _, b := range byPortfolio {
+		amounts[b.Portfolio] = b.Amount
+		traced += b.Amount
+	}
+	page.setItemised(func(r row) int64 { return amounts[r.Name] })
+	page.Coverage = h.coverageFor(ctx, traced, total.Cur)
 	h.render(w, "node.html", page)
 }
 
@@ -261,6 +293,25 @@ func (h *Handler) portfolio(w http.ResponseWriter, r *http.Request) {
 	page.Level = "Portfolio"
 	page.ChildLabel = "Entity"
 	page.Crumbs = []crumb{{"Whole of government", "/"}}
+	byEntity, err := h.q.EntityContractTotals(ctx, p.FY)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	amounts := map[int64]int64{}
+	for _, b := range byEntity {
+		amounts[b.EntityID.Int64] = b.Amount
+	}
+	ids := map[string]int64{}
+	for _, e := range ents {
+		ids[e.Name] = e.ID
+	}
+	page.setItemised(func(r row) int64 { return amounts[ids[r.Name]] })
+	var traced int64
+	for _, r := range page.Rows {
+		traced += r.Itemised
+	}
+	page.Coverage = h.coverageFor(ctx, traced, total.Cur)
 	h.render(w, "node.html", page)
 }
 
@@ -289,10 +340,19 @@ func (h *Handler) entity(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	descs, err := h.q.EntityProgramDescriptions(ctx, db.EntityProgramDescriptionsParams{EntityID: id, BudgetYear: p.FY})
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	notes := map[int64]string{}
+	for _, d := range descs {
+		notes[d.ProgramID] = d.Text
+	}
 	var nodes []explore.Node
 	total := explore.Node{Name: ent.Name}
 	for _, pr := range progs {
-		n := explore.Node{Name: pr.Name, URL: "/program/" + strconv.FormatInt(pr.ID, 10), Cur: pr.Cur, Prev: pr.Prev, Excluded: pr.Excluded, Children: int(pr.Children)}
+		n := explore.Node{Name: explore.DisplayName(pr.Name), URL: "/program/" + strconv.FormatInt(pr.ID, 10), Cur: pr.Cur, Prev: pr.Prev, Excluded: pr.Excluded, Children: int(pr.Children), Note: notes[pr.ID]}
 		nodes = append(nodes, n)
 		total.Cur += n.Cur
 		total.Prev += n.Prev
@@ -305,12 +365,26 @@ func (h *Handler) entity(w http.ResponseWriter, r *http.Request) {
 	}
 	page := h.nodePage(r, p, nodes, total)
 	page.Title = ent.Name
+	page.EntityID = id
 	page.Level = "Entity"
 	page.ChildLabel = "Program"
 	page.Crumbs = []crumb{{"Whole of government", "/"}, {ent.Portfolio, "/portfolio/" + url.PathEscape(ent.Portfolio)}}
 	for _, k := range kinds {
 		page.Kinds = append(page.Kinds, row{Node: explore.Node{Name: kindLabel[k.ExpenseKind], Cur: k.Cur}, Share: explore.Share(k.Cur, total.Cur)})
 	}
+	if page.Contracts, err = h.entityContracts(ctx, id, p.FY); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if page.Signals, err = h.entitySignals(r, id, p); err != nil {
+		h.fail(w, err)
+		return
+	}
+	var traced int64
+	if page.Contracts != nil {
+		traced = page.Contracts.Stats.Amount
+	}
+	page.Coverage = h.coverageFor(ctx, traced, total.Cur)
 	h.render(w, "node.html", page)
 }
 
@@ -355,12 +429,23 @@ func (h *Handler) nodePage(r *http.Request, p period, nodes []explore.Node, tota
 	return page
 }
 
+// setItemised fills each row's contract amount and marks the table as
+// carrying coverage.
+func (p *nodePage) setItemised(amount func(row) int64) {
+	p.Itemised = true
+	for i := range p.Rows {
+		p.Rows[i].Itemised = amount(p.Rows[i])
+	}
+}
+
 type programPage struct {
-	Period  period
-	Program db.GetProgramRow
-	Crumbs  []crumb
-	Total   explore.Node
-	Lines   []programLine
+	Period      period
+	Program     db.GetProgramRow
+	Crumbs      []crumb
+	Total       explore.Node
+	Lines       []programLine
+	Coverage    coverage
+	Description *db.GetProgramDescriptionRow
 }
 
 type programLine struct {
@@ -415,6 +500,14 @@ func (h *Handler) program(w http.ResponseWriter, r *http.Request) {
 		}
 		page.Lines = append(page.Lines, pl)
 	}
+	if d, err := h.q.GetProgramDescription(ctx, id); err == nil {
+		page.Description = &d
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		h.fail(w, err)
+		return
+	}
+	page.Coverage = h.coverageFor(ctx, 0, page.Total.Cur)
+	page.Coverage.Note = "AusTender records the agency, not the program, so contracts are shown on the entity page."
 	h.render(w, "program.html", page)
 }
 
@@ -440,9 +533,11 @@ func (h *Handler) methodology(w http.ResponseWriter, r *http.Request) {
 }
 
 type sourcesPage struct {
-	Period  period
-	Sources []db.SourceDocument
-	Runs    []db.ListLoadRunsRow
+	Period    period
+	Sources   []db.SourceDocument
+	AusTender []db.AusTenderSourceSummaryRow
+	Contracts db.ContractLoadSummaryRow
+	Runs      []db.ListLoadRunsRow
 }
 
 func (h *Handler) sources(w http.ResponseWriter, r *http.Request) {
@@ -462,14 +557,23 @@ func (h *Handler) sources(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
-	h.render(w, "sources.html", sourcesPage{Period: p, Sources: src, Runs: runs})
+	page := sourcesPage{Period: p, Sources: src, Runs: runs}
+	if page.AusTender, err = h.q.AusTenderSourceSummary(ctx); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if page.Contracts, err = h.q.ContractLoadSummary(ctx); err != nil {
+		h.fail(w, err)
+		return
+	}
+	h.render(w, "sources.html", page)
 }
 
 // tone buckets a node's year-on-year change for the treemap's diverging scale.
 func tone(n explore.Node) string {
 	p, ok := n.ChangePct()
 	switch {
-	case !ok && n.Cur > 0:
+	case !ok && n.Prev == 0 && n.Cur > 0:
 		return "up2" // new this year
 	case !ok:
 		return "flat"
@@ -485,6 +589,9 @@ func tone(n explore.Node) string {
 	return "up2"
 }
 
+func sqlNullInt(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }
+
+// ruleByID returns the treatment rule with the given ID.
 func ruleByID(id string) pbs.Rule {
 	for _, r := range pbs.Rules {
 		if r.ID == id {

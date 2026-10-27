@@ -11,6 +11,389 @@ import (
 	"time"
 )
 
+const ausTenderSourceSummary = `-- name: AusTenderSourceSummary :many
+SELECT doc_type, CAST(COUNT(*) AS INTEGER) AS documents,
+  CAST(MIN(retrieved_at) AS TEXT) AS first_retrieved, CAST(MAX(retrieved_at) AS TEXT) AS last_retrieved
+FROM source_document WHERE doc_type LIKE 'austender%'
+GROUP BY doc_type ORDER BY doc_type
+`
+
+type AusTenderSourceSummaryRow struct {
+	DocType        string
+	Documents      int64
+	FirstRetrieved string
+	LastRetrieved  string
+}
+
+func (q *Queries) AusTenderSourceSummary(ctx context.Context) ([]AusTenderSourceSummaryRow, error) {
+	rows, err := q.db.QueryContext(ctx, ausTenderSourceSummary)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AusTenderSourceSummaryRow
+	for rows.Next() {
+		var i AusTenderSourceSummaryRow
+		if err := rows.Scan(
+			&i.DocType,
+			&i.Documents,
+			&i.FirstRetrieved,
+			&i.LastRetrieved,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const clearContractFY = `-- name: ClearContractFY :exec
+
+DELETE FROM contract_fy
+`
+
+// Derivations -----------------------------------------------------------------
+func (q *Queries) ClearContractFY(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearContractFY)
+	return err
+}
+
+const clearSignals = `-- name: ClearSignals :exec
+
+DELETE FROM signal
+`
+
+// Signals (derived) ----------------------------------------------------------------
+func (q *Queries) ClearSignals(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearSignals)
+	return err
+}
+
+const contractClassification = `-- name: ContractClassification :one
+SELECT category, confidence, model, prompt_version, created_at FROM llm_classification
+WHERE cn_id = ? AND task = ? ORDER BY prompt_version DESC LIMIT 1
+`
+
+type ContractClassificationParams struct {
+	CnID string
+	Task string
+}
+
+type ContractClassificationRow struct {
+	Category      string
+	Confidence    string
+	Model         string
+	PromptVersion string
+	CreatedAt     time.Time
+}
+
+func (q *Queries) ContractClassification(ctx context.Context, arg ContractClassificationParams) (ContractClassificationRow, error) {
+	row := q.db.QueryRowContext(ctx, contractClassification, arg.CnID, arg.Task)
+	var i ContractClassificationRow
+	err := row.Scan(
+		&i.Category,
+		&i.Confidence,
+		&i.Model,
+		&i.PromptVersion,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const contractCoverageTotal = `-- name: ContractCoverageTotal :one
+
+SELECT CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount,
+       CAST(COUNT(*) AS INTEGER) AS contracts
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+WHERE cf.fiscal_year = ? AND a.entity_id IS NOT NULL
+`
+
+type ContractCoverageTotalRow struct {
+	Amount    int64
+	Contracts int64
+}
+
+// Contracts in the web app ------------------------------------------------------
+// Annualised contract value in a year, for agencies matched to an entity.
+func (q *Queries) ContractCoverageTotal(ctx context.Context, fiscalYear string) (ContractCoverageTotalRow, error) {
+	row := q.db.QueryRowContext(ctx, contractCoverageTotal, fiscalYear)
+	var i ContractCoverageTotalRow
+	err := row.Scan(&i.Amount, &i.Contracts)
+	return i, err
+}
+
+const contractFiscalYears = `-- name: ContractFiscalYears :many
+SELECT fiscal_year, amount FROM contract_fy WHERE cn_id = ? ORDER BY fiscal_year
+`
+
+type ContractFiscalYearsRow struct {
+	FiscalYear string
+	Amount     int64
+}
+
+func (q *Queries) ContractFiscalYears(ctx context.Context, cnID string) ([]ContractFiscalYearsRow, error) {
+	rows, err := q.db.QueryContext(ctx, contractFiscalYears, cnID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ContractFiscalYearsRow
+	for rows.Next() {
+		var i ContractFiscalYearsRow
+		if err := rows.Scan(&i.FiscalYear, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const contractLoadSummary = `-- name: ContractLoadSummary :one
+SELECT CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(COALESCE(MIN(published_date), '') AS TEXT) AS first_published,
+  CAST(COALESCE(MAX(published_date), '') AS TEXT) AS last_published
+FROM contract
+`
+
+type ContractLoadSummaryRow struct {
+	Contracts      int64
+	FirstPublished string
+	LastPublished  string
+}
+
+func (q *Queries) ContractLoadSummary(ctx context.Context) (ContractLoadSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, contractLoadSummary)
+	var i ContractLoadSummaryRow
+	err := row.Scan(&i.Contracts, &i.FirstPublished, &i.LastPublished)
+	return i, err
+}
+
+const contractReleases = `-- name: ContractReleases :many
+SELECT release_id, release_date, amendment, value FROM contract_release
+WHERE cn_id = ? ORDER BY release_date, amendment
+`
+
+type ContractReleasesRow struct {
+	ReleaseID   string
+	ReleaseDate string
+	Amendment   int64
+	Value       int64
+}
+
+func (q *Queries) ContractReleases(ctx context.Context, cnID string) ([]ContractReleasesRow, error) {
+	rows, err := q.db.QueryContext(ctx, contractReleases, cnID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ContractReleasesRow
+	for rows.Next() {
+		var i ContractReleasesRow
+		if err := rows.Scan(
+			&i.ReleaseID,
+			&i.ReleaseDate,
+			&i.Amendment,
+			&i.Value,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const contractSignals = `-- name: ContractSignals :many
+SELECT rule_id, fiscal_year, amount, measure FROM signal WHERE cn_id = ? ORDER BY rule_id
+`
+
+type ContractSignalsRow struct {
+	RuleID     string
+	FiscalYear string
+	Amount     int64
+	Measure    float64
+}
+
+func (q *Queries) ContractSignals(ctx context.Context, cnID string) ([]ContractSignalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, contractSignals, cnID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ContractSignalsRow
+	for rows.Next() {
+		var i ContractSignalsRow
+		if err := rows.Scan(
+			&i.RuleID,
+			&i.FiscalYear,
+			&i.Amount,
+			&i.Measure,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const contractsForApportion = `-- name: ContractsForApportion :many
+SELECT cn_id, value, start_date, end_date, published_date FROM contract WHERE value > 0
+`
+
+type ContractsForApportionRow struct {
+	CnID          string
+	Value         int64
+	StartDate     string
+	EndDate       string
+	PublishedDate string
+}
+
+func (q *Queries) ContractsForApportion(ctx context.Context) ([]ContractsForApportionRow, error) {
+	rows, err := q.db.QueryContext(ctx, contractsForApportion)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ContractsForApportionRow
+	for rows.Next() {
+		var i ContractsForApportionRow
+		if err := rows.Scan(
+			&i.CnID,
+			&i.Value,
+			&i.StartDate,
+			&i.EndDate,
+			&i.PublishedDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const contractsNeedingHistory = `-- name: ContractsNeedingHistory :many
+SELECT cn_id FROM contract WHERE amendment_count > 0 AND history_loaded = 0 ORDER BY cn_id
+`
+
+func (q *Queries) ContractsNeedingHistory(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, contractsNeedingHistory)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var cn_id string
+		if err := rows.Scan(&cn_id); err != nil {
+			return nil, err
+		}
+		items = append(items, cn_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const contractsToClassify = `-- name: ContractsToClassify :many
+
+SELECT c.cn_id, c.description, a.name AS agency, COALESCE(s.name, '') AS supplier
+FROM contract c
+JOIN agency a ON a.id = c.agency_id
+LEFT JOIN supplier s ON s.id = c.supplier_id
+WHERE c.unspsc LIKE ?1 || '%'
+  AND NOT EXISTS (SELECT 1 FROM llm_classification l
+                  WHERE l.cn_id = c.cn_id AND l.task = ?2 AND l.prompt_version = ?3)
+  AND NOT EXISTS (SELECT 1 FROM llm_batch_item i JOIN llm_batch b ON b.batch_id = i.batch_id
+                  WHERE i.cn_id = c.cn_id AND b.status = 'submitted' AND b.task = ?2)
+ORDER BY c.value DESC
+LIMIT ?4
+`
+
+type ContractsToClassifyParams struct {
+	UnspscPrefix  sql.NullString
+	Task          string
+	PromptVersion string
+	Lim           int64
+}
+
+type ContractsToClassifyRow struct {
+	CnID        string
+	Description string
+	Agency      string
+	Supplier    string
+}
+
+// LLM classification ------------------------------------------------------------
+// Contracts in a UNSPSC segment with no classification for this task and
+// prompt version, and none waiting in an uncollected batch.
+func (q *Queries) ContractsToClassify(ctx context.Context, arg ContractsToClassifyParams) ([]ContractsToClassifyRow, error) {
+	rows, err := q.db.QueryContext(ctx, contractsToClassify,
+		arg.UnspscPrefix,
+		arg.Task,
+		arg.PromptVersion,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ContractsToClassifyRow
+	for rows.Next() {
+		var i ContractsToClassifyRow
+		if err := rows.Scan(
+			&i.CnID,
+			&i.Description,
+			&i.Agency,
+			&i.Supplier,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteProgramExpensesForDoc = `-- name: DeleteProgramExpensesForDoc :exec
 DELETE FROM program_expense WHERE source_document_id = ?
 `
@@ -27,6 +410,364 @@ DELETE FROM wog_expense WHERE source_document_id = ?
 func (q *Queries) DeleteWogExpensesForDoc(ctx context.Context, sourceDocumentID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteWogExpensesForDoc, sourceDocumentID)
 	return err
+}
+
+const deriveLatePublication = `-- name: DeriveLatePublication :exec
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'late-publication', cn_id, agency_id, supplier_id, published_fy,
+  value, julianday(published_date) - julianday(start_date)
+FROM contract_pub
+WHERE start_date <> '' AND published_date <> ''
+  AND julianday(published_date) - julianday(start_date) > 42
+`
+
+func (q *Queries) DeriveLatePublication(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deriveLatePublication)
+	return err
+}
+
+const deriveRepeatLimited = `-- name: DeriveRepeatLimited :exec
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'repeat-limited', c.cn_id, c.agency_id, c.supplier_id, c.published_fy, c.value, g.n
+FROM contract_pub c
+JOIN (SELECT agency_id, supplier_id, published_fy, COUNT(*) AS n
+      FROM contract_pub
+      WHERE method = 'limited' AND exemption = '' AND supplier_id IS NOT NULL
+      GROUP BY agency_id, supplier_id, published_fy
+      HAVING COUNT(*) >= 5 AND SUM(value) >= 1000000) g
+  ON g.agency_id = c.agency_id AND g.supplier_id = c.supplier_id AND g.published_fy = c.published_fy
+WHERE c.method = 'limited' AND c.exemption = ''
+`
+
+// Measure is the number of limited tenders in the agency-supplier-year group.
+func (q *Queries) DeriveRepeatLimited(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deriveRepeatLimited)
+	return err
+}
+
+const deriveThresholdCluster = `-- name: DeriveThresholdCluster :exec
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'threshold-cluster', c.cn_id, c.agency_id, c.supplier_id, c.published_fy, c.value, g.n
+FROM contract_pub c
+JOIN (SELECT agency_id, supplier_id, published_fy, COUNT(*) AS n
+      FROM contract_pub
+      WHERE value >= 72000 AND value < 80000 AND supplier_id IS NOT NULL
+      GROUP BY agency_id, supplier_id, published_fy
+      HAVING COUNT(*) >= 3) g
+  ON g.agency_id = c.agency_id AND g.supplier_id = c.supplier_id AND g.published_fy = c.published_fy
+WHERE c.value >= 72000 AND c.value < 80000
+`
+
+// Measure is the number of near-threshold contracts in the agency-supplier-year group.
+func (q *Queries) DeriveThresholdCluster(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deriveThresholdCluster)
+	return err
+}
+
+const deriveValueIncrease = `-- name: DeriveValueIncrease :exec
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'value-increase', cn_id, agency_id, supplier_id, published_fy,
+  value - original_value, 100.0 * (value - original_value) / original_value
+FROM contract_pub
+WHERE original_value > 0 AND value - original_value >= 100000 AND value >= 1.5 * original_value
+`
+
+func (q *Queries) DeriveValueIncrease(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deriveValueIncrease)
+	return err
+}
+
+const entityContractStats = `-- name: EntityContractStats :one
+SELECT CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN cf.amount END), 0) AS INTEGER) AS limited_amount,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN 1 END), 0) AS INTEGER) AS limited_contracts,
+  CAST(COALESCE(SUM(CASE WHEN c.amendment_count > 0 THEN 1 END), 0) AS INTEGER) AS amended_contracts,
+  CAST(COALESCE(SUM(CASE WHEN c.original_value IS NOT NULL AND c.value > c.original_value THEN c.value - c.original_value END), 0) AS INTEGER) AS amended_increase,
+  CAST(COUNT(DISTINCT c.supplier_id) AS INTEGER) AS suppliers
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+WHERE cf.fiscal_year = ?1 AND a.entity_id = ?2
+`
+
+type EntityContractStatsParams struct {
+	Fy       string
+	EntityID sql.NullInt64
+}
+
+type EntityContractStatsRow struct {
+	Contracts        int64
+	Amount           int64
+	LimitedAmount    int64
+	LimitedContracts int64
+	AmendedContracts int64
+	AmendedIncrease  int64
+	Suppliers        int64
+}
+
+// Contracts active in a year for one entity, with the procurement facts the
+// page reports: limited tenders and value added by amendments.
+func (q *Queries) EntityContractStats(ctx context.Context, arg EntityContractStatsParams) (EntityContractStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, entityContractStats, arg.Fy, arg.EntityID)
+	var i EntityContractStatsRow
+	err := row.Scan(
+		&i.Contracts,
+		&i.Amount,
+		&i.LimitedAmount,
+		&i.LimitedContracts,
+		&i.AmendedContracts,
+		&i.AmendedIncrease,
+		&i.Suppliers,
+	)
+	return i, err
+}
+
+const entityContractTotals = `-- name: EntityContractTotals :many
+SELECT a.entity_id, CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+WHERE cf.fiscal_year = ? AND a.entity_id IS NOT NULL
+GROUP BY a.entity_id
+`
+
+type EntityContractTotalsRow struct {
+	EntityID sql.NullInt64
+	Amount   int64
+}
+
+func (q *Queries) EntityContractTotals(ctx context.Context, fiscalYear string) ([]EntityContractTotalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityContractTotals, fiscalYear)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityContractTotalsRow
+	for rows.Next() {
+		var i EntityContractTotalsRow
+		if err := rows.Scan(&i.EntityID, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const entityProgramDescriptions = `-- name: EntityProgramDescriptions :many
+SELECT pd.program_id, pd.text FROM program_description pd
+JOIN program p ON p.id = pd.program_id
+WHERE p.entity_id = ? AND p.budget_year = ? AND pd.kind = 'reported'
+`
+
+type EntityProgramDescriptionsParams struct {
+	EntityID   int64
+	BudgetYear string
+}
+
+type EntityProgramDescriptionsRow struct {
+	ProgramID int64
+	Text      string
+}
+
+func (q *Queries) EntityProgramDescriptions(ctx context.Context, arg EntityProgramDescriptionsParams) ([]EntityProgramDescriptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityProgramDescriptions, arg.EntityID, arg.BudgetYear)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityProgramDescriptionsRow
+	for rows.Next() {
+		var i EntityProgramDescriptionsRow
+		if err := rows.Scan(&i.ProgramID, &i.Text); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const entitySignalSummary = `-- name: EntitySignalSummary :many
+
+SELECT s.rule_id, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(COALESCE(SUM(s.amount), 0) AS INTEGER) AS amount
+FROM signal s JOIN agency a ON a.id = s.agency_id
+WHERE a.entity_id = ?1 AND s.fiscal_year IN (?2, ?3)
+GROUP BY s.rule_id
+`
+
+type EntitySignalSummaryParams struct {
+	EntityID sql.NullInt64
+	Fy       string
+	PrevFy   string
+}
+
+type EntitySignalSummaryRow struct {
+	RuleID    string
+	Contracts int64
+	Amount    int64
+}
+
+// Signals in the web app ----------------------------------------------------------
+func (q *Queries) EntitySignalSummary(ctx context.Context, arg EntitySignalSummaryParams) ([]EntitySignalSummaryRow, error) {
+	rows, err := q.db.QueryContext(ctx, entitySignalSummary, arg.EntityID, arg.Fy, arg.PrevFy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntitySignalSummaryRow
+	for rows.Next() {
+		var i EntitySignalSummaryRow
+		if err := rows.Scan(&i.RuleID, &i.Contracts, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const entityTopContracts = `-- name: EntityTopContracts :many
+SELECT c.cn_id, c.description, c.method, c.start_date, c.end_date, c.value, c.original_value,
+  c.amendment_count, s.id AS supplier_id, s.name AS supplier, cf.amount
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+LEFT JOIN supplier s ON s.id = c.supplier_id
+WHERE cf.fiscal_year = ?1 AND a.entity_id = ?2
+ORDER BY cf.amount DESC
+LIMIT ?3
+`
+
+type EntityTopContractsParams struct {
+	Fy       string
+	EntityID sql.NullInt64
+	Lim      int64
+}
+
+type EntityTopContractsRow struct {
+	CnID           string
+	Description    string
+	Method         string
+	StartDate      string
+	EndDate        string
+	Value          int64
+	OriginalValue  sql.NullInt64
+	AmendmentCount int64
+	SupplierID     sql.NullInt64
+	Supplier       sql.NullString
+	Amount         int64
+}
+
+func (q *Queries) EntityTopContracts(ctx context.Context, arg EntityTopContractsParams) ([]EntityTopContractsRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityTopContracts, arg.Fy, arg.EntityID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityTopContractsRow
+	for rows.Next() {
+		var i EntityTopContractsRow
+		if err := rows.Scan(
+			&i.CnID,
+			&i.Description,
+			&i.Method,
+			&i.StartDate,
+			&i.EndDate,
+			&i.Value,
+			&i.OriginalValue,
+			&i.AmendmentCount,
+			&i.SupplierID,
+			&i.Supplier,
+			&i.Amount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const entityTopSuppliers = `-- name: EntityTopSuppliers :many
+SELECT s.id, s.name, s.abn,
+  CAST(SUM(cf.amount) AS INTEGER) AS amount,
+  CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN cf.amount END), 0) AS INTEGER) AS limited_amount
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN supplier s ON s.id = c.supplier_id
+WHERE cf.fiscal_year = ?1 AND a.entity_id = ?2
+GROUP BY s.id, s.name, s.abn
+ORDER BY amount DESC
+LIMIT ?3
+`
+
+type EntityTopSuppliersParams struct {
+	Fy       string
+	EntityID sql.NullInt64
+	Lim      int64
+}
+
+type EntityTopSuppliersRow struct {
+	ID            int64
+	Name          string
+	Abn           string
+	Amount        int64
+	Contracts     int64
+	LimitedAmount int64
+}
+
+func (q *Queries) EntityTopSuppliers(ctx context.Context, arg EntityTopSuppliersParams) ([]EntityTopSuppliersRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityTopSuppliers, arg.Fy, arg.EntityID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityTopSuppliersRow
+	for rows.Next() {
+		var i EntityTopSuppliersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Abn,
+			&i.Amount,
+			&i.Contracts,
+			&i.LimitedAmount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const entityTotals = `-- name: EntityTotals :many
@@ -94,6 +835,26 @@ func (q *Queries) EntityTotals(ctx context.Context, arg EntityTotalsParams) ([]E
 	return items, nil
 }
 
+const findProgram = `-- name: FindProgram :one
+
+SELECT p.id FROM program p JOIN entity e ON e.id = p.entity_id
+WHERE p.budget_year = ? AND e.name = ? AND p.name = ?
+`
+
+type FindProgramParams struct {
+	BudgetYear string
+	Name       string
+	Name_2     string
+}
+
+// Program descriptions ---------------------------------------------------------
+func (q *Queries) FindProgram(ctx context.Context, arg FindProgramParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, findProgram, arg.BudgetYear, arg.Name, arg.Name_2)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const functionTotals = `-- name: FunctionTotals :many
 SELECT category,
   CAST(COALESCE(SUM(CASE WHEN fiscal_year = ?1 THEN amount END), 0) AS INTEGER) AS cur,
@@ -138,6 +899,72 @@ func (q *Queries) FunctionTotals(ctx context.Context, arg FunctionTotalsParams) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const getContract = `-- name: GetContract :one
+SELECT c.cn_id, c.ocid, c.title, c.description, c.unspsc, c.method, c.method_detail,
+  c.limited_reason, c.exemption, c.start_date, c.end_date, c.published_date, c.value,
+  c.original_value, c.amendment_count, c.status, c.history_loaded,
+  a.name AS agency, a.entity_id, s.id AS supplier_id, s.name AS supplier, s.abn AS supplier_abn
+FROM contract c
+JOIN agency a ON a.id = c.agency_id
+LEFT JOIN supplier s ON s.id = c.supplier_id
+WHERE c.cn_id = ?
+`
+
+type GetContractRow struct {
+	CnID           string
+	Ocid           string
+	Title          string
+	Description    string
+	Unspsc         string
+	Method         string
+	MethodDetail   string
+	LimitedReason  string
+	Exemption      string
+	StartDate      string
+	EndDate        string
+	PublishedDate  string
+	Value          int64
+	OriginalValue  sql.NullInt64
+	AmendmentCount int64
+	Status         string
+	HistoryLoaded  int64
+	Agency         string
+	EntityID       sql.NullInt64
+	SupplierID     sql.NullInt64
+	Supplier       sql.NullString
+	SupplierAbn    sql.NullString
+}
+
+func (q *Queries) GetContract(ctx context.Context, cnID string) (GetContractRow, error) {
+	row := q.db.QueryRowContext(ctx, getContract, cnID)
+	var i GetContractRow
+	err := row.Scan(
+		&i.CnID,
+		&i.Ocid,
+		&i.Title,
+		&i.Description,
+		&i.Unspsc,
+		&i.Method,
+		&i.MethodDetail,
+		&i.LimitedReason,
+		&i.Exemption,
+		&i.StartDate,
+		&i.EndDate,
+		&i.PublishedDate,
+		&i.Value,
+		&i.OriginalValue,
+		&i.AmendmentCount,
+		&i.Status,
+		&i.HistoryLoaded,
+		&i.Agency,
+		&i.EntityID,
+		&i.SupplierID,
+		&i.Supplier,
+		&i.SupplierAbn,
+	)
+	return i, err
 }
 
 const getEntityInDoc = `-- name: GetEntityInDoc :one
@@ -198,6 +1025,24 @@ func (q *Queries) GetProgram(ctx context.Context, id int64) (GetProgramRow, erro
 	return i, err
 }
 
+const getProgramDescription = `-- name: GetProgramDescription :one
+SELECT text, source_url, page FROM program_description
+WHERE program_id = ? AND kind = 'reported'
+`
+
+type GetProgramDescriptionRow struct {
+	Text      string
+	SourceUrl string
+	Page      sql.NullInt64
+}
+
+func (q *Queries) GetProgramDescription(ctx context.Context, programID int64) (GetProgramDescriptionRow, error) {
+	row := q.db.QueryRowContext(ctx, getProgramDescription, programID)
+	var i GetProgramDescriptionRow
+	err := row.Scan(&i.Text, &i.SourceUrl, &i.Page)
+	return i, err
+}
+
 const getSourceDocument = `-- name: GetSourceDocument :one
 SELECT id, title, publisher, url, file_name, sha256, doc_type, budget_year, retrieved_at
 FROM source_document WHERE id = ?
@@ -218,6 +1063,84 @@ func (q *Queries) GetSourceDocument(ctx context.Context, id int64) (SourceDocume
 		&i.RetrievedAt,
 	)
 	return i, err
+}
+
+const getSupplier = `-- name: GetSupplier :one
+SELECT id, key, abn, name, country, postcode FROM supplier WHERE id = ?
+`
+
+func (q *Queries) GetSupplier(ctx context.Context, id int64) (Supplier, error) {
+	row := q.db.QueryRowContext(ctx, getSupplier, id)
+	var i Supplier
+	err := row.Scan(
+		&i.ID,
+		&i.Key,
+		&i.Abn,
+		&i.Name,
+		&i.Country,
+		&i.Postcode,
+	)
+	return i, err
+}
+
+const insertContractFY = `-- name: InsertContractFY :exec
+INSERT INTO contract_fy (cn_id, fiscal_year, amount) VALUES (?, ?, ?)
+`
+
+type InsertContractFYParams struct {
+	CnID       string
+	FiscalYear string
+	Amount     int64
+}
+
+func (q *Queries) InsertContractFY(ctx context.Context, arg InsertContractFYParams) error {
+	_, err := q.db.ExecContext(ctx, insertContractFY, arg.CnID, arg.FiscalYear, arg.Amount)
+	return err
+}
+
+const insertLLMBatch = `-- name: InsertLLMBatch :exec
+INSERT INTO llm_batch (batch_id, task, prompt_version, model, requests, status)
+VALUES (?, ?, ?, ?, ?, 'submitted')
+`
+
+type InsertLLMBatchParams struct {
+	BatchID       string
+	Task          string
+	PromptVersion string
+	Model         string
+	Requests      int64
+}
+
+func (q *Queries) InsertLLMBatch(ctx context.Context, arg InsertLLMBatchParams) error {
+	_, err := q.db.ExecContext(ctx, insertLLMBatch,
+		arg.BatchID,
+		arg.Task,
+		arg.PromptVersion,
+		arg.Model,
+		arg.Requests,
+	)
+	return err
+}
+
+const insertLLMBatchItem = `-- name: InsertLLMBatchItem :exec
+INSERT INTO llm_batch_item (batch_id, custom_id, cn_id, input_hash) VALUES (?, ?, ?, ?)
+`
+
+type InsertLLMBatchItemParams struct {
+	BatchID   string
+	CustomID  string
+	CnID      string
+	InputHash string
+}
+
+func (q *Queries) InsertLLMBatchItem(ctx context.Context, arg InsertLLMBatchItemParams) error {
+	_, err := q.db.ExecContext(ctx, insertLLMBatchItem,
+		arg.BatchID,
+		arg.CustomID,
+		arg.CnID,
+		arg.InputHash,
+	)
+	return err
 }
 
 const insertLoadRun = `-- name: InsertLoadRun :exec
@@ -355,6 +1278,54 @@ func (q *Queries) KindTotals(ctx context.Context, arg KindTotalsParams) ([]KindT
 	return items, nil
 }
 
+const lLMBatchItems = `-- name: LLMBatchItems :many
+SELECT custom_id, i.cn_id, i.input_hash, c.description, a.name AS agency, COALESCE(s.name, '') AS supplier
+FROM llm_batch_item i
+JOIN contract c ON c.cn_id = i.cn_id
+JOIN agency a ON a.id = c.agency_id
+LEFT JOIN supplier s ON s.id = c.supplier_id
+WHERE i.batch_id = ?
+`
+
+type LLMBatchItemsRow struct {
+	CustomID    string
+	CnID        string
+	InputHash   string
+	Description string
+	Agency      string
+	Supplier    string
+}
+
+func (q *Queries) LLMBatchItems(ctx context.Context, batchID string) ([]LLMBatchItemsRow, error) {
+	rows, err := q.db.QueryContext(ctx, lLMBatchItems, batchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LLMBatchItemsRow
+	for rows.Next() {
+		var i LLMBatchItemsRow
+		if err := rows.Scan(
+			&i.CustomID,
+			&i.CnID,
+			&i.InputHash,
+			&i.Description,
+			&i.Agency,
+			&i.Supplier,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const largestTransfers = `-- name: LargestTransfers :many
 SELECT e.name AS entity, pe.line_item, pe.treatment_rule, pe.amount
 FROM program_expense pe
@@ -434,10 +1405,38 @@ func (q *Queries) LatestPBSDocument(ctx context.Context) (LatestPBSDocumentRow, 
 	return i, err
 }
 
+const listEntities = `-- name: ListEntities :many
+SELECT id, name FROM entity ORDER BY name
+`
+
+func (q *Queries) ListEntities(ctx context.Context) ([]Entity, error) {
+	rows, err := q.db.QueryContext(ctx, listEntities)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Entity
+	for rows.Next() {
+		var i Entity
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLoadRuns = `-- name: ListLoadRuns :many
 SELECT lr.id, lr.command, lr.rows_read, lr.rows_written, lr.notes, lr.finished_at, sd.title
 FROM load_run lr JOIN source_document sd ON sd.id = lr.source_document_id
 ORDER BY lr.finished_at DESC, lr.id DESC
+LIMIT 200
 `
 
 type ListLoadRunsRow struct {
@@ -518,9 +1517,11 @@ func (q *Queries) ListPBSDocuments(ctx context.Context) ([]ListPBSDocumentsRow, 
 
 const listSourceDocuments = `-- name: ListSourceDocuments :many
 SELECT id, title, publisher, url, file_name, sha256, doc_type, budget_year, retrieved_at
-FROM source_document ORDER BY budget_year DESC, doc_type
+FROM source_document WHERE doc_type NOT LIKE 'austender%'
+ORDER BY budget_year DESC, doc_type
 `
 
+// Documents other than AusTender API pages, which are summarised separately.
 func (q *Queries) ListSourceDocuments(ctx context.Context) ([]SourceDocument, error) {
 	rows, err := q.db.QueryContext(ctx, listSourceDocuments)
 	if err != nil {
@@ -541,6 +1542,97 @@ func (q *Queries) ListSourceDocuments(ctx context.Context) ([]SourceDocument, er
 			&i.BudgetYear,
 			&i.RetrievedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markLLMBatchCollected = `-- name: MarkLLMBatchCollected :exec
+UPDATE llm_batch SET status = 'collected' WHERE batch_id = ?
+`
+
+func (q *Queries) MarkLLMBatchCollected(ctx context.Context, batchID string) error {
+	_, err := q.db.ExecContext(ctx, markLLMBatchCollected, batchID)
+	return err
+}
+
+const openLLMBatches = `-- name: OpenLLMBatches :many
+SELECT batch_id, task, prompt_version, model FROM llm_batch WHERE status = 'submitted' ORDER BY submitted_at
+`
+
+type OpenLLMBatchesRow struct {
+	BatchID       string
+	Task          string
+	PromptVersion string
+	Model         string
+}
+
+func (q *Queries) OpenLLMBatches(ctx context.Context) ([]OpenLLMBatchesRow, error) {
+	rows, err := q.db.QueryContext(ctx, openLLMBatches)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OpenLLMBatchesRow
+	for rows.Next() {
+		var i OpenLLMBatchesRow
+		if err := rows.Scan(
+			&i.BatchID,
+			&i.Task,
+			&i.PromptVersion,
+			&i.Model,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const portfolioContractTotals = `-- name: PortfolioContractTotals :many
+SELECT p.portfolio, CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN (SELECT DISTINCT entity_id, portfolio FROM program WHERE budget_year = ?1) p ON p.entity_id = a.entity_id
+WHERE cf.fiscal_year = ?2
+GROUP BY p.portfolio
+`
+
+type PortfolioContractTotalsParams struct {
+	BudgetYear string
+	Fy         string
+}
+
+type PortfolioContractTotalsRow struct {
+	Portfolio string
+	Amount    int64
+}
+
+func (q *Queries) PortfolioContractTotals(ctx context.Context, arg PortfolioContractTotalsParams) ([]PortfolioContractTotalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, portfolioContractTotals, arg.BudgetYear, arg.Fy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PortfolioContractTotalsRow
+	for rows.Next() {
+		var i PortfolioContractTotalsRow
+		if err := rows.Scan(&i.Portfolio, &i.Amount); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -745,6 +1837,240 @@ func (q *Queries) ProgramTotals(ctx context.Context, arg ProgramTotalsParams) ([
 	return items, nil
 }
 
+const ruleContracts = `-- name: RuleContracts :many
+SELECT s.cn_id, s.amount, s.measure, s.fiscal_year, c.description, c.value, c.original_value,
+  c.published_date, c.start_date, a.name AS agency, a.entity_id
+FROM signal s
+JOIN contract c ON c.cn_id = s.cn_id
+JOIN agency a ON a.id = s.agency_id
+WHERE s.rule_id = ?1 AND s.fiscal_year IN (?2, ?3)
+  AND (?4 = 0 OR a.entity_id = ?4)
+ORDER BY s.amount DESC
+LIMIT 100
+`
+
+type RuleContractsParams struct {
+	RuleID   string
+	Fy       string
+	PrevFy   string
+	EntityID interface{}
+}
+
+type RuleContractsRow struct {
+	CnID          string
+	Amount        int64
+	Measure       float64
+	FiscalYear    string
+	Description   string
+	Value         int64
+	OriginalValue sql.NullInt64
+	PublishedDate string
+	StartDate     string
+	Agency        string
+	EntityID      sql.NullInt64
+}
+
+// Contracts matching a rule, optionally for one entity (entity_id 0 = all).
+func (q *Queries) RuleContracts(ctx context.Context, arg RuleContractsParams) ([]RuleContractsRow, error) {
+	rows, err := q.db.QueryContext(ctx, ruleContracts,
+		arg.RuleID,
+		arg.Fy,
+		arg.PrevFy,
+		arg.EntityID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RuleContractsRow
+	for rows.Next() {
+		var i RuleContractsRow
+		if err := rows.Scan(
+			&i.CnID,
+			&i.Amount,
+			&i.Measure,
+			&i.FiscalYear,
+			&i.Description,
+			&i.Value,
+			&i.OriginalValue,
+			&i.PublishedDate,
+			&i.StartDate,
+			&i.Agency,
+			&i.EntityID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const ruleTopAgencies = `-- name: RuleTopAgencies :many
+SELECT a.name AS agency, a.entity_id, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(SUM(s.amount) AS INTEGER) AS amount
+FROM signal s JOIN agency a ON a.id = s.agency_id
+WHERE s.rule_id = ?1 AND s.fiscal_year IN (?2, ?3)
+GROUP BY a.name, a.entity_id
+ORDER BY amount DESC
+LIMIT 15
+`
+
+type RuleTopAgenciesParams struct {
+	RuleID string
+	Fy     string
+	PrevFy string
+}
+
+type RuleTopAgenciesRow struct {
+	Agency    string
+	EntityID  sql.NullInt64
+	Contracts int64
+	Amount    int64
+}
+
+func (q *Queries) RuleTopAgencies(ctx context.Context, arg RuleTopAgenciesParams) ([]RuleTopAgenciesRow, error) {
+	rows, err := q.db.QueryContext(ctx, ruleTopAgencies, arg.RuleID, arg.Fy, arg.PrevFy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RuleTopAgenciesRow
+	for rows.Next() {
+		var i RuleTopAgenciesRow
+		if err := rows.Scan(
+			&i.Agency,
+			&i.EntityID,
+			&i.Contracts,
+			&i.Amount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const ruleTotals = `-- name: RuleTotals :many
+SELECT rule_id, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(COALESCE(SUM(amount), 0) AS INTEGER) AS amount,
+  CAST(COUNT(DISTINCT agency_id) AS INTEGER) AS agencies
+FROM signal WHERE fiscal_year IN (?1, ?2)
+GROUP BY rule_id
+`
+
+type RuleTotalsParams struct {
+	Fy     string
+	PrevFy string
+}
+
+type RuleTotalsRow struct {
+	RuleID    string
+	Contracts int64
+	Amount    int64
+	Agencies  int64
+}
+
+func (q *Queries) RuleTotals(ctx context.Context, arg RuleTotalsParams) ([]RuleTotalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, ruleTotals, arg.Fy, arg.PrevFy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RuleTotalsRow
+	for rows.Next() {
+		var i RuleTotalsRow
+		if err := rows.Scan(
+			&i.RuleID,
+			&i.Contracts,
+			&i.Amount,
+			&i.Agencies,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setAgencyEntity = `-- name: SetAgencyEntity :exec
+UPDATE agency SET entity_id = ?, match_method = ? WHERE id = ?
+`
+
+type SetAgencyEntityParams struct {
+	EntityID    sql.NullInt64
+	MatchMethod string
+	ID          int64
+}
+
+func (q *Queries) SetAgencyEntity(ctx context.Context, arg SetAgencyEntityParams) error {
+	_, err := q.db.ExecContext(ctx, setAgencyEntity, arg.EntityID, arg.MatchMethod, arg.ID)
+	return err
+}
+
+const setContractHistory = `-- name: SetContractHistory :exec
+UPDATE contract SET original_value = ?, history_loaded = 1 WHERE cn_id = ?
+`
+
+type SetContractHistoryParams struct {
+	OriginalValue sql.NullInt64
+	CnID          string
+}
+
+func (q *Queries) SetContractHistory(ctx context.Context, arg SetContractHistoryParams) error {
+	_, err := q.db.ExecContext(ctx, setContractHistory, arg.OriginalValue, arg.CnID)
+	return err
+}
+
+const signalCounts = `-- name: SignalCounts :many
+SELECT rule_id, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(COALESCE(SUM(amount), 0) AS INTEGER) AS amount
+FROM signal GROUP BY rule_id
+`
+
+type SignalCountsRow struct {
+	RuleID    string
+	Contracts int64
+	Amount    int64
+}
+
+func (q *Queries) SignalCounts(ctx context.Context) ([]SignalCountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, signalCounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SignalCountsRow
+	for rows.Next() {
+		var i SignalCountsRow
+		if err := rows.Scan(&i.RuleID, &i.Contracts, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const sumByTreatment = `-- name: SumByTreatment :many
 SELECT pe.treatment, pe.treatment_rule,
        CAST(COALESCE(SUM(pe.amount), 0) AS INTEGER) AS total,
@@ -840,6 +2166,182 @@ func (q *Queries) SumExpenseByPortfolio(ctx context.Context, arg SumExpenseByPor
 	return items, nil
 }
 
+const supplierAgencies = `-- name: SupplierAgencies :many
+SELECT a.name AS agency, a.entity_id,
+  CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(SUM(c.value) AS INTEGER) AS value,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN c.value END), 0) AS INTEGER) AS limited_value
+FROM contract c JOIN agency a ON a.id = c.agency_id
+WHERE c.supplier_id = ?
+GROUP BY a.name, a.entity_id
+ORDER BY value DESC
+`
+
+type SupplierAgenciesRow struct {
+	Agency       string
+	EntityID     sql.NullInt64
+	Contracts    int64
+	Value        int64
+	LimitedValue int64
+}
+
+func (q *Queries) SupplierAgencies(ctx context.Context, supplierID sql.NullInt64) ([]SupplierAgenciesRow, error) {
+	rows, err := q.db.QueryContext(ctx, supplierAgencies, supplierID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SupplierAgenciesRow
+	for rows.Next() {
+		var i SupplierAgenciesRow
+		if err := rows.Scan(
+			&i.Agency,
+			&i.EntityID,
+			&i.Contracts,
+			&i.Value,
+			&i.LimitedValue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const supplierContracts = `-- name: SupplierContracts :many
+SELECT c.cn_id, c.description, c.method, c.start_date, c.end_date, c.published_date, c.value,
+  c.original_value, c.amendment_count, a.name AS agency
+FROM contract c JOIN agency a ON a.id = c.agency_id
+WHERE c.supplier_id = ?
+ORDER BY c.value DESC
+LIMIT ?
+`
+
+type SupplierContractsParams struct {
+	SupplierID sql.NullInt64
+	Limit      int64
+}
+
+type SupplierContractsRow struct {
+	CnID           string
+	Description    string
+	Method         string
+	StartDate      string
+	EndDate        string
+	PublishedDate  string
+	Value          int64
+	OriginalValue  sql.NullInt64
+	AmendmentCount int64
+	Agency         string
+}
+
+func (q *Queries) SupplierContracts(ctx context.Context, arg SupplierContractsParams) ([]SupplierContractsRow, error) {
+	rows, err := q.db.QueryContext(ctx, supplierContracts, arg.SupplierID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SupplierContractsRow
+	for rows.Next() {
+		var i SupplierContractsRow
+		if err := rows.Scan(
+			&i.CnID,
+			&i.Description,
+			&i.Method,
+			&i.StartDate,
+			&i.EndDate,
+			&i.PublishedDate,
+			&i.Value,
+			&i.OriginalValue,
+			&i.AmendmentCount,
+			&i.Agency,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const supplierSignalSummary = `-- name: SupplierSignalSummary :many
+SELECT rule_id, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(COALESCE(SUM(amount), 0) AS INTEGER) AS amount
+FROM signal WHERE supplier_id = ? GROUP BY rule_id
+`
+
+type SupplierSignalSummaryRow struct {
+	RuleID    string
+	Contracts int64
+	Amount    int64
+}
+
+func (q *Queries) SupplierSignalSummary(ctx context.Context, supplierID sql.NullInt64) ([]SupplierSignalSummaryRow, error) {
+	rows, err := q.db.QueryContext(ctx, supplierSignalSummary, supplierID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SupplierSignalSummaryRow
+	for rows.Next() {
+		var i SupplierSignalSummaryRow
+		if err := rows.Scan(&i.RuleID, &i.Contracts, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const supplierTotals = `-- name: SupplierTotals :one
+SELECT CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(value), 0) AS INTEGER) AS value,
+  CAST(COALESCE(SUM(CASE WHEN method = 'limited' THEN value END), 0) AS INTEGER) AS limited_value,
+  CAST(COALESCE(SUM(CASE WHEN method = 'limited' THEN 1 END), 0) AS INTEGER) AS limited_contracts,
+  CAST(COALESCE(MIN(published_date), '') AS TEXT) AS first_published,
+  CAST(COALESCE(MAX(published_date), '') AS TEXT) AS last_published
+FROM contract WHERE supplier_id = ?
+`
+
+type SupplierTotalsRow struct {
+	Contracts        int64
+	Value            int64
+	LimitedValue     int64
+	LimitedContracts int64
+	FirstPublished   string
+	LastPublished    string
+}
+
+func (q *Queries) SupplierTotals(ctx context.Context, supplierID sql.NullInt64) (SupplierTotalsRow, error) {
+	row := q.db.QueryRowContext(ctx, supplierTotals, supplierID)
+	var i SupplierTotalsRow
+	err := row.Scan(
+		&i.Contracts,
+		&i.Value,
+		&i.LimitedValue,
+		&i.LimitedContracts,
+		&i.FirstPublished,
+		&i.LastPublished,
+	)
+	return i, err
+}
+
 const treatmentTotals = `-- name: TreatmentTotals :many
 SELECT treatment, treatment_rule,
   CAST(COALESCE(SUM(CASE WHEN fiscal_year = ?1 THEN amount END), 0) AS INTEGER) AS cur,
@@ -895,6 +2397,157 @@ func (q *Queries) TreatmentTotals(ctx context.Context, arg TreatmentTotalsParams
 	return items, nil
 }
 
+const unmatchedAgencies = `-- name: UnmatchedAgencies :many
+SELECT id, name FROM agency WHERE entity_id IS NULL ORDER BY name
+`
+
+type UnmatchedAgenciesRow struct {
+	ID   int64
+	Name string
+}
+
+func (q *Queries) UnmatchedAgencies(ctx context.Context) ([]UnmatchedAgenciesRow, error) {
+	rows, err := q.db.QueryContext(ctx, unmatchedAgencies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UnmatchedAgenciesRow
+	for rows.Next() {
+		var i UnmatchedAgenciesRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertAgency = `-- name: UpsertAgency :one
+
+INSERT INTO agency (name, abn) VALUES (?, ?)
+ON CONFLICT (name) DO UPDATE SET abn = CASE WHEN excluded.abn <> '' THEN excluded.abn ELSE agency.abn END
+RETURNING id
+`
+
+type UpsertAgencyParams struct {
+	Name string
+	Abn  string
+}
+
+// AusTender loader ----------------------------------------------------------
+func (q *Queries) UpsertAgency(ctx context.Context, arg UpsertAgencyParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, upsertAgency, arg.Name, arg.Abn)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const upsertContract = `-- name: UpsertContract :exec
+INSERT INTO contract (
+  cn_id, ocid, agency_id, supplier_id, title, description, unspsc, method, method_detail,
+  limited_reason, exemption, start_date, end_date, published_date, value, original_value,
+  amendment_count, status, release_id, release_date, source_document_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (cn_id) DO UPDATE SET
+  agency_id = excluded.agency_id, supplier_id = excluded.supplier_id, title = excluded.title,
+  description = excluded.description, unspsc = excluded.unspsc, method = excluded.method,
+  method_detail = excluded.method_detail, limited_reason = excluded.limited_reason,
+  exemption = excluded.exemption, start_date = excluded.start_date, end_date = excluded.end_date,
+  published_date = excluded.published_date, value = excluded.value,
+  original_value = COALESCE(contract.original_value, excluded.original_value),
+  amendment_count = excluded.amendment_count, status = excluded.status,
+  release_id = excluded.release_id, release_date = excluded.release_date,
+  history_loaded = CASE WHEN excluded.amendment_count > contract.amendment_count THEN 0 ELSE contract.history_loaded END,
+  source_document_id = excluded.source_document_id
+WHERE excluded.release_date >= contract.release_date
+`
+
+type UpsertContractParams struct {
+	CnID             string
+	Ocid             string
+	AgencyID         int64
+	SupplierID       sql.NullInt64
+	Title            string
+	Description      string
+	Unspsc           string
+	Method           string
+	MethodDetail     string
+	LimitedReason    string
+	Exemption        string
+	StartDate        string
+	EndDate          string
+	PublishedDate    string
+	Value            int64
+	OriginalValue    sql.NullInt64
+	AmendmentCount   int64
+	Status           string
+	ReleaseID        string
+	ReleaseDate      string
+	SourceDocumentID int64
+}
+
+// Keeps the newest release; an older release never overwrites a newer one.
+func (q *Queries) UpsertContract(ctx context.Context, arg UpsertContractParams) error {
+	_, err := q.db.ExecContext(ctx, upsertContract,
+		arg.CnID,
+		arg.Ocid,
+		arg.AgencyID,
+		arg.SupplierID,
+		arg.Title,
+		arg.Description,
+		arg.Unspsc,
+		arg.Method,
+		arg.MethodDetail,
+		arg.LimitedReason,
+		arg.Exemption,
+		arg.StartDate,
+		arg.EndDate,
+		arg.PublishedDate,
+		arg.Value,
+		arg.OriginalValue,
+		arg.AmendmentCount,
+		arg.Status,
+		arg.ReleaseID,
+		arg.ReleaseDate,
+		arg.SourceDocumentID,
+	)
+	return err
+}
+
+const upsertContractRelease = `-- name: UpsertContractRelease :exec
+INSERT INTO contract_release (release_id, cn_id, release_date, amendment, value, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT (release_id) DO NOTHING
+`
+
+type UpsertContractReleaseParams struct {
+	ReleaseID        string
+	CnID             string
+	ReleaseDate      string
+	Amendment        int64
+	Value            int64
+	SourceDocumentID int64
+}
+
+func (q *Queries) UpsertContractRelease(ctx context.Context, arg UpsertContractReleaseParams) error {
+	_, err := q.db.ExecContext(ctx, upsertContractRelease,
+		arg.ReleaseID,
+		arg.CnID,
+		arg.ReleaseDate,
+		arg.Amendment,
+		arg.Value,
+		arg.SourceDocumentID,
+	)
+	return err
+}
+
 const upsertEntity = `-- name: UpsertEntity :one
 INSERT INTO entity (name) VALUES (?)
 ON CONFLICT (name) DO UPDATE SET name = excluded.name
@@ -906,6 +2559,39 @@ func (q *Queries) UpsertEntity(ctx context.Context, name string) (int64, error) 
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const upsertLLMClassification = `-- name: UpsertLLMClassification :exec
+INSERT INTO llm_classification (cn_id, task, prompt_version, model, category, confidence, input_hash, batch_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (cn_id, task, prompt_version) DO UPDATE SET
+  model = excluded.model, category = excluded.category, confidence = excluded.confidence,
+  input_hash = excluded.input_hash, batch_id = excluded.batch_id, created_at = CURRENT_TIMESTAMP
+`
+
+type UpsertLLMClassificationParams struct {
+	CnID          string
+	Task          string
+	PromptVersion string
+	Model         string
+	Category      string
+	Confidence    string
+	InputHash     string
+	BatchID       string
+}
+
+func (q *Queries) UpsertLLMClassification(ctx context.Context, arg UpsertLLMClassificationParams) error {
+	_, err := q.db.ExecContext(ctx, upsertLLMClassification,
+		arg.CnID,
+		arg.Task,
+		arg.PromptVersion,
+		arg.Model,
+		arg.Category,
+		arg.Confidence,
+		arg.InputHash,
+		arg.BatchID,
+	)
+	return err
 }
 
 const upsertProgram = `-- name: UpsertProgram :one
@@ -935,6 +2621,33 @@ func (q *Queries) UpsertProgram(ctx context.Context, arg UpsertProgramParams) (i
 	return id, err
 }
 
+const upsertProgramDescription = `-- name: UpsertProgramDescription :exec
+INSERT INTO program_description (program_id, kind, text, source_url, page, source_document_id)
+VALUES (?, 'reported', ?, ?, ?, ?)
+ON CONFLICT (program_id, kind) DO UPDATE SET
+  text = excluded.text, source_url = excluded.source_url, page = excluded.page,
+  source_document_id = excluded.source_document_id
+`
+
+type UpsertProgramDescriptionParams struct {
+	ProgramID        int64
+	Text             string
+	SourceUrl        string
+	Page             sql.NullInt64
+	SourceDocumentID int64
+}
+
+func (q *Queries) UpsertProgramDescription(ctx context.Context, arg UpsertProgramDescriptionParams) error {
+	_, err := q.db.ExecContext(ctx, upsertProgramDescription,
+		arg.ProgramID,
+		arg.Text,
+		arg.SourceUrl,
+		arg.Page,
+		arg.SourceDocumentID,
+	)
+	return err
+}
+
 const upsertSourceDocument = `-- name: UpsertSourceDocument :one
 INSERT INTO source_document (title, publisher, url, file_name, sha256, doc_type, budget_year)
 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -962,6 +2675,33 @@ func (q *Queries) UpsertSourceDocument(ctx context.Context, arg UpsertSourceDocu
 		arg.Sha256,
 		arg.DocType,
 		arg.BudgetYear,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const upsertSupplier = `-- name: UpsertSupplier :one
+INSERT INTO supplier (key, abn, name, country, postcode) VALUES (?, ?, ?, ?, ?)
+ON CONFLICT (key) DO UPDATE SET name = excluded.name, country = excluded.country, postcode = excluded.postcode
+RETURNING id
+`
+
+type UpsertSupplierParams struct {
+	Key      string
+	Abn      string
+	Name     string
+	Country  string
+	Postcode string
+}
+
+func (q *Queries) UpsertSupplier(ctx context.Context, arg UpsertSupplierParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, upsertSupplier,
+		arg.Key,
+		arg.Abn,
+		arg.Name,
+		arg.Country,
+		arg.Postcode,
 	)
 	var id int64
 	err := row.Scan(&id)

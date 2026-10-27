@@ -47,3 +47,9 @@ func TestTreemapCoversBoxAndPreservesArea(t *testing.T) {
 		t.Errorf("tiles cover %.4f of 10000", area)
 	}
 }
+
+func TestDisplayName(t *testing.T) {
+	if got := DisplayName("Program 3.2: Aged Care Services (b) (c)"); got != "Program 3.2: Aged Care Services" {
+		t.Errorf("DisplayName = %q", got)
+	}
+}

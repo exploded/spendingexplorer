@@ -98,6 +98,9 @@ h2.kicker { margin: 0 0 12px; }
 }
 .badge-removed { background: var(--removed-bg); color: var(--removed-ink); }
 .badge-reported { background: transparent; border: 1px solid var(--rule); }
+.badge-estimate { background: transparent; border: 1px dashed var(--ink-3); color: var(--ink-2); }
+.badge-ai { background: transparent; border: 1px solid var(--meter); color: var(--link); }
+.badge-limited { background: var(--removed-bg); color: var(--removed-ink); }
 .badge-recon {
   background: repeating-linear-gradient(45deg, var(--badge-bg) 0 4px, transparent 4px 8px);
   border: 1px solid var(--rule);
@@ -159,6 +162,30 @@ tr.excluded th { text-decoration: line-through; text-decoration-color: var(--rul
 .sharebar { display: inline-block; width: 48px; height: 6px; background: var(--track); border-radius: 3px; margin-right: 8px; vertical-align: 2px; overflow: hidden; }
 .sharebar > span { display: block; height: 100%; background: var(--meter); }
 
+h3 { font: 600 17px/1.3 var(--sans); margin: 28px 0 4px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 16px 0 8px; }
+.stats > div { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; }
+.stats dt { font-size: 13px; color: var(--ink-3); }
+.stats dd { margin: 4px 0 0; font: 600 22px/1.2 var(--serif); font-variant-numeric: tabular-nums; }
+.stats dd .small { font-family: var(--sans); font-weight: 400; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 24px; margin: 0 0 8px; }
+.facts > div { padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.facts dt { font-size: 13px; color: var(--ink-3); }
+.facts dd { margin: 2px 0 0; }
+table.narrow { max-width: 480px; }
+tr.current th, tr.current td { font-weight: 700; }
+.row-note { display: block; font-weight: 400; font-size: 13px; color: var(--ink-3); margin-top: 2px; max-width: 60ch; }
+.objective { margin: 0 0 24px; max-width: 760px; }
+.objective blockquote { margin: 6px 0 6px; padding: 2px 0 2px 16px; border-left: 3px solid var(--meter); font: 18px/1.5 var(--serif); color: var(--ink); }
+.objective p { margin: 0; }
+.closer { background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--up2); border-radius: 8px; padding: 4px 20px 12px; margin: 24px 0; }
+.closer h2 { margin-top: 16px; }
+.closer-list { list-style: none; padding: 0; margin: 8px 0 0; }
+.closer-list li { padding: 8px 0; border-top: 1px solid var(--rule); }
+.closer-list .num { margin-left: 8px; color: var(--ink-2); }
+.closer-item p { margin: 8px 0 4px; }
+.rule-card { border-top: 1px solid var(--rule); padding: 16px 0; }
+.rule-card h2 { margin-top: 0; }
 .prose { max-width: 720px; }
 .prose h2 { margin-top: 32px; }
 .rules dt { font-weight: 600; margin-top: 16px; }

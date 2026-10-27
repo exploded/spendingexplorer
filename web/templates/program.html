@@ -1,9 +1,18 @@
-{{define "title"}}{{.Program.Name}}{{end}}
+{{define "title"}}{{display .Program.Name}}{{end}}
 
 {{define "content"}}
 {{template "crumbs" .Crumbs}}
 <p class="kicker">Program · {{.Program.Outcome}}</p>
-<h1>{{.Program.Name}}</h1>
+<h1>{{display .Program.Name}}</h1>
+{{with .Description}}
+<figure class="objective">
+  <figcaption class="kicker">Program objective, as stated by the agency</figcaption>
+  <blockquote>{{.Text}}</blockquote>
+  <p class="small muted">{{$.Program.EntityName}}, <a href="{{.SourceUrl}}{{if .Page.Valid}}#page={{.Page.Int64}}{{end}}">{{$.Period.FY}} Portfolio Budget Statements{{if .Page.Valid}}, PDF page {{.Page.Int64}}{{end}}</a> <span class="badge badge-reported">reported</span></p>
+</figure>
+{{else}}
+<p class="muted small">No description yet. <a href="https://budget.gov.au/content/pbs/index.htm">Read the {{.Program.EntityName}} Portfolio Budget Statements</a> for this program’s objective.</p>
+{{end}}
 {{template "hero" .}}
 {{if .Total.Excluded}}
 <p class="note">A further {{money .Total.Excluded}} is listed for this program but not counted, because it is counted elsewhere or is not an expense. Each line below says why.</p>

@@ -35,3 +35,55 @@ go run ./cmd/reconcile
 `reload.sh` runs all four loaders against a fresh `spending.db`. `reconcile` prints, per publication and year: line items by treatment rule, the itemised
 total, the BP1 total expenses, and the difference ("whole-of-government adjustments").
 Treatment rules are in `internal/pbs/treatment.go`.
+
+## AusTender contracts
+
+```
+go run ./cmd/load-austender -from 2022-07-01   # weekly windows; cached in .local/austender
+go run ./cmd/derive                            # rebuild annualised contract_fy
+```
+
+The loader keeps the latest release of each contract, fetches the full history of amended
+contracts to record their original value, and matches agency names to PBS entities
+(reviewed aliases in `data/agency_aliases.csv`). Re-running only fetches what is not cached,
+plus the most recent week.
+
+## Program descriptions
+
+Program objectives are quoted from each entity's PBS document. Extraction needs
+`pdftotext` (poppler) and runs locally; its output, `data/program_descriptions_<year>.csv`,
+is committed so the server only loads it.
+
+```
+go run ./cmd/extract-descriptions -crawl   # rebuild data/pbs_documents_<year>.csv
+go run ./cmd/extract-descriptions          # download, extract, match, verify
+go run ./cmd/load-descriptions
+```
+
+A quote is kept only when the cited page shows it directly under its own program heading.
+Documents for other years, Additional Estimates and "linked programs" text are rejected.
+PM&C's site blocks automated requests, so its documents need adding by hand.
+
+## Signals ("worth a closer look")
+
+`go run ./cmd/derive` rebuilds the `signal` table from the rules in `internal/signals`:
+value increased after award, published long after it started, several contracts just
+under $80,000, and repeated limited tenders to one supplier. Each rule states its threshold,
+the rule or practice it relates to, and common legitimate explanations. The site shows them
+at `/signals`, on entity pages and on contract pages.
+
+## AI classification (server only)
+
+`cmd/llm-classify` sends contract descriptions to Claude (`claude-haiku-5-5`) through the
+Message Batches API, 100 contracts per request, with a fixed prompt and a structured-output
+schema. Results are stored per task and prompt version in `llm_classification`.
+
+On the Linode (`ssh -p 2222 deploy@194.195.254.92`), with `ANTHROPIC_API_KEY` in the
+service `.env`:
+
+```
+llm-classify submit -limit 5000   # queue unclassified UNSPSC 80 contracts
+llm-classify collect              # store results once batches have ended
+```
+
+Never set `ANTHROPIC_API_KEY` on the Windows PC; it would override the Claude Code login.

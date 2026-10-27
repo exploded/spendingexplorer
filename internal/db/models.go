@@ -9,6 +9,80 @@ import (
 	"time"
 )
 
+type Agency struct {
+	ID          int64
+	Name        string
+	Abn         string
+	EntityID    sql.NullInt64
+	MatchMethod string
+}
+
+type Contract struct {
+	CnID             string
+	Ocid             string
+	AgencyID         int64
+	SupplierID       sql.NullInt64
+	Title            string
+	Description      string
+	Unspsc           string
+	Method           string
+	MethodDetail     string
+	LimitedReason    string
+	Exemption        string
+	StartDate        string
+	EndDate          string
+	PublishedDate    string
+	Value            int64
+	OriginalValue    sql.NullInt64
+	AmendmentCount   int64
+	Status           string
+	ReleaseID        string
+	ReleaseDate      string
+	HistoryLoaded    int64
+	SourceDocumentID int64
+}
+
+type ContractFy struct {
+	CnID       string
+	FiscalYear string
+	Amount     int64
+}
+
+type ContractPub struct {
+	CnID             string
+	Ocid             string
+	AgencyID         int64
+	SupplierID       sql.NullInt64
+	Title            string
+	Description      string
+	Unspsc           string
+	Method           string
+	MethodDetail     string
+	LimitedReason    string
+	Exemption        string
+	StartDate        string
+	EndDate          string
+	PublishedDate    string
+	Value            int64
+	OriginalValue    sql.NullInt64
+	AmendmentCount   int64
+	Status           string
+	ReleaseID        string
+	ReleaseDate      string
+	HistoryLoaded    int64
+	SourceDocumentID int64
+	PublishedFy      interface{}
+}
+
+type ContractRelease struct {
+	ReleaseID        string
+	CnID             string
+	ReleaseDate      string
+	Amendment        int64
+	Value            int64
+	SourceDocumentID int64
+}
+
 type Entity struct {
 	ID   int64
 	Name string
@@ -17,6 +91,35 @@ type Entity struct {
 type EntityAlias struct {
 	Alias    string
 	EntityID int64
+}
+
+type LlmBatch struct {
+	BatchID       string
+	Task          string
+	PromptVersion string
+	Model         string
+	Requests      int64
+	Status        string
+	SubmittedAt   time.Time
+}
+
+type LlmBatchItem struct {
+	BatchID   string
+	CustomID  string
+	CnID      string
+	InputHash string
+}
+
+type LlmClassification struct {
+	CnID          string
+	Task          string
+	PromptVersion string
+	Model         string
+	Category      string
+	Confidence    string
+	InputHash     string
+	BatchID       string
+	CreatedAt     time.Time
 }
 
 type LoadRun struct {
@@ -36,6 +139,17 @@ type Program struct {
 	Portfolio  string
 	Outcome    string
 	Name       string
+}
+
+type ProgramDescription struct {
+	ProgramID        int64
+	Kind             string
+	Text             string
+	SourceUrl        string
+	Page             sql.NullInt64
+	SourceDocumentID int64
+	Model            string
+	PromptVersion    string
 }
 
 type ProgramExpense struct {
@@ -62,6 +176,16 @@ type ProgramLineage struct {
 	Confidence    sql.NullFloat64
 }
 
+type Signal struct {
+	RuleID     string
+	CnID       string
+	AgencyID   int64
+	SupplierID sql.NullInt64
+	FiscalYear string
+	Amount     int64
+	Measure    float64
+}
+
 type SourceDocument struct {
 	ID          int64
 	Title       string
@@ -72,6 +196,15 @@ type SourceDocument struct {
 	DocType     string
 	BudgetYear  string
 	RetrievedAt time.Time
+}
+
+type Supplier struct {
+	ID       int64
+	Key      string
+	Abn      string
+	Name     string
+	Country  string
+	Postcode string
 }
 
 type WogExpense struct {

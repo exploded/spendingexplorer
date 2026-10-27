@@ -87,13 +87,22 @@ SELECT id, title, publisher, url, file_name, sha256, doc_type, budget_year, retr
 FROM source_document WHERE id = ?;
 
 -- name: ListSourceDocuments :many
+-- Documents other than AusTender API pages, which are summarised separately.
 SELECT id, title, publisher, url, file_name, sha256, doc_type, budget_year, retrieved_at
-FROM source_document ORDER BY budget_year DESC, doc_type;
+FROM source_document WHERE doc_type NOT LIKE 'austender%'
+ORDER BY budget_year DESC, doc_type;
+
+-- name: AusTenderSourceSummary :many
+SELECT doc_type, CAST(COUNT(*) AS INTEGER) AS documents,
+  CAST(MIN(retrieved_at) AS TEXT) AS first_retrieved, CAST(MAX(retrieved_at) AS TEXT) AS last_retrieved
+FROM source_document WHERE doc_type LIKE 'austender%'
+GROUP BY doc_type ORDER BY doc_type;
 
 -- name: ListLoadRuns :many
 SELECT lr.id, lr.command, lr.rows_read, lr.rows_written, lr.notes, lr.finished_at, sd.title
 FROM load_run lr JOIN source_document sd ON sd.id = lr.source_document_id
-ORDER BY lr.finished_at DESC, lr.id DESC;
+ORDER BY lr.finished_at DESC, lr.id DESC
+LIMIT 200;
 
 -- name: WogDocument :one
 SELECT id, title, url FROM source_document
@@ -190,3 +199,349 @@ FROM program_expense pe
 WHERE pe.source_document_id = sqlc.arg(doc_id) AND pe.program_id = sqlc.arg(program_id)
 GROUP BY pe.source_row, pe.source_table, pe.line_item, pe.expense_kind, pe.treatment, pe.treatment_rule
 ORDER BY cur DESC;
+
+-- AusTender loader ----------------------------------------------------------
+
+-- name: UpsertAgency :one
+INSERT INTO agency (name, abn) VALUES (?, ?)
+ON CONFLICT (name) DO UPDATE SET abn = CASE WHEN excluded.abn <> '' THEN excluded.abn ELSE agency.abn END
+RETURNING id;
+
+-- name: UpsertSupplier :one
+INSERT INTO supplier (key, abn, name, country, postcode) VALUES (?, ?, ?, ?, ?)
+ON CONFLICT (key) DO UPDATE SET name = excluded.name, country = excluded.country, postcode = excluded.postcode
+RETURNING id;
+
+-- name: UpsertContract :exec
+-- Keeps the newest release; an older release never overwrites a newer one.
+INSERT INTO contract (
+  cn_id, ocid, agency_id, supplier_id, title, description, unspsc, method, method_detail,
+  limited_reason, exemption, start_date, end_date, published_date, value, original_value,
+  amendment_count, status, release_id, release_date, source_document_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (cn_id) DO UPDATE SET
+  agency_id = excluded.agency_id, supplier_id = excluded.supplier_id, title = excluded.title,
+  description = excluded.description, unspsc = excluded.unspsc, method = excluded.method,
+  method_detail = excluded.method_detail, limited_reason = excluded.limited_reason,
+  exemption = excluded.exemption, start_date = excluded.start_date, end_date = excluded.end_date,
+  published_date = excluded.published_date, value = excluded.value,
+  original_value = COALESCE(contract.original_value, excluded.original_value),
+  amendment_count = excluded.amendment_count, status = excluded.status,
+  release_id = excluded.release_id, release_date = excluded.release_date,
+  history_loaded = CASE WHEN excluded.amendment_count > contract.amendment_count THEN 0 ELSE contract.history_loaded END,
+  source_document_id = excluded.source_document_id
+WHERE excluded.release_date >= contract.release_date;
+
+-- name: UpsertContractRelease :exec
+INSERT INTO contract_release (release_id, cn_id, release_date, amendment, value, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT (release_id) DO NOTHING;
+
+-- name: ContractsNeedingHistory :many
+SELECT cn_id FROM contract WHERE amendment_count > 0 AND history_loaded = 0 ORDER BY cn_id;
+
+-- name: SetContractHistory :exec
+UPDATE contract SET original_value = ?, history_loaded = 1 WHERE cn_id = ?;
+
+-- name: UnmatchedAgencies :many
+SELECT id, name FROM agency WHERE entity_id IS NULL ORDER BY name;
+
+-- name: ListEntities :many
+SELECT id, name FROM entity ORDER BY name;
+
+-- name: SetAgencyEntity :exec
+UPDATE agency SET entity_id = ?, match_method = ? WHERE id = ?;
+
+-- Derivations -----------------------------------------------------------------
+
+-- name: ClearContractFY :exec
+DELETE FROM contract_fy;
+
+-- name: ContractsForApportion :many
+SELECT cn_id, value, start_date, end_date, published_date FROM contract WHERE value > 0;
+
+-- name: InsertContractFY :exec
+INSERT INTO contract_fy (cn_id, fiscal_year, amount) VALUES (?, ?, ?);
+
+-- Contracts in the web app ------------------------------------------------------
+
+-- name: ContractCoverageTotal :one
+-- Annualised contract value in a year, for agencies matched to an entity.
+SELECT CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount,
+       CAST(COUNT(*) AS INTEGER) AS contracts
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+WHERE cf.fiscal_year = ? AND a.entity_id IS NOT NULL;
+
+-- name: PortfolioContractTotals :many
+SELECT p.portfolio, CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN (SELECT DISTINCT entity_id, portfolio FROM program WHERE budget_year = sqlc.arg(budget_year)) p ON p.entity_id = a.entity_id
+WHERE cf.fiscal_year = sqlc.arg(fy)
+GROUP BY p.portfolio;
+
+-- name: EntityContractTotals :many
+SELECT a.entity_id, CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+WHERE cf.fiscal_year = ? AND a.entity_id IS NOT NULL
+GROUP BY a.entity_id;
+
+-- name: EntityContractStats :one
+-- Contracts active in a year for one entity, with the procurement facts the
+-- page reports: limited tenders and value added by amendments.
+SELECT CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN cf.amount END), 0) AS INTEGER) AS limited_amount,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN 1 END), 0) AS INTEGER) AS limited_contracts,
+  CAST(COALESCE(SUM(CASE WHEN c.amendment_count > 0 THEN 1 END), 0) AS INTEGER) AS amended_contracts,
+  CAST(COALESCE(SUM(CASE WHEN c.original_value IS NOT NULL AND c.value > c.original_value THEN c.value - c.original_value END), 0) AS INTEGER) AS amended_increase,
+  CAST(COUNT(DISTINCT c.supplier_id) AS INTEGER) AS suppliers
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id = sqlc.arg(entity_id);
+
+-- name: EntityTopSuppliers :many
+SELECT s.id, s.name, s.abn,
+  CAST(SUM(cf.amount) AS INTEGER) AS amount,
+  CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN cf.amount END), 0) AS INTEGER) AS limited_amount
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN supplier s ON s.id = c.supplier_id
+WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id = sqlc.arg(entity_id)
+GROUP BY s.id, s.name, s.abn
+ORDER BY amount DESC
+LIMIT sqlc.arg(lim);
+
+-- name: EntityTopContracts :many
+SELECT c.cn_id, c.description, c.method, c.start_date, c.end_date, c.value, c.original_value,
+  c.amendment_count, s.id AS supplier_id, s.name AS supplier, cf.amount
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+LEFT JOIN supplier s ON s.id = c.supplier_id
+WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id = sqlc.arg(entity_id)
+ORDER BY cf.amount DESC
+LIMIT sqlc.arg(lim);
+
+-- name: GetSupplier :one
+SELECT id, key, abn, name, country, postcode FROM supplier WHERE id = ?;
+
+-- name: SupplierTotals :one
+SELECT CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(value), 0) AS INTEGER) AS value,
+  CAST(COALESCE(SUM(CASE WHEN method = 'limited' THEN value END), 0) AS INTEGER) AS limited_value,
+  CAST(COALESCE(SUM(CASE WHEN method = 'limited' THEN 1 END), 0) AS INTEGER) AS limited_contracts,
+  CAST(COALESCE(MIN(published_date), '') AS TEXT) AS first_published,
+  CAST(COALESCE(MAX(published_date), '') AS TEXT) AS last_published
+FROM contract WHERE supplier_id = ?;
+
+-- name: SupplierAgencies :many
+SELECT a.name AS agency, a.entity_id,
+  CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(SUM(c.value) AS INTEGER) AS value,
+  CAST(COALESCE(SUM(CASE WHEN c.method = 'limited' THEN c.value END), 0) AS INTEGER) AS limited_value
+FROM contract c JOIN agency a ON a.id = c.agency_id
+WHERE c.supplier_id = ?
+GROUP BY a.name, a.entity_id
+ORDER BY value DESC;
+
+-- name: SupplierContracts :many
+SELECT c.cn_id, c.description, c.method, c.start_date, c.end_date, c.published_date, c.value,
+  c.original_value, c.amendment_count, a.name AS agency
+FROM contract c JOIN agency a ON a.id = c.agency_id
+WHERE c.supplier_id = ?
+ORDER BY c.value DESC
+LIMIT ?;
+
+-- name: GetContract :one
+SELECT c.cn_id, c.ocid, c.title, c.description, c.unspsc, c.method, c.method_detail,
+  c.limited_reason, c.exemption, c.start_date, c.end_date, c.published_date, c.value,
+  c.original_value, c.amendment_count, c.status, c.history_loaded,
+  a.name AS agency, a.entity_id, s.id AS supplier_id, s.name AS supplier, s.abn AS supplier_abn
+FROM contract c
+JOIN agency a ON a.id = c.agency_id
+LEFT JOIN supplier s ON s.id = c.supplier_id
+WHERE c.cn_id = ?;
+
+-- name: ContractReleases :many
+SELECT release_id, release_date, amendment, value FROM contract_release
+WHERE cn_id = ? ORDER BY release_date, amendment;
+
+-- name: ContractFiscalYears :many
+SELECT fiscal_year, amount FROM contract_fy WHERE cn_id = ? ORDER BY fiscal_year;
+
+-- name: ContractLoadSummary :one
+SELECT CAST(COUNT(*) AS INTEGER) AS contracts,
+  CAST(COALESCE(MIN(published_date), '') AS TEXT) AS first_published,
+  CAST(COALESCE(MAX(published_date), '') AS TEXT) AS last_published
+FROM contract;
+
+-- Program descriptions ---------------------------------------------------------
+
+-- name: FindProgram :one
+SELECT p.id FROM program p JOIN entity e ON e.id = p.entity_id
+WHERE p.budget_year = ? AND e.name = ? AND p.name = ?;
+
+-- name: UpsertProgramDescription :exec
+INSERT INTO program_description (program_id, kind, text, source_url, page, source_document_id)
+VALUES (?, 'reported', ?, ?, ?, ?)
+ON CONFLICT (program_id, kind) DO UPDATE SET
+  text = excluded.text, source_url = excluded.source_url, page = excluded.page,
+  source_document_id = excluded.source_document_id;
+
+-- name: GetProgramDescription :one
+SELECT text, source_url, page FROM program_description
+WHERE program_id = ? AND kind = 'reported';
+
+-- name: EntityProgramDescriptions :many
+SELECT pd.program_id, pd.text FROM program_description pd
+JOIN program p ON p.id = pd.program_id
+WHERE p.entity_id = ? AND p.budget_year = ? AND pd.kind = 'reported';
+
+-- Signals (derived) ----------------------------------------------------------------
+
+-- name: ClearSignals :exec
+DELETE FROM signal;
+
+-- name: DeriveValueIncrease :exec
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'value-increase', cn_id, agency_id, supplier_id, published_fy,
+  value - original_value, 100.0 * (value - original_value) / original_value
+FROM contract_pub
+WHERE original_value > 0 AND value - original_value >= 100000 AND value >= 1.5 * original_value;
+
+-- name: DeriveLatePublication :exec
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'late-publication', cn_id, agency_id, supplier_id, published_fy,
+  value, julianday(published_date) - julianday(start_date)
+FROM contract_pub
+WHERE start_date <> '' AND published_date <> ''
+  AND julianday(published_date) - julianday(start_date) > 42;
+
+-- name: DeriveThresholdCluster :exec
+-- Measure is the number of near-threshold contracts in the agency-supplier-year group.
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'threshold-cluster', c.cn_id, c.agency_id, c.supplier_id, c.published_fy, c.value, g.n
+FROM contract_pub c
+JOIN (SELECT agency_id, supplier_id, published_fy, COUNT(*) AS n
+      FROM contract_pub
+      WHERE value >= 72000 AND value < 80000 AND supplier_id IS NOT NULL
+      GROUP BY agency_id, supplier_id, published_fy
+      HAVING COUNT(*) >= 3) g
+  ON g.agency_id = c.agency_id AND g.supplier_id = c.supplier_id AND g.published_fy = c.published_fy
+WHERE c.value >= 72000 AND c.value < 80000;
+
+-- name: DeriveRepeatLimited :exec
+-- Measure is the number of limited tenders in the agency-supplier-year group.
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'repeat-limited', c.cn_id, c.agency_id, c.supplier_id, c.published_fy, c.value, g.n
+FROM contract_pub c
+JOIN (SELECT agency_id, supplier_id, published_fy, COUNT(*) AS n
+      FROM contract_pub
+      WHERE method = 'limited' AND exemption = '' AND supplier_id IS NOT NULL
+      GROUP BY agency_id, supplier_id, published_fy
+      HAVING COUNT(*) >= 5 AND SUM(value) >= 1000000) g
+  ON g.agency_id = c.agency_id AND g.supplier_id = c.supplier_id AND g.published_fy = c.published_fy
+WHERE c.method = 'limited' AND c.exemption = '';
+
+-- name: SignalCounts :many
+SELECT rule_id, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(COALESCE(SUM(amount), 0) AS INTEGER) AS amount
+FROM signal GROUP BY rule_id;
+
+-- Signals in the web app ----------------------------------------------------------
+
+-- name: EntitySignalSummary :many
+SELECT s.rule_id, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(COALESCE(SUM(s.amount), 0) AS INTEGER) AS amount
+FROM signal s JOIN agency a ON a.id = s.agency_id
+WHERE a.entity_id = sqlc.arg(entity_id) AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+GROUP BY s.rule_id;
+
+-- name: ContractSignals :many
+SELECT rule_id, fiscal_year, amount, measure FROM signal WHERE cn_id = ? ORDER BY rule_id;
+
+-- name: SupplierSignalSummary :many
+SELECT rule_id, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(COALESCE(SUM(amount), 0) AS INTEGER) AS amount
+FROM signal WHERE supplier_id = ? GROUP BY rule_id;
+
+-- name: RuleTotals :many
+SELECT rule_id, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(COALESCE(SUM(amount), 0) AS INTEGER) AS amount,
+  CAST(COUNT(DISTINCT agency_id) AS INTEGER) AS agencies
+FROM signal WHERE fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+GROUP BY rule_id;
+
+-- name: RuleTopAgencies :many
+SELECT a.name AS agency, a.entity_id, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(SUM(s.amount) AS INTEGER) AS amount
+FROM signal s JOIN agency a ON a.id = s.agency_id
+WHERE s.rule_id = sqlc.arg(rule_id) AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+GROUP BY a.name, a.entity_id
+ORDER BY amount DESC
+LIMIT 15;
+
+-- name: RuleContracts :many
+-- Contracts matching a rule, optionally for one entity (entity_id 0 = all).
+SELECT s.cn_id, s.amount, s.measure, s.fiscal_year, c.description, c.value, c.original_value,
+  c.published_date, c.start_date, a.name AS agency, a.entity_id
+FROM signal s
+JOIN contract c ON c.cn_id = s.cn_id
+JOIN agency a ON a.id = s.agency_id
+WHERE s.rule_id = sqlc.arg(rule_id) AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+  AND (sqlc.arg(entity_id) = 0 OR a.entity_id = sqlc.arg(entity_id))
+ORDER BY s.amount DESC
+LIMIT 100;
+
+-- LLM classification ------------------------------------------------------------
+
+-- name: ContractsToClassify :many
+-- Contracts in a UNSPSC segment with no classification for this task and
+-- prompt version, and none waiting in an uncollected batch.
+SELECT c.cn_id, c.description, a.name AS agency, COALESCE(s.name, '') AS supplier
+FROM contract c
+JOIN agency a ON a.id = c.agency_id
+LEFT JOIN supplier s ON s.id = c.supplier_id
+WHERE c.unspsc LIKE sqlc.arg(unspsc_prefix) || '%'
+  AND NOT EXISTS (SELECT 1 FROM llm_classification l
+                  WHERE l.cn_id = c.cn_id AND l.task = sqlc.arg(task) AND l.prompt_version = sqlc.arg(prompt_version))
+  AND NOT EXISTS (SELECT 1 FROM llm_batch_item i JOIN llm_batch b ON b.batch_id = i.batch_id
+                  WHERE i.cn_id = c.cn_id AND b.status = 'submitted' AND b.task = sqlc.arg(task))
+ORDER BY c.value DESC
+LIMIT sqlc.arg(lim);
+
+-- name: InsertLLMBatch :exec
+INSERT INTO llm_batch (batch_id, task, prompt_version, model, requests, status)
+VALUES (?, ?, ?, ?, ?, 'submitted');
+
+-- name: InsertLLMBatchItem :exec
+INSERT INTO llm_batch_item (batch_id, custom_id, cn_id, input_hash) VALUES (?, ?, ?, ?);
+
+-- name: OpenLLMBatches :many
+SELECT batch_id, task, prompt_version, model FROM llm_batch WHERE status = 'submitted' ORDER BY submitted_at;
+
+-- name: LLMBatchItems :many
+SELECT custom_id, i.cn_id, i.input_hash, c.description, a.name AS agency, COALESCE(s.name, '') AS supplier
+FROM llm_batch_item i
+JOIN contract c ON c.cn_id = i.cn_id
+JOIN agency a ON a.id = c.agency_id
+LEFT JOIN supplier s ON s.id = c.supplier_id
+WHERE i.batch_id = ?;
+
+-- name: UpsertLLMClassification :exec
+INSERT INTO llm_classification (cn_id, task, prompt_version, model, category, confidence, input_hash, batch_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (cn_id, task, prompt_version) DO UPDATE SET
+  model = excluded.model, category = excluded.category, confidence = excluded.confidence,
+  input_hash = excluded.input_hash, batch_id = excluded.batch_id, created_at = CURRENT_TIMESTAMP;
+
+-- name: MarkLLMBatchCollected :exec
+UPDATE llm_batch SET status = 'collected' WHERE batch_id = ?;
+
+-- name: ContractClassification :one
+SELECT category, confidence, model, prompt_version, created_at FROM llm_classification
+WHERE cn_id = ? AND task = ? ORDER BY prompt_version DESC LIMIT 1;

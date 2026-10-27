@@ -1,0 +1,53 @@
+{{define "title"}}{{.Supplier.Name}}{{end}}
+
+{{define "content"}}
+{{template "crumbs" .Crumbs}}
+<p class="kicker">Supplier{{if .Supplier.Abn}} · ABN <span class="mono">{{.Supplier.Abn}}</span>{{end}}{{if .Supplier.Postcode}} · {{.Supplier.Postcode}}{{end}}{{if and .Supplier.Country (ne .Supplier.Country "AUSTRALIA")}} · {{.Supplier.Country}}{{end}}</p>
+<h1>{{.Supplier.Name}}</h1>
+<div class="hero">
+  <div class="hero-figure">
+    <span class="hero-number">{{money .Totals.Value}}</span>
+    <span class="hero-caption">total value of {{.Totals.Contracts}} contract{{if ne .Totals.Contracts 1}}s{{end}} published {{.Totals.FirstPublished}} to {{.Totals.LastPublished}}</span>
+  </div>
+</div>
+<p class="note">Whole-of-life contract values as published on AusTender, including amendments. They are commitments, not payments. {{if .Totals.LimitedContracts}}{{.Totals.LimitedContracts}} of these contracts ({{f1 (share .Totals.LimitedValue .Totals.Value)}}% of value) were awarded by <a href="/methodology#limited">limited tender</a>.{{end}}</p>
+
+<h2>By agency</h2>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Agency</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">Total value</th><th scope="col" class="num">Limited tender</th></tr></thead>
+  <tbody>
+  {{range .Agencies}}
+    <tr>
+      <th scope="row">{{if .EntityID.Valid}}<a href="/entity/{{.EntityID.Int64}}">{{.Agency}}</a>{{else}}{{.Agency}}{{end}}</th>
+      <td class="num">{{.Contracts}}</td>
+      <td class="num">{{money .Value}}</td>
+      <td class="num">{{f1 (share .LimitedValue .Value)}}%</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+
+<h2>Contracts</h2>
+<p class="muted">Largest first{{if gt .Totals.Contracts 100}}, showing 100 of {{.Totals.Contracts}}{{end}}.</p>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Contract</th><th scope="col">Agency</th><th scope="col">Method</th><th scope="col">Published</th><th scope="col">Term</th><th scope="col" class="num">Value</th></tr></thead>
+  <tbody>
+  {{range .Contracts}}
+    <tr>
+      <th scope="row"><a href="/contract/{{.CnID}}">{{trunc .Description 70}}</a><br><span class="muted small mono">{{.CnID}}</span></th>
+      <td class="small">{{.Agency}}</td>
+      <td>{{template "method" .Method}}</td>
+      <td class="small">{{.PublishedDate}}</td>
+      <td class="small">{{.StartDate}} to {{.EndDate}}</td>
+      <td class="num">{{money .Value}}{{if and .OriginalValue.Valid (gt .Value .OriginalValue.Int64)}}<br><span class="muted small">was {{money .OriginalValue.Int64}}</span>{{end}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+
+<p class="muted small" id="corrections">These records are as published by the agencies on AusTender. If something here is wrong, the agency that published the notice can correct it, and we will pick up the correction at the next load. <a href="https://github.com/exploded/spendingexplorer/issues">Report a problem with this page</a>.</p>
+{{end}}
