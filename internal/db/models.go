@@ -9,6 +9,16 @@ import (
 	"time"
 )
 
+type AbrEntity struct {
+	Abn              string
+	EntityType       string
+	EntityTypeText   string
+	Status           string
+	StatusFrom       string
+	RecordUpdated    string
+	SourceDocumentID int64
+}
+
 type Agency struct {
 	ID          int64
 	Name        string
@@ -72,6 +82,7 @@ type ContractPub struct {
 	HistoryLoaded    int64
 	SourceDocumentID int64
 	PublishedFy      interface{}
+	TenderThreshold  int64
 }
 
 type ContractRelease struct {
@@ -83,6 +94,10 @@ type ContractRelease struct {
 	SourceDocumentID int64
 }
 
+type CorporateAgency struct {
+	AgencyID int64
+}
+
 type Entity struct {
 	ID   int64
 	Name string
@@ -91,6 +106,11 @@ type Entity struct {
 type EntityAlias struct {
 	Alias    string
 	EntityID int64
+}
+
+type GivenName struct {
+	Name          string
+	Registrations int64
 }
 
 type LlmBatch struct {
@@ -205,6 +225,11 @@ type Supplier struct {
 	Name     string
 	Country  string
 	Postcode string
+}
+
+type SupplierIndividual struct {
+	SupplierID int64
+	Basis      string
 }
 
 type WogExpense struct {

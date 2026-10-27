@@ -33,6 +33,13 @@ sits inside a known whole-of-government total, and every box shows how much of i
 ## Rules
 
 - Every node displays total, itemised amount, and itemised % (coverage is the point).
+- Suppliers who are individuals (sole traders such as barristers) keep their name on contract
+  and supplier pages, as AusTender publishes it, but are left out of site-wide rankings, signal
+  indexes and "top supplier" lists (decided 2026-10-27). They still count in every total.
+  Implemented in `supplier_individual`: ABR entity type IND decides for suppliers with an
+  ABN; for the rest (mostly overseas), `austender.LooksLikePerson` checks the name against
+  given names common in the ABR. An org-by-default name test was tried and rejected: it
+  hid KPMG, Deloitte and Clayton Utz.
 - AusTender values are whole-of-life contract values at publication, not annual spend.
   Any annualised figure (value spread evenly start to end date) must be labelled an estimate.
 - Machinery-of-government changes rename/move programs between years; track this in a

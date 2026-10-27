@@ -36,9 +36,20 @@
 
 <h2 id="limited">Limited tender</h2>
 <p>A limited tender is a procurement where the agency approaches one or more suppliers directly instead of advertising openly. The Commonwealth Procurement Rules allow it in defined cases, such as urgency, a single capable supplier, additional deliveries from an existing supplier, or work exempt under Appendix A (for example, engaging legal counsel). The reason the agency gave is shown on each contract page.</p>
+<p>Below the open-tender threshold, agencies may approach suppliers directly without giving a reason, so most notices under the threshold are limited tenders. This is why most contracts by number are limited tenders, while the share by value is lower. The signals count limited tenders only at or above the threshold.</p>
+<p>The threshold depends on the agency and what is bought (Commonwealth Procurement Rules, paragraph 9.7):</p>
+<ul>
+  <li><strong>Non-corporate entities</strong>, such as departments: $80,000, raised to $125,000 from 17 November 2025. AusTender does not record when an agency approached the market, so we use the publication date.</li>
+  <li><strong>Corporate entities</strong>, such as CSIRO and the Reserve Bank: $400,000. We identify them from the Department of Finance’s <a href="https://www.finance.gov.au/government/managing-commonwealth-resources/structure-australian-government-public-sector/pgpa-act-flipchart-list">List of Commonwealth Entities and Companies</a>.</li>
+  <li><strong>Construction services</strong>: $7.5 million. AusTender has no construction flag, so we treat a contract as construction when its category is in UNSPSC segment 72 (building and facility construction and maintenance), or when the agency recorded that it was valued below the construction threshold.</li>
+</ul>
 
 <h2 id="amendments">Amendments</h2>
 <p>Agencies publish an amendment when a contract’s value or term changes. We record the value first published and every later version, and report the increase from the first published value. Increases can reflect extra work, extended terms or corrections.</p>
+
+<h2 id="individuals">Suppliers who are individuals</h2>
+<p>Some suppliers are people, such as barristers, sole traders and landholders. Their contracts appear on contract and supplier pages under the name AusTender publishes, and count in every total, but they are not listed in rankings such as “largest suppliers” or in the contract lists on signal pages.</p>
+<p>A supplier counts as an individual when the Australian Business Register records its ABN as an individual or sole trader. Suppliers with no ABR record, mostly overseas, count as individuals when the name reads as a person’s: two to four words, no organisation words, starting with an initial or a given name common in the register. This test errs toward leaving a supplier out.</p>
 
 <h2 id="ai">AI classification</h2>
 <p>AusTender’s categories (UNSPSC codes) are broad: “management and business professionals” covers consultants, contractors filling roles, lawyers and auditors alike. To tell these apart, we ask a Claude model to read each contract’s description, agency and supplier and choose one category from a fixed list. It runs in batches with a fixed prompt; each result records the model, prompt version and a fingerprint of the text it read, and is labelled <span class="badge badge-ai">AI-classified</span> wherever it appears.</p>

@@ -48,6 +48,22 @@ contracts to record their original value, and matches agency names to PBS entiti
 (reviewed aliases in `data/agency_aliases.csv`). Re-running only fetches what is not cached,
 plus the most recent week.
 
+## Supplier entity types (ABR)
+
+Suppliers registered as individuals or sole traders are left out of rankings (the rule is
+in `CLAUDE.md`). Their entity type comes from the ABN Bulk Extract, refreshed weekly at
+https://data.gov.au/data/dataset/abn-bulk-extract. Download the two `public_split_*.zip`
+files (about 1 GB) into `.local/abr`, then:
+
+```
+go run ./cmd/load-abr   # entity type and status for supplier ABNs; given-name counts
+go run ./cmd/derive     # rebuild supplier_individual
+```
+
+The loader scans about 20 million records in seconds and keeps only supplier ABNs. It
+stores no individual's name, only counts of given names (kept at 200 registrations or
+more), which `derive` uses to spot people's names among suppliers with no ABN.
+
 ## Program descriptions
 
 Program objectives are quoted from each entity's PBS document. Extraction needs
@@ -67,8 +83,14 @@ PM&C's site blocks automated requests, so its documents need adding by hand.
 ## Signals ("worth a closer look")
 
 `go run ./cmd/derive` rebuilds the `signal` table from the rules in `internal/signals`:
-value increased after award, published long after it started, several contracts just
-under $80,000, and repeated limited tenders to one supplier. Each rule states its threshold,
+value increased after award, published long after it started (singly, or in a batch of ten
+or more from one agency on one day), several contracts just under the open-tender threshold,
+repeated limited tenders to one supplier, and limited tenders that grew past the threshold.
+The threshold follows CPR paragraph 9.7 (the `tender_threshold` column of the `contract_pub`
+view): $80,000, or $125,000 for contracts published from 17 November 2025; $400,000 for
+corporate entities, listed in `data/corporate_agencies.csv` from Finance's List of
+Commonwealth Entities and Companies; and $7.5 million for construction (UNSPSC segment 72).
+Thresholds were calibrated on the full load from July 2022. Each rule states its threshold,
 the rule or practice it relates to, and common legitimate explanations. The site shows them
 at `/signals`, on entity pages and on contract pages.
 

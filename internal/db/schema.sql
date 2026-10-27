@@ -175,13 +175,65 @@ CREATE TABLE IF NOT EXISTS program_description (
   PRIMARY KEY (program_id, kind)
 );
 
--- Contracts with the financial year they were published in (July to June).
-CREATE VIEW IF NOT EXISTS contract_pub AS
+-- Australian Business Register details for supplier ABNs, from the ABN Bulk
+-- Extract on data.gov.au. Only ABNs that appear in AusTender are kept, and no
+-- names: an individual's name stays as AusTender published it.
+CREATE TABLE IF NOT EXISTS abr_entity (
+  abn                 TEXT PRIMARY KEY,
+  entity_type         TEXT NOT NULL,   -- ABR code: IND = individual or sole trader, PRV = private company, ...
+  entity_type_text    TEXT NOT NULL,
+  status              TEXT NOT NULL,   -- ACT (active) | CAN (cancelled)
+  status_from         TEXT NOT NULL,   -- YYYY-MM-DD
+  record_updated      TEXT NOT NULL,   -- YYYY-MM-DD
+  source_document_id  INTEGER NOT NULL REFERENCES source_document(id)
+);
+
+-- Given names common among individuals registered in the ABR, with how many
+-- registrations use them. Used to recognise people's names among suppliers
+-- with no ABR record. No other part of an individual's record is kept.
+CREATE TABLE IF NOT EXISTS given_name (
+  name           TEXT PRIMARY KEY,   -- upper case
+  registrations  INTEGER NOT NULL
+);
+
+-- Derived: suppliers who are, or may be, individuals. They keep their names on
+-- contract and supplier pages but are left out of rankings. Rebuilt by
+-- cmd/derive. basis = 'abr' (registered as an individual) or 'name' (no ABR
+-- record, and the name does not look like an organisation's).
+CREATE TABLE IF NOT EXISTS supplier_individual (
+  supplier_id  INTEGER PRIMARY KEY,
+  basis        TEXT NOT NULL CHECK (basis IN ('abr', 'name'))
+);
+
+-- Agencies that are corporate Commonwealth entities, from Finance's List of
+-- Commonwealth Entities and Companies (reviewed in data/corporate_agencies.csv).
+-- Rebuilt by cmd/derive.
+CREATE TABLE IF NOT EXISTS corporate_agency (
+  agency_id  INTEGER PRIMARY KEY REFERENCES agency(id)
+);
+
+-- Contracts with the financial year they were published in (July to June), and
+-- the open-tender threshold that applied (CPR paragraph 9.7):
+--   construction services: $7.5 million. AusTender has no construction flag, so
+--     UNSPSC segment 72 or the agency's own "below the construction threshold"
+--     reason stands in for it;
+--   corporate entities: $400,000;
+--   non-corporate entities: $80,000, raised to $125,000 for approaches to market
+--     from 17 November 2025. AusTender gives no approach-to-market date, so
+--     publication date stands in for it.
+-- Dropped and recreated on every open so changes reach existing databases.
+DROP VIEW IF EXISTS contract_pub;
+CREATE VIEW contract_pub AS
 SELECT contract.*,
   CASE WHEN CAST(substr(published_date, 6, 2) AS INTEGER) >= 7
        THEN substr(published_date, 1, 4) || '-' || printf('%02d', (CAST(substr(published_date, 3, 2) AS INTEGER) + 1) % 100)
        ELSE (CAST(substr(published_date, 1, 4) AS INTEGER) - 1) || '-' || substr(published_date, 3, 2)
-  END AS published_fy
+  END AS published_fy,
+  CASE WHEN unspsc LIKE '72%' OR limited_reason = 'Valued below the construction threshold.' THEN 7500000
+       WHEN agency_id IN (SELECT agency_id FROM corporate_agency) THEN 400000
+       WHEN published_date >= '2025-11-17' THEN 125000
+       ELSE 80000
+  END AS tender_threshold
 FROM contract;
 
 -- Derived: "worth a closer look" signals, one row per contract that matches a

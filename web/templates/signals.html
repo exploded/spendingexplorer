@@ -4,14 +4,20 @@
 <p class="kicker">Worth a closer look</p>
 <h1>Patterns in contract notices</h1>
 <div class="prose">
-<p>These rules pick out contract notices with patterns that deserve a second look: values that grew after award, late publication, values just under a procurement threshold, and repeated limited tenders to one supplier. Each rule is a fixed, measurable test applied to every contract published on AusTender. A match is not a finding of wrongdoing, and each rule lists common legitimate explanations.</p>
+<p>These rules pick out contract notices with patterns that deserve a second look: values that grew after award, late publication (singly or in batches), values just under a procurement threshold, repeated limited tenders to one supplier, and limited tenders that grew past the threshold. Each rule is a fixed, measurable test applied to every contract published on AusTender. A match is not a finding of wrongdoing, and each rule lists common legitimate explanations.</p>
 <p class="muted small">Counts cover contracts published in {{.Period.Prev}} and {{.Period.FY}} to date.</p>
 </div>
 
 {{range .Rows}}
 <section class="rule-card" id="{{.Rule.ID}}">
   <h2><a href="/signals/{{.Rule.ID}}">{{.Rule.Title}}</a></h2>
+  {{if eq .Rule.Group "supplier"}}
+  <p><strong>{{.Groups}}</strong> agency–supplier pair{{if ne .Groups 1}}s{{end}} in a financial year, covering {{.Contracts}} contract{{if ne .Contracts 1}}s{{end}} across {{.Agencies}} agenc{{if eq .Agencies 1}}y{{else}}ies{{end}}, involving {{money .Amount}}.</p>
+  {{else if eq .Rule.Group "batch"}}
+  <p><strong>{{.Groups}}</strong> batch{{if ne .Groups 1}}es{{end}} of {{.Contracts}} notice{{if ne .Contracts 1}}s{{end}} across {{.Agencies}} agenc{{if eq .Agencies 1}}y{{else}}ies{{end}}, involving {{money .Amount}}.</p>
+  {{else}}
   <p><strong>{{.Contracts}}</strong> contract{{if ne .Contracts 1}}s{{end}} across {{.Agencies}} agenc{{if eq .Agencies 1}}y{{else}}ies{{end}}, involving {{money .Amount}}.</p>
+  {{end}}
   <dl class="facts">
     <div><dt>What it measures</dt><dd>{{.Rule.Pattern}}</dd></div>
     <div><dt>When it applies</dt><dd>{{.Rule.Threshold}}</dd></div>

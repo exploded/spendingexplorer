@@ -30,8 +30,75 @@
 </div>
 {{end}}
 
+{{if .Reasons}}
+<h2>Reasons given</h2>
+<p class="muted">The reason each agency recorded on AusTender for using limited tender.</p>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Reason</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">Amount involved</th></tr></thead>
+  <tbody>
+  {{range .Reasons}}
+    <tr>
+      <th scope="row" class="small">{{if .Reason}}{{.Reason}}{{else}}<span class="muted">None recorded</span>{{end}}</th>
+      <td class="num">{{.Contracts}}</td>
+      <td class="num">{{money .Amount}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}
+
+{{if eq .Rule.Group "supplier"}}
+<h2>By supplier and year</h2>
+<p class="muted">Each row is one agency’s contracts with one supplier in one financial year, most contracts first{{if eq (len .Groups) 100}}; showing the first 100{{end}}. Suppliers who are individuals are counted in the totals but not listed (<a href="/methodology#individuals">why</a>).</p>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Supplier</th><th scope="col">Agency</th><th scope="col">Year</th><th scope="col" class="num">Contracts</th>{{if .Rule.Reasons}}<th scope="col">Most common reason</th>{{end}}<th scope="col" class="num">Amount involved</th></tr></thead>
+  <tbody>
+  {{range .Groups}}
+    <tr>
+      <th scope="row"><a href="/supplier/{{.SupplierID}}">{{.Supplier}}</a></th>
+      <td class="small">{{if .EntityID.Valid}}<a href="/signals/{{$.Rule.ID}}?entity={{.EntityID.Int64}}">{{.Agency}}</a>{{else}}{{.Agency}}{{end}}</td>
+      <td class="small">{{.FiscalYear}}</td>
+      <td class="num">{{.Contracts}}</td>
+      {{if $.Rule.Reasons}}<td class="small" title="{{.TopReason}}">{{if .TopReason}}{{trunc .TopReason 60}}{{else}}<span class="muted">None recorded</span>{{end}}{{if gt .Reasons 1}} <span class="muted">and others</span>{{end}}</td>{{end}}
+      <td class="num">{{money .Amount}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="6" class="muted">No contracts match this rule in this period.</td></tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}
+
+{{if eq .Rule.Group "batch"}}
+<h2>Batches</h2>
+<p class="muted">Each row is one day on which an agency published ten or more late notices, most notices first{{if eq (len .Batches) 100}}; showing the first 100{{end}}.</p>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Agency</th><th scope="col">Published</th><th scope="col" class="num">Notices</th><th scope="col">Earliest start</th><th scope="col" class="num">Value</th></tr></thead>
+  <tbody>
+  {{range .Batches}}
+    <tr>
+      <th scope="row">{{if .EntityID.Valid}}<a href="/signals/{{$.Rule.ID}}?entity={{.EntityID.Int64}}">{{.Agency}}</a>{{else}}{{.Agency}}{{end}}</th>
+      <td class="small date">{{.PublishedDate}}</td>
+      <td class="num">{{.Notices}}</td>
+      <td class="small date">{{.EarliestStart}}</td>
+      <td class="num">{{money .Amount}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="5" class="muted">No batches in this period.</td></tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}
+
+{{if or (not .Rule.Group) .Entity}}
 <h2>Contracts</h2>
-<p class="muted">Contracts published in {{.Period.Prev}} and {{.Period.FY}} to date, largest amount first{{if eq (len .Contracts) 100}}; showing the first 100{{end}}.</p>
+<p class="muted">Contracts published in {{.Period.Prev}} and {{.Period.FY}} to date, largest amount first{{if eq (len .Contracts) 100}}; showing the first 100{{end}}. Contracts with suppliers who are individuals are counted in the totals but not listed (<a href="/methodology#individuals">why</a>).</p>
 <div class="scroll">
 <table class="data">
   <thead><tr><th scope="col">Contract</th><th scope="col">Agency</th><th scope="col">Published</th><th scope="col">Detail</th><th scope="col" class="num">Amount involved</th></tr></thead>
@@ -40,7 +107,7 @@
     <tr>
       <th scope="row"><a href="/contract/{{.CnID}}">{{trunc .Description 70}}</a><br><span class="muted small mono">{{.CnID}}</span></th>
       <td class="small">{{.Agency}}</td>
-      <td class="small">{{.PublishedDate}}</td>
+      <td class="small date">{{.PublishedDate}}</td>
       <td class="small">{{measure $.Rule.ID .Measure}}</td>
       <td class="num">{{money .Amount}}</td>
     </tr>
@@ -50,4 +117,5 @@
   </tbody>
 </table>
 </div>
+{{end}}
 {{end}}

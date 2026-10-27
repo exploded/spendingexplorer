@@ -64,6 +64,24 @@ func (q *Queries) ClearContractFY(ctx context.Context) error {
 	return err
 }
 
+const clearCorporateAgencies = `-- name: ClearCorporateAgencies :exec
+DELETE FROM corporate_agency
+`
+
+func (q *Queries) ClearCorporateAgencies(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearCorporateAgencies)
+	return err
+}
+
+const clearGivenNames = `-- name: ClearGivenNames :exec
+DELETE FROM given_name
+`
+
+func (q *Queries) ClearGivenNames(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearGivenNames)
+	return err
+}
+
 const clearSignals = `-- name: ClearSignals :exec
 
 DELETE FROM signal
@@ -72,6 +90,15 @@ DELETE FROM signal
 // Signals (derived) ----------------------------------------------------------------
 func (q *Queries) ClearSignals(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, clearSignals)
+	return err
+}
+
+const clearSupplierIndividuals = `-- name: ClearSupplierIndividuals :exec
+DELETE FROM supplier_individual
+`
+
+func (q *Queries) ClearSupplierIndividuals(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearSupplierIndividuals)
 	return err
 }
 
@@ -412,15 +439,67 @@ func (q *Queries) DeleteWogExpensesForDoc(ctx context.Context, sourceDocumentID 
 	return err
 }
 
+const deriveABRIndividuals = `-- name: DeriveABRIndividuals :exec
+INSERT INTO supplier_individual (supplier_id, basis)
+SELECT s.id, 'abr' FROM supplier s JOIN abr_entity a ON a.abn = s.abn
+WHERE a.entity_type = 'IND'
+`
+
+func (q *Queries) DeriveABRIndividuals(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deriveABRIndividuals)
+	return err
+}
+
+const deriveCrossedThreshold = `-- name: DeriveCrossedThreshold :exec
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'crossed-threshold', cn_id, agency_id, supplier_id, published_fy,
+  value - original_value, original_value
+FROM contract_pub
+WHERE method = 'limited' AND exemption = '' AND original_value > 0
+  AND original_value < tender_threshold
+  AND value >= 1.25 * tender_threshold AND value >= 1.5 * original_value
+`
+
+// Measure is the first published value. The 25% and 50% margins leave out
+// small overruns just past the threshold, which are usually minor variations.
+func (q *Queries) DeriveCrossedThreshold(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deriveCrossedThreshold)
+	return err
+}
+
+const deriveLateBatch = `-- name: DeriveLateBatch :exec
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'late-batch', s.cn_id, s.agency_id, s.supplier_id, s.fiscal_year, s.amount, b.n
+FROM signal s
+JOIN contract c ON c.cn_id = s.cn_id
+JOIN (SELECT s2.agency_id, c2.published_date, COUNT(*) AS n
+      FROM signal s2 JOIN contract c2 ON c2.cn_id = s2.cn_id
+      WHERE s2.rule_id = 'late-publication'
+      GROUP BY s2.agency_id, c2.published_date
+      HAVING COUNT(*) >= 10) b
+  ON b.agency_id = s.agency_id AND b.published_date = c.published_date
+WHERE s.rule_id = 'late-publication'
+`
+
+// Late-publication matches published in a batch (ten or more from one agency on
+// one day) are counted once per batch under late-batch. Measure is the batch size.
+// Run after DeriveLatePublication, then RemoveBatchedLate.
+func (q *Queries) DeriveLateBatch(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deriveLateBatch)
+	return err
+}
+
 const deriveLatePublication = `-- name: DeriveLatePublication :exec
 INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
 SELECT 'late-publication', cn_id, agency_id, supplier_id, published_fy,
   value, julianday(published_date) - julianday(start_date)
 FROM contract_pub
-WHERE start_date <> '' AND published_date <> ''
-  AND julianday(published_date) - julianday(start_date) > 42
+WHERE start_date <> '' AND published_date <> '' AND value >= 100000
+  AND julianday(published_date) - julianday(start_date) > 180
 `
 
+// AusTender's dateSigned equals the publication date, so the start date is the
+// only reference point; the 180-day margin allows for backdated start dates.
 func (q *Queries) DeriveLatePublication(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, deriveLatePublication)
 	return err
@@ -432,14 +511,16 @@ SELECT 'repeat-limited', c.cn_id, c.agency_id, c.supplier_id, c.published_fy, c.
 FROM contract_pub c
 JOIN (SELECT agency_id, supplier_id, published_fy, COUNT(*) AS n
       FROM contract_pub
-      WHERE method = 'limited' AND exemption = '' AND supplier_id IS NOT NULL
+      WHERE method = 'limited' AND exemption = '' AND value >= tender_threshold AND supplier_id IS NOT NULL
       GROUP BY agency_id, supplier_id, published_fy
       HAVING COUNT(*) >= 5 AND SUM(value) >= 1000000) g
   ON g.agency_id = c.agency_id AND g.supplier_id = c.supplier_id AND g.published_fy = c.published_fy
-WHERE c.method = 'limited' AND c.exemption = ''
+WHERE c.method = 'limited' AND c.exemption = '' AND c.value >= c.tender_threshold
 `
 
 // Measure is the number of limited tenders in the agency-supplier-year group.
+// Below the threshold, limited tender is routine and needs no stated reason, so
+// only contracts at or above it count.
 func (q *Queries) DeriveRepeatLimited(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, deriveRepeatLimited)
 	return err
@@ -449,16 +530,21 @@ const deriveThresholdCluster = `-- name: DeriveThresholdCluster :exec
 INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
 SELECT 'threshold-cluster', c.cn_id, c.agency_id, c.supplier_id, c.published_fy, c.value, g.n
 FROM contract_pub c
-JOIN (SELECT agency_id, supplier_id, published_fy, COUNT(*) AS n
+JOIN (SELECT agency_id, supplier_id, published_fy, tender_threshold, COUNT(*) AS n
       FROM contract_pub
-      WHERE value >= 72000 AND value < 80000 AND supplier_id IS NOT NULL
-      GROUP BY agency_id, supplier_id, published_fy
+      WHERE method = 'limited' AND exemption = ''
+        AND value >= 0.9 * tender_threshold AND value < tender_threshold AND supplier_id IS NOT NULL
+      GROUP BY agency_id, supplier_id, published_fy, tender_threshold
       HAVING COUNT(*) >= 3) g
   ON g.agency_id = c.agency_id AND g.supplier_id = c.supplier_id AND g.published_fy = c.published_fy
-WHERE c.value >= 72000 AND c.value < 80000
+  AND g.tender_threshold = c.tender_threshold
+WHERE c.method = 'limited' AND c.exemption = ''
+  AND c.value >= 0.9 * c.tender_threshold AND c.value < c.tender_threshold
 `
 
 // Measure is the number of near-threshold contracts in the agency-supplier-year group.
+// Only limited tenders count: an open or panel procurement can't be avoiding
+// open tender, and AusTender reports panel call-offs with the panel's method.
 func (q *Queries) DeriveThresholdCluster(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, deriveThresholdCluster)
 	return err
@@ -469,7 +555,7 @@ INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount,
 SELECT 'value-increase', cn_id, agency_id, supplier_id, published_fy,
   value - original_value, 100.0 * (value - original_value) / original_value
 FROM contract_pub
-WHERE original_value > 0 AND value - original_value >= 100000 AND value >= 1.5 * original_value
+WHERE original_value > 0 AND value - original_value >= 1000000 AND value >= 1.5 * original_value
 `
 
 func (q *Queries) DeriveValueIncrease(ctx context.Context) error {
@@ -651,6 +737,7 @@ JOIN contract c ON c.cn_id = cf.cn_id
 JOIN agency a ON a.id = c.agency_id
 LEFT JOIN supplier s ON s.id = c.supplier_id
 WHERE cf.fiscal_year = ?1 AND a.entity_id = ?2
+  AND (c.supplier_id IS NULL OR c.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual))
 ORDER BY cf.amount DESC
 LIMIT ?3
 `
@@ -675,6 +762,7 @@ type EntityTopContractsRow struct {
 	Amount         int64
 }
 
+// Rankings leave out suppliers who are, or may be, individuals.
 func (q *Queries) EntityTopContracts(ctx context.Context, arg EntityTopContractsParams) ([]EntityTopContractsRow, error) {
 	rows, err := q.db.QueryContext(ctx, entityTopContracts, arg.Fy, arg.EntityID, arg.Lim)
 	if err != nil {
@@ -720,6 +808,7 @@ JOIN contract c ON c.cn_id = cf.cn_id
 JOIN agency a ON a.id = c.agency_id
 JOIN supplier s ON s.id = c.supplier_id
 WHERE cf.fiscal_year = ?1 AND a.entity_id = ?2
+  AND s.id NOT IN (SELECT supplier_id FROM supplier_individual)
 GROUP BY s.id, s.name, s.abn
 ORDER BY amount DESC
 LIMIT ?3
@@ -740,6 +829,7 @@ type EntityTopSuppliersRow struct {
 	LimitedAmount int64
 }
 
+// Rankings leave out suppliers who are, or may be, individuals.
 func (q *Queries) EntityTopSuppliers(ctx context.Context, arg EntityTopSuppliersParams) ([]EntityTopSuppliersRow, error) {
 	rows, err := q.db.QueryContext(ctx, entityTopSuppliers, arg.Fy, arg.EntityID, arg.Lim)
 	if err != nil {
@@ -1098,6 +1188,32 @@ func (q *Queries) InsertContractFY(ctx context.Context, arg InsertContractFYPara
 	return err
 }
 
+const insertCorporateAgency = `-- name: InsertCorporateAgency :execrows
+INSERT INTO corporate_agency (agency_id) SELECT id FROM agency WHERE name = ?
+`
+
+func (q *Queries) InsertCorporateAgency(ctx context.Context, name string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertCorporateAgency, name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const insertGivenName = `-- name: InsertGivenName :exec
+INSERT INTO given_name (name, registrations) VALUES (?, ?)
+`
+
+type InsertGivenNameParams struct {
+	Name          string
+	Registrations int64
+}
+
+func (q *Queries) InsertGivenName(ctx context.Context, arg InsertGivenNameParams) error {
+	_, err := q.db.ExecContext(ctx, insertGivenName, arg.Name, arg.Registrations)
+	return err
+}
+
 const insertLLMBatch = `-- name: InsertLLMBatch :exec
 INSERT INTO llm_batch (batch_id, task, prompt_version, model, requests, status)
 VALUES (?, ?, ?, ?, ?, 'submitted')
@@ -1204,6 +1320,20 @@ func (q *Queries) InsertProgramExpense(ctx context.Context, arg InsertProgramExp
 		arg.Treatment,
 		arg.TreatmentRule,
 	)
+	return err
+}
+
+const insertSupplierIndividual = `-- name: InsertSupplierIndividual :exec
+INSERT OR IGNORE INTO supplier_individual (supplier_id, basis) VALUES (?, ?)
+`
+
+type InsertSupplierIndividualParams struct {
+	SupplierID int64
+	Basis      string
+}
+
+func (q *Queries) InsertSupplierIndividual(ctx context.Context, arg InsertSupplierIndividualParams) error {
+	_, err := q.db.ExecContext(ctx, insertSupplierIndividual, arg.SupplierID, arg.Basis)
 	return err
 }
 
@@ -1422,6 +1552,33 @@ func (q *Queries) ListEntities(ctx context.Context) ([]Entity, error) {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGivenNames = `-- name: ListGivenNames :many
+SELECT name FROM given_name
+`
+
+func (q *Queries) ListGivenNames(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listGivenNames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -1837,6 +1994,76 @@ func (q *Queries) ProgramTotals(ctx context.Context, arg ProgramTotalsParams) ([
 	return items, nil
 }
 
+const removeBatchedLate = `-- name: RemoveBatchedLate :exec
+DELETE FROM signal WHERE rule_id = 'late-publication'
+  AND cn_id IN (SELECT cn_id FROM signal WHERE rule_id = 'late-batch')
+`
+
+func (q *Queries) RemoveBatchedLate(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, removeBatchedLate)
+	return err
+}
+
+const ruleBatches = `-- name: RuleBatches :many
+SELECT a.name AS agency, a.entity_id, c.published_date,
+  CAST(COUNT(*) AS INTEGER) AS notices, CAST(SUM(s.amount) AS INTEGER) AS amount,
+  CAST(MIN(c.start_date) AS TEXT) AS earliest_start
+FROM signal s
+JOIN contract c ON c.cn_id = s.cn_id
+JOIN agency a ON a.id = s.agency_id
+WHERE s.rule_id = 'late-batch' AND s.fiscal_year IN (?1, ?2)
+  AND (?3 = 0 OR a.entity_id = ?3)
+GROUP BY a.name, a.entity_id, c.published_date
+ORDER BY notices DESC, amount DESC
+LIMIT 100
+`
+
+type RuleBatchesParams struct {
+	Fy       string
+	PrevFy   string
+	EntityID interface{}
+}
+
+type RuleBatchesRow struct {
+	Agency        string
+	EntityID      sql.NullInt64
+	PublishedDate string
+	Notices       int64
+	Amount        int64
+	EarliestStart string
+}
+
+// Late-publication batches: one row per agency and publication day.
+func (q *Queries) RuleBatches(ctx context.Context, arg RuleBatchesParams) ([]RuleBatchesRow, error) {
+	rows, err := q.db.QueryContext(ctx, ruleBatches, arg.Fy, arg.PrevFy, arg.EntityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RuleBatchesRow
+	for rows.Next() {
+		var i RuleBatchesRow
+		if err := rows.Scan(
+			&i.Agency,
+			&i.EntityID,
+			&i.PublishedDate,
+			&i.Notices,
+			&i.Amount,
+			&i.EarliestStart,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const ruleContracts = `-- name: RuleContracts :many
 SELECT s.cn_id, s.amount, s.measure, s.fiscal_year, c.description, c.value, c.original_value,
   c.published_date, c.start_date, a.name AS agency, a.entity_id
@@ -1845,6 +2072,7 @@ JOIN contract c ON c.cn_id = s.cn_id
 JOIN agency a ON a.id = s.agency_id
 WHERE s.rule_id = ?1 AND s.fiscal_year IN (?2, ?3)
   AND (?4 = 0 OR a.entity_id = ?4)
+  AND (s.supplier_id IS NULL OR s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual))
 ORDER BY s.amount DESC
 LIMIT 100
 `
@@ -1871,6 +2099,7 @@ type RuleContractsRow struct {
 }
 
 // Contracts matching a rule, optionally for one entity (entity_id 0 = all).
+// Suppliers who are, or may be, individuals are counted in totals, not listed.
 func (q *Queries) RuleContracts(ctx context.Context, arg RuleContractsParams) ([]RuleContractsRow, error) {
 	rows, err := q.db.QueryContext(ctx, ruleContracts,
 		arg.RuleID,
@@ -1897,6 +2126,186 @@ func (q *Queries) RuleContracts(ctx context.Context, arg RuleContractsParams) ([
 			&i.StartDate,
 			&i.Agency,
 			&i.EntityID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const ruleGroupCounts = `-- name: RuleGroupCounts :many
+SELECT rule_id, CAST(COUNT(*) AS INTEGER) AS group_count FROM (
+  SELECT s.rule_id FROM signal s
+  WHERE s.rule_id IN ('repeat-limited', 'threshold-cluster') AND s.fiscal_year IN (?1, ?2)
+  GROUP BY s.rule_id, s.agency_id, s.supplier_id, s.fiscal_year
+  UNION ALL
+  SELECT s.rule_id FROM signal s JOIN contract c ON c.cn_id = s.cn_id
+  WHERE s.rule_id = 'late-batch' AND s.fiscal_year IN (?1, ?2)
+  GROUP BY s.rule_id, s.agency_id, c.published_date
+) GROUP BY rule_id
+`
+
+type RuleGroupCountsParams struct {
+	Fy     string
+	PrevFy string
+}
+
+type RuleGroupCountsRow struct {
+	RuleID     string
+	GroupCount int64
+}
+
+// Groups per grouped rule: agency, supplier and year for repeat-limited and
+// threshold-cluster; agency and publication day for late-batch.
+func (q *Queries) RuleGroupCounts(ctx context.Context, arg RuleGroupCountsParams) ([]RuleGroupCountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, ruleGroupCounts, arg.Fy, arg.PrevFy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RuleGroupCountsRow
+	for rows.Next() {
+		var i RuleGroupCountsRow
+		if err := rows.Scan(&i.RuleID, &i.GroupCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const ruleReasons = `-- name: RuleReasons :many
+SELECT c.limited_reason AS reason, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(SUM(s.amount) AS INTEGER) AS amount
+FROM signal s
+JOIN contract c ON c.cn_id = s.cn_id
+JOIN agency a ON a.id = s.agency_id
+WHERE s.rule_id = ?1 AND s.fiscal_year IN (?2, ?3)
+  AND (?4 = 0 OR a.entity_id = ?4)
+GROUP BY c.limited_reason
+ORDER BY contracts DESC
+`
+
+type RuleReasonsParams struct {
+	RuleID   string
+	Fy       string
+	PrevFy   string
+	EntityID interface{}
+}
+
+type RuleReasonsRow struct {
+	Reason    string
+	Contracts int64
+	Amount    int64
+}
+
+// The limited-tender reasons agencies gave for a rule's contracts.
+func (q *Queries) RuleReasons(ctx context.Context, arg RuleReasonsParams) ([]RuleReasonsRow, error) {
+	rows, err := q.db.QueryContext(ctx, ruleReasons,
+		arg.RuleID,
+		arg.Fy,
+		arg.PrevFy,
+		arg.EntityID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RuleReasonsRow
+	for rows.Next() {
+		var i RuleReasonsRow
+		if err := rows.Scan(&i.Reason, &i.Contracts, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const ruleSupplierGroups = `-- name: RuleSupplierGroups :many
+SELECT a.name AS agency, a.entity_id, sp.id AS supplier_id, sp.name AS supplier, s.fiscal_year,
+  CAST(COUNT(*) AS INTEGER) AS contracts, CAST(SUM(s.amount) AS INTEGER) AS amount,
+  CAST(COUNT(DISTINCT c.limited_reason) AS INTEGER) AS reasons,
+  CAST(COALESCE((SELECT c2.limited_reason FROM signal s2 JOIN contract c2 ON c2.cn_id = s2.cn_id
+    WHERE s2.rule_id = s.rule_id AND s2.agency_id = s.agency_id AND s2.supplier_id = s.supplier_id
+      AND s2.fiscal_year = s.fiscal_year
+    GROUP BY c2.limited_reason ORDER BY COUNT(*) DESC LIMIT 1), '') AS TEXT) AS top_reason
+FROM signal s
+JOIN contract c ON c.cn_id = s.cn_id
+JOIN agency a ON a.id = s.agency_id
+JOIN supplier sp ON sp.id = s.supplier_id
+WHERE s.rule_id = ?1 AND s.fiscal_year IN (?2, ?3)
+  AND (?4 = 0 OR a.entity_id = ?4)
+  AND s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual)
+GROUP BY s.rule_id, s.agency_id, s.supplier_id, s.fiscal_year, a.name, a.entity_id, sp.id, sp.name
+ORDER BY contracts DESC, amount DESC
+LIMIT 100
+`
+
+type RuleSupplierGroupsParams struct {
+	RuleID   string
+	Fy       string
+	PrevFy   string
+	EntityID interface{}
+}
+
+type RuleSupplierGroupsRow struct {
+	Agency     string
+	EntityID   sql.NullInt64
+	SupplierID int64
+	Supplier   string
+	FiscalYear string
+	Contracts  int64
+	Amount     int64
+	Reasons    int64
+	TopReason  string
+}
+
+// Agency-supplier-year groups for a rule, optionally for one entity, with the
+// limited-tender reason given most often in the group. Suppliers who are, or
+// may be, individuals are counted in totals, not listed.
+func (q *Queries) RuleSupplierGroups(ctx context.Context, arg RuleSupplierGroupsParams) ([]RuleSupplierGroupsRow, error) {
+	rows, err := q.db.QueryContext(ctx, ruleSupplierGroups,
+		arg.RuleID,
+		arg.Fy,
+		arg.PrevFy,
+		arg.EntityID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RuleSupplierGroupsRow
+	for rows.Next() {
+		var i RuleSupplierGroupsRow
+		if err := rows.Scan(
+			&i.Agency,
+			&i.EntityID,
+			&i.SupplierID,
+			&i.Supplier,
+			&i.FiscalYear,
+			&i.Contracts,
+			&i.Amount,
+			&i.Reasons,
+			&i.TopReason,
 		); err != nil {
 			return nil, err
 		}
@@ -2166,6 +2575,35 @@ func (q *Queries) SumExpenseByPortfolio(ctx context.Context, arg SumExpenseByPor
 	return items, nil
 }
 
+const supplierABNs = `-- name: SupplierABNs :many
+
+SELECT DISTINCT abn FROM supplier WHERE abn <> ''
+`
+
+// ABR and individuals -------------------------------------------------------------
+func (q *Queries) SupplierABNs(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, supplierABNs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var abn string
+		if err := rows.Scan(&abn); err != nil {
+			return nil, err
+		}
+		items = append(items, abn)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const supplierAgencies = `-- name: SupplierAgencies :many
 SELECT a.name AS agency, a.entity_id,
   CAST(COUNT(*) AS INTEGER) AS contracts,
@@ -2275,6 +2713,38 @@ func (q *Queries) SupplierContracts(ctx context.Context, arg SupplierContractsPa
 	return items, nil
 }
 
+const supplierIndividualCounts = `-- name: SupplierIndividualCounts :many
+SELECT basis, CAST(COUNT(*) AS INTEGER) AS suppliers FROM supplier_individual GROUP BY basis
+`
+
+type SupplierIndividualCountsRow struct {
+	Basis     string
+	Suppliers int64
+}
+
+func (q *Queries) SupplierIndividualCounts(ctx context.Context) ([]SupplierIndividualCountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, supplierIndividualCounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SupplierIndividualCountsRow
+	for rows.Next() {
+		var i SupplierIndividualCountsRow
+		if err := rows.Scan(&i.Basis, &i.Suppliers); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const supplierSignalSummary = `-- name: SupplierSignalSummary :many
 SELECT rule_id, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(COALESCE(SUM(amount), 0) AS INTEGER) AS amount
 FROM signal WHERE supplier_id = ? GROUP BY rule_id
@@ -2340,6 +2810,40 @@ func (q *Queries) SupplierTotals(ctx context.Context, supplierID sql.NullInt64) 
 		&i.LastPublished,
 	)
 	return i, err
+}
+
+const suppliersWithoutABR = `-- name: SuppliersWithoutABR :many
+SELECT s.id, s.name FROM supplier s
+WHERE NOT EXISTS (SELECT 1 FROM abr_entity a WHERE a.abn = s.abn)
+`
+
+type SuppliersWithoutABRRow struct {
+	ID   int64
+	Name string
+}
+
+// Suppliers with no ABR record, whose names the name test checks.
+func (q *Queries) SuppliersWithoutABR(ctx context.Context) ([]SuppliersWithoutABRRow, error) {
+	rows, err := q.db.QueryContext(ctx, suppliersWithoutABR)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SuppliersWithoutABRRow
+	for rows.Next() {
+		var i SuppliersWithoutABRRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const treatmentTotals = `-- name: TreatmentTotals :many
@@ -2427,6 +2931,38 @@ func (q *Queries) UnmatchedAgencies(ctx context.Context) ([]UnmatchedAgenciesRow
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertABREntity = `-- name: UpsertABREntity :exec
+INSERT INTO abr_entity (abn, entity_type, entity_type_text, status, status_from, record_updated, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(abn) DO UPDATE SET
+  entity_type = excluded.entity_type, entity_type_text = excluded.entity_type_text,
+  status = excluded.status, status_from = excluded.status_from,
+  record_updated = excluded.record_updated, source_document_id = excluded.source_document_id
+`
+
+type UpsertABREntityParams struct {
+	Abn              string
+	EntityType       string
+	EntityTypeText   string
+	Status           string
+	StatusFrom       string
+	RecordUpdated    string
+	SourceDocumentID int64
+}
+
+func (q *Queries) UpsertABREntity(ctx context.Context, arg UpsertABREntityParams) error {
+	_, err := q.db.ExecContext(ctx, upsertABREntity,
+		arg.Abn,
+		arg.EntityType,
+		arg.EntityTypeText,
+		arg.Status,
+		arg.StatusFrom,
+		arg.RecordUpdated,
+		arg.SourceDocumentID,
+	)
+	return err
 }
 
 const upsertAgency = `-- name: UpsertAgency :one

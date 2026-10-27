@@ -307,6 +307,7 @@ JOIN agency a ON a.id = c.agency_id
 WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id = sqlc.arg(entity_id);
 
 -- name: EntityTopSuppliers :many
+-- Rankings leave out suppliers who are, or may be, individuals.
 SELECT s.id, s.name, s.abn,
   CAST(SUM(cf.amount) AS INTEGER) AS amount,
   CAST(COUNT(*) AS INTEGER) AS contracts,
@@ -316,11 +317,13 @@ JOIN contract c ON c.cn_id = cf.cn_id
 JOIN agency a ON a.id = c.agency_id
 JOIN supplier s ON s.id = c.supplier_id
 WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id = sqlc.arg(entity_id)
+  AND s.id NOT IN (SELECT supplier_id FROM supplier_individual)
 GROUP BY s.id, s.name, s.abn
 ORDER BY amount DESC
 LIMIT sqlc.arg(lim);
 
 -- name: EntityTopContracts :many
+-- Rankings leave out suppliers who are, or may be, individuals.
 SELECT c.cn_id, c.description, c.method, c.start_date, c.end_date, c.value, c.original_value,
   c.amendment_count, s.id AS supplier_id, s.name AS supplier, cf.amount
 FROM contract_fy cf
@@ -328,6 +331,7 @@ JOIN contract c ON c.cn_id = cf.cn_id
 JOIN agency a ON a.id = c.agency_id
 LEFT JOIN supplier s ON s.id = c.supplier_id
 WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id = sqlc.arg(entity_id)
+  AND (c.supplier_id IS NULL OR c.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual))
 ORDER BY cf.amount DESC
 LIMIT sqlc.arg(lim);
 
@@ -416,41 +420,128 @@ INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount,
 SELECT 'value-increase', cn_id, agency_id, supplier_id, published_fy,
   value - original_value, 100.0 * (value - original_value) / original_value
 FROM contract_pub
-WHERE original_value > 0 AND value - original_value >= 100000 AND value >= 1.5 * original_value;
+WHERE original_value > 0 AND value - original_value >= 1000000 AND value >= 1.5 * original_value;
 
 -- name: DeriveLatePublication :exec
+-- AusTender's dateSigned equals the publication date, so the start date is the
+-- only reference point; the 180-day margin allows for backdated start dates.
 INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
 SELECT 'late-publication', cn_id, agency_id, supplier_id, published_fy,
   value, julianday(published_date) - julianday(start_date)
 FROM contract_pub
-WHERE start_date <> '' AND published_date <> ''
-  AND julianday(published_date) - julianday(start_date) > 42;
+WHERE start_date <> '' AND published_date <> '' AND value >= 100000
+  AND julianday(published_date) - julianday(start_date) > 180;
 
 -- name: DeriveThresholdCluster :exec
 -- Measure is the number of near-threshold contracts in the agency-supplier-year group.
+-- Only limited tenders count: an open or panel procurement can't be avoiding
+-- open tender, and AusTender reports panel call-offs with the panel's method.
 INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
 SELECT 'threshold-cluster', c.cn_id, c.agency_id, c.supplier_id, c.published_fy, c.value, g.n
 FROM contract_pub c
-JOIN (SELECT agency_id, supplier_id, published_fy, COUNT(*) AS n
+JOIN (SELECT agency_id, supplier_id, published_fy, tender_threshold, COUNT(*) AS n
       FROM contract_pub
-      WHERE value >= 72000 AND value < 80000 AND supplier_id IS NOT NULL
-      GROUP BY agency_id, supplier_id, published_fy
+      WHERE method = 'limited' AND exemption = ''
+        AND value >= 0.9 * tender_threshold AND value < tender_threshold AND supplier_id IS NOT NULL
+      GROUP BY agency_id, supplier_id, published_fy, tender_threshold
       HAVING COUNT(*) >= 3) g
   ON g.agency_id = c.agency_id AND g.supplier_id = c.supplier_id AND g.published_fy = c.published_fy
-WHERE c.value >= 72000 AND c.value < 80000;
+  AND g.tender_threshold = c.tender_threshold
+WHERE c.method = 'limited' AND c.exemption = ''
+  AND c.value >= 0.9 * c.tender_threshold AND c.value < c.tender_threshold;
 
 -- name: DeriveRepeatLimited :exec
 -- Measure is the number of limited tenders in the agency-supplier-year group.
+-- Below the threshold, limited tender is routine and needs no stated reason, so
+-- only contracts at or above it count.
 INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
 SELECT 'repeat-limited', c.cn_id, c.agency_id, c.supplier_id, c.published_fy, c.value, g.n
 FROM contract_pub c
 JOIN (SELECT agency_id, supplier_id, published_fy, COUNT(*) AS n
       FROM contract_pub
-      WHERE method = 'limited' AND exemption = '' AND supplier_id IS NOT NULL
+      WHERE method = 'limited' AND exemption = '' AND value >= tender_threshold AND supplier_id IS NOT NULL
       GROUP BY agency_id, supplier_id, published_fy
       HAVING COUNT(*) >= 5 AND SUM(value) >= 1000000) g
   ON g.agency_id = c.agency_id AND g.supplier_id = c.supplier_id AND g.published_fy = c.published_fy
-WHERE c.method = 'limited' AND c.exemption = '';
+WHERE c.method = 'limited' AND c.exemption = '' AND c.value >= c.tender_threshold;
+
+-- name: DeriveCrossedThreshold :exec
+-- Measure is the first published value. The 25% and 50% margins leave out
+-- small overruns just past the threshold, which are usually minor variations.
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'crossed-threshold', cn_id, agency_id, supplier_id, published_fy,
+  value - original_value, original_value
+FROM contract_pub
+WHERE method = 'limited' AND exemption = '' AND original_value > 0
+  AND original_value < tender_threshold
+  AND value >= 1.25 * tender_threshold AND value >= 1.5 * original_value;
+
+-- name: DeriveLateBatch :exec
+-- Late-publication matches published in a batch (ten or more from one agency on
+-- one day) are counted once per batch under late-batch. Measure is the batch size.
+-- Run after DeriveLatePublication, then RemoveBatchedLate.
+INSERT INTO signal (rule_id, cn_id, agency_id, supplier_id, fiscal_year, amount, measure)
+SELECT 'late-batch', s.cn_id, s.agency_id, s.supplier_id, s.fiscal_year, s.amount, b.n
+FROM signal s
+JOIN contract c ON c.cn_id = s.cn_id
+JOIN (SELECT s2.agency_id, c2.published_date, COUNT(*) AS n
+      FROM signal s2 JOIN contract c2 ON c2.cn_id = s2.cn_id
+      WHERE s2.rule_id = 'late-publication'
+      GROUP BY s2.agency_id, c2.published_date
+      HAVING COUNT(*) >= 10) b
+  ON b.agency_id = s.agency_id AND b.published_date = c.published_date
+WHERE s.rule_id = 'late-publication';
+
+-- name: RemoveBatchedLate :exec
+DELETE FROM signal WHERE rule_id = 'late-publication'
+  AND cn_id IN (SELECT cn_id FROM signal WHERE rule_id = 'late-batch');
+
+-- name: ClearCorporateAgencies :exec
+DELETE FROM corporate_agency;
+
+-- name: InsertCorporateAgency :execrows
+INSERT INTO corporate_agency (agency_id) SELECT id FROM agency WHERE name = ?;
+
+-- ABR and individuals -------------------------------------------------------------
+
+-- name: SupplierABNs :many
+SELECT DISTINCT abn FROM supplier WHERE abn <> '';
+
+-- name: UpsertABREntity :exec
+INSERT INTO abr_entity (abn, entity_type, entity_type_text, status, status_from, record_updated, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(abn) DO UPDATE SET
+  entity_type = excluded.entity_type, entity_type_text = excluded.entity_type_text,
+  status = excluded.status, status_from = excluded.status_from,
+  record_updated = excluded.record_updated, source_document_id = excluded.source_document_id;
+
+-- name: ClearGivenNames :exec
+DELETE FROM given_name;
+
+-- name: InsertGivenName :exec
+INSERT INTO given_name (name, registrations) VALUES (?, ?);
+
+-- name: ListGivenNames :many
+SELECT name FROM given_name;
+
+-- name: ClearSupplierIndividuals :exec
+DELETE FROM supplier_individual;
+
+-- name: DeriveABRIndividuals :exec
+INSERT INTO supplier_individual (supplier_id, basis)
+SELECT s.id, 'abr' FROM supplier s JOIN abr_entity a ON a.abn = s.abn
+WHERE a.entity_type = 'IND';
+
+-- name: SuppliersWithoutABR :many
+-- Suppliers with no ABR record, whose names the name test checks.
+SELECT s.id, s.name FROM supplier s
+WHERE NOT EXISTS (SELECT 1 FROM abr_entity a WHERE a.abn = s.abn);
+
+-- name: InsertSupplierIndividual :exec
+INSERT OR IGNORE INTO supplier_individual (supplier_id, basis) VALUES (?, ?);
+
+-- name: SupplierIndividualCounts :many
+SELECT basis, CAST(COUNT(*) AS INTEGER) AS suppliers FROM supplier_individual GROUP BY basis;
 
 -- name: SignalCounts :many
 SELECT rule_id, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(COALESCE(SUM(amount), 0) AS INTEGER) AS amount
@@ -487,6 +578,7 @@ LIMIT 15;
 
 -- name: RuleContracts :many
 -- Contracts matching a rule, optionally for one entity (entity_id 0 = all).
+-- Suppliers who are, or may be, individuals are counted in totals, not listed.
 SELECT s.cn_id, s.amount, s.measure, s.fiscal_year, c.description, c.value, c.original_value,
   c.published_date, c.start_date, a.name AS agency, a.entity_id
 FROM signal s
@@ -494,8 +586,69 @@ JOIN contract c ON c.cn_id = s.cn_id
 JOIN agency a ON a.id = s.agency_id
 WHERE s.rule_id = sqlc.arg(rule_id) AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
   AND (sqlc.arg(entity_id) = 0 OR a.entity_id = sqlc.arg(entity_id))
+  AND (s.supplier_id IS NULL OR s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual))
 ORDER BY s.amount DESC
 LIMIT 100;
+
+-- name: RuleGroupCounts :many
+-- Groups per grouped rule: agency, supplier and year for repeat-limited and
+-- threshold-cluster; agency and publication day for late-batch.
+SELECT rule_id, CAST(COUNT(*) AS INTEGER) AS group_count FROM (
+  SELECT s.rule_id FROM signal s
+  WHERE s.rule_id IN ('repeat-limited', 'threshold-cluster') AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+  GROUP BY s.rule_id, s.agency_id, s.supplier_id, s.fiscal_year
+  UNION ALL
+  SELECT s.rule_id FROM signal s JOIN contract c ON c.cn_id = s.cn_id
+  WHERE s.rule_id = 'late-batch' AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+  GROUP BY s.rule_id, s.agency_id, c.published_date
+) GROUP BY rule_id;
+
+-- name: RuleSupplierGroups :many
+-- Agency-supplier-year groups for a rule, optionally for one entity, with the
+-- limited-tender reason given most often in the group. Suppliers who are, or
+-- may be, individuals are counted in totals, not listed.
+SELECT a.name AS agency, a.entity_id, sp.id AS supplier_id, sp.name AS supplier, s.fiscal_year,
+  CAST(COUNT(*) AS INTEGER) AS contracts, CAST(SUM(s.amount) AS INTEGER) AS amount,
+  CAST(COUNT(DISTINCT c.limited_reason) AS INTEGER) AS reasons,
+  CAST(COALESCE((SELECT c2.limited_reason FROM signal s2 JOIN contract c2 ON c2.cn_id = s2.cn_id
+    WHERE s2.rule_id = s.rule_id AND s2.agency_id = s.agency_id AND s2.supplier_id = s.supplier_id
+      AND s2.fiscal_year = s.fiscal_year
+    GROUP BY c2.limited_reason ORDER BY COUNT(*) DESC LIMIT 1), '') AS TEXT) AS top_reason
+FROM signal s
+JOIN contract c ON c.cn_id = s.cn_id
+JOIN agency a ON a.id = s.agency_id
+JOIN supplier sp ON sp.id = s.supplier_id
+WHERE s.rule_id = sqlc.arg(rule_id) AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+  AND (sqlc.arg(entity_id) = 0 OR a.entity_id = sqlc.arg(entity_id))
+  AND s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual)
+GROUP BY s.rule_id, s.agency_id, s.supplier_id, s.fiscal_year, a.name, a.entity_id, sp.id, sp.name
+ORDER BY contracts DESC, amount DESC
+LIMIT 100;
+
+-- name: RuleBatches :many
+-- Late-publication batches: one row per agency and publication day.
+SELECT a.name AS agency, a.entity_id, c.published_date,
+  CAST(COUNT(*) AS INTEGER) AS notices, CAST(SUM(s.amount) AS INTEGER) AS amount,
+  CAST(MIN(c.start_date) AS TEXT) AS earliest_start
+FROM signal s
+JOIN contract c ON c.cn_id = s.cn_id
+JOIN agency a ON a.id = s.agency_id
+WHERE s.rule_id = 'late-batch' AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+  AND (sqlc.arg(entity_id) = 0 OR a.entity_id = sqlc.arg(entity_id))
+GROUP BY a.name, a.entity_id, c.published_date
+ORDER BY notices DESC, amount DESC
+LIMIT 100;
+
+-- name: RuleReasons :many
+-- The limited-tender reasons agencies gave for a rule's contracts.
+SELECT c.limited_reason AS reason, CAST(COUNT(*) AS INTEGER) AS contracts, CAST(SUM(s.amount) AS INTEGER) AS amount
+FROM signal s
+JOIN contract c ON c.cn_id = s.cn_id
+JOIN agency a ON a.id = s.agency_id
+WHERE s.rule_id = sqlc.arg(rule_id) AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+  AND (sqlc.arg(entity_id) = 0 OR a.entity_id = sqlc.arg(entity_id))
+GROUP BY c.limited_reason
+ORDER BY contracts DESC;
 
 -- LLM classification ------------------------------------------------------------
 

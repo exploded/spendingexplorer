@@ -81,6 +81,8 @@ h2.kicker { margin: 0 0 12px; }
 .small { font-size: 13px; }
 .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.date { font-variant-numeric: tabular-nums; white-space: nowrap; }
+thead th.num { white-space: normal; }
 
 .crumbs { font-size: 14px; color: var(--ink-3); margin-bottom: 12px; }
 .crumbs a { color: var(--ink-2); }
