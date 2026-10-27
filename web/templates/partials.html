@@ -108,4 +108,6 @@
 
 {{define "reported-figure"}}{{if .}}<span{{if .Note}} class="suspect"{{end}}>{{money .Amount}}</span>{{if .Note}} <a class="badge badge-warn" href="#reported-note-{{.Note}}">looks wrong</a>{{end}}<br><span class="muted small">{{.Contracts}} contract{{if ne .Contracts 1}}s{{end}}</span>{{else}}<span class="muted">not reported</span>{{end}}{{end}}
 
+{{define "fms-tag"}}{{if fms .}} <a class="badge" href="/methodology#fms" title="FMS: Foreign Military Sales, bought from the US Government">US Foreign Military Sales</a>{{end}}{{end}}
+
 {{define "method"}}{{if eq . "limited"}}<a class="badge badge-limited" href="/methodology#limited">limited tender</a>{{else if eq . "open"}}<span class="badge">open tender</span>{{else}}<span class="badge">{{.}}</span>{{end}}{{end}}

@@ -33,7 +33,7 @@
     {{range $i, $r := .Rows}}
       <tr>
         <td class="muted small">{{add $i 1}}</td>
-        <th scope="row">{{if .IsGroup}}<a href="/group/{{.ID}}">{{.Name}}</a> <span class="muted small">{{.Suppliers}} compan{{if eq .Suppliers 1}}y{{else}}ies{{end}}</span>{{else}}<a href="/supplier/{{.ID}}">{{.Name}}</a>{{end}}</th>
+        <th scope="row">{{if .IsGroup}}<a href="/group/{{.ID}}">{{.Name}}</a> <span class="muted small">{{.Suppliers}} compan{{if eq .Suppliers 1}}y{{else}}ies{{end}}</span>{{else}}<a href="/supplier/{{.ID}}">{{.Name}}</a>{{template "fms-tag" .Name}}{{end}}</th>
         <td class="num">{{money .Amount}}</td>
         <td class="num">{{f1 .Share}}%</td>
         <td class="num">{{.Contracts}}</td>
@@ -57,7 +57,7 @@
     <tbody>
     {{range .Results}}
       <tr>
-        <th scope="row"><a href="/supplier/{{.ID}}">{{.Name}}</a>{{if .GroupID}}<br><span class="muted small">Part of <a href="/group/{{.GroupID}}">{{.GroupName}}</a></span>{{end}}</th>
+        <th scope="row"><a href="/supplier/{{.ID}}">{{.Name}}</a>{{template "fms-tag" .Name}}{{if .GroupID}}<br><span class="muted small">Part of <a href="/group/{{.GroupID}}">{{.GroupName}}</a></span>{{end}}</th>
         <td class="small mono">{{.Abn}}</td>
         <td class="num">{{.Contracts}}</td>
         <td class="num">{{money .Value}}</td>

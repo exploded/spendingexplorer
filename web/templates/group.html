@@ -20,7 +20,7 @@
   <tbody>
   {{range .Members}}
     <tr>
-      <th scope="row"><a href="/supplier/{{.ID}}">{{.Name}}</a>{{if and .Country (ne .Country "AUSTRALIA")}} <span class="muted small">{{.Country}}</span>{{end}}</th>
+      <th scope="row"><a href="/supplier/{{.ID}}">{{.Name}}</a>{{template "fms-tag" .Name}}{{if and .Country (ne .Country "AUSTRALIA")}} <span class="muted small">{{.Country}}</span>{{end}}</th>
       <td class="small mono">{{.Abn}}</td>
       <td>{{if eq .Basis "gleif"}}<a class="badge badge-reported" href="https://search.gleif.org/#/record/{{.Lei}}">reported</a> <span class="small muted">parent in LEI register</span>{{else}}<a class="badge badge-ai" href="/methodology#groups">AI-grouped</a> <span class="small muted">by name</span>{{end}}</td>
       <td class="num">{{.Contracts}}</td>
@@ -58,7 +58,7 @@
   {{range .Contracts}}
     <tr>
       <th scope="row"><a href="/contract/{{.CnID}}">{{trunc .Description 70}}</a><br><span class="muted small mono">{{.CnID}}</span></th>
-      <td class="small"><a href="/supplier/{{.SupplierID}}">{{.Supplier}}</a></td>
+      <td class="small"><a href="/supplier/{{.SupplierID}}">{{.Supplier}}</a>{{template "fms-tag" .Supplier}}</td>
       <td class="small">{{.Agency}}</td>
       <td>{{template "method" .Method}}</td>
       <td class="small">{{.StartDate}} to {{.EndDate}}</td>

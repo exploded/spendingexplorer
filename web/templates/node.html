@@ -75,7 +75,7 @@
     <tbody>
     {{range .Suppliers}}
       <tr>
-        <th scope="row"><a href="/supplier/{{.ID}}">{{.Name}}</a></th>
+        <th scope="row"><a href="/supplier/{{.ID}}">{{.Name}}</a>{{template "fms-tag" .Name}}</th>
         <td class="num">{{.Contracts}}</td>
         <td class="num">{{money .Amount}}</td>
         <td class="num">{{f1 (share .LimitedAmount .Amount)}}%</td>
@@ -94,7 +94,7 @@
     {{range .Contracts}}
       <tr>
         <th scope="row"><a href="/contract/{{.CnID}}">{{trunc .Description 70}}</a><br><span class="muted small mono">{{.CnID}}</span></th>
-        <td>{{if .SupplierID.Valid}}<a href="/supplier/{{.SupplierID.Int64}}">{{.Supplier.String}}</a>{{end}}</td>
+        <td>{{if .SupplierID.Valid}}<a href="/supplier/{{.SupplierID.Int64}}">{{.Supplier.String}}</a>{{template "fms-tag" .Supplier.String}}{{end}}</td>
         <td>{{template "method" .Method}}</td>
         <td class="small">{{.StartDate}} to {{.EndDate}}</td>
         <td class="num">{{money .Value}}{{if and .OriginalValue.Valid (gt .Value .OriginalValue.Int64)}}<br><span class="muted small">was {{money .OriginalValue.Int64}}</span>{{end}}</td>

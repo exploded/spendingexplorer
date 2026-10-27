@@ -58,7 +58,7 @@
   <tbody>
   {{range .Groups}}
     <tr>
-      <th scope="row"><a href="/supplier/{{.SupplierID}}">{{.Supplier}}</a></th>
+      <th scope="row"><a href="/supplier/{{.SupplierID}}">{{.Supplier}}</a>{{template "fms-tag" .Supplier}}</th>
       <td class="small">{{if .EntityID.Valid}}<a href="/signals/{{$.Rule.ID}}?entity={{.EntityID.Int64}}">{{.Agency}}</a>{{else}}{{.Agency}}{{end}}</td>
       <td class="small">{{.FiscalYear}}</td>
       <td class="num">{{.Contracts}}</td>

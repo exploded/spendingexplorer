@@ -40,6 +40,9 @@ sits inside a known whole-of-government total, and every box shows how much of i
   ABN; for the rest (mostly overseas), `austender.LooksLikePerson` checks the name against
   given names common in the ABR. An org-by-default name test was tried and rejected: it
   hid KPMG, Deloitte and Clayton Utz.
+- "FMS ACCOUNT RESERVE BANK OF AUSTRALIA" is US Foreign Military Sales (Defence buying from the
+  US Government), not a company. It stays in rankings, with a "US Foreign Military Sales" badge
+  and an explanation (`austender.IsFMS`, `/methodology#fms`) (decided 2026-10-28).
 - AusTender values are whole-of-life contract values at publication, not annual spend.
   Any annualised figure (value spread evenly start to end date) must be labelled an estimate.
 - Machinery-of-government changes rename/move programs between years; track this in a

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"spendingexplorer/internal/austender"
 	"spendingexplorer/internal/db"
 	"spendingexplorer/internal/explore"
 	"spendingexplorer/internal/pbs"
@@ -58,6 +59,7 @@ func New(q *db.Queries, templates fs.FS) (*Handler, error) {
 		"tone":         tone,
 		"measure":      measureLabel,
 		"display":      explore.DisplayName,
+		"fms":          austender.IsFMS,
 		"lower":        strings.ToLower,
 		"dict": func(kv ...any) map[string]any {
 			m := map[string]any{}
