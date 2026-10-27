@@ -1,0 +1,43 @@
+{{define "title"}}Methodology{{end}}
+
+{{define "content"}}
+<p class="kicker">Methodology</p>
+<h1>How we prepare the data</h1>
+<div class="prose">
+<p>Every figure on this site comes from a published government document. Where we combine, remove or adjust anything, the figure is labelled and the rule is described here. Source files and every data load are listed on <a href="/sources">Sources and changes</a>.</p>
+
+<h2>Structure</h2>
+<p>The top figure is total expenses of the Australian Government general government sector, from Budget Paper No. 1. Below it, spending is broken down by portfolio, entity and program using the Portfolio Budget Statements (PBS) program expense line items, published on data.gov.au with each Budget.</p>
+
+<h2>Estimates, not actuals</h2>
+<p>The {{.Period.FY}} figures are Budget estimates. The {{.Period.Prev}} figures are estimated actuals published in the same Budget, so both years use the same program structure. Final outcomes will be added separately and labelled as actuals.</p>
+
+<h2 id="removed">Amounts not counted</h2>
+<p>The PBS tables list some money in two places, for example once where a department pays it and again where the receiving agency spends it. Counting both would overstate spending. These rules remove the second listing. Each removed line is still shown on its program page, marked “not counted”.</p>
+<dl class="rules">
+{{range .Rules}}{{if ne .Kind "expense"}}
+  <dt id="rule-{{.ID}}">{{.Short}} <span class="badge">{{.ID}}</span></dt>
+  <dd>{{.Reason}}{{with index $.Recon.RemovedByID .ID}} In {{$.Period.FY}}: {{money .Amount}} across {{.Lines}} line{{if ne .Lines 1}}s{{end}}.{{end}}</dd>
+{{end}}{{end}}
+</dl>
+
+<h2 id="adjustments">Whole-of-government adjustments</h2>
+<p>After those rules, program lines total {{money .Recon.LineItems}} against published total expenses of {{money .Recon.WogTotal}}. The difference, {{signedMoney .Recon.Adjustment}} ({{pct (share .Recon.Adjustment .Recon.WogTotal)}}), is shown as a separate, labelled slice rather than spread across programs. It is likely to include:</p>
+<ul>
+  <li>Accounting differences between agency statements and the government finance statistics (GFS) basis of the Budget total, such as superannuation expenses recorded both by employing agencies and by the Department of Finance.</li>
+  <li>Further payments between Commonwealth agencies that the PBS tables do not identify.</li>
+  <li>Amounts held in special accounts and paid out by other agencies.</li>
+</ul>
+<p>We will reduce this figure as specific causes are confirmed, and record each change on <a href="/sources">Sources and changes</a>.</p>
+
+<h2>Known gaps in the source data</h2>
+<ul>
+  <li>The 2025-26 PBS line items omit the Department of Education’s Outcome 2 (higher education, about $28bn). We use the 2026-27 publication, which includes it.</li>
+  <li>A few entity names are misspelt in the 2026-27 file (for example “Australin Submarine Agency”). We show them as published for now.</li>
+  <li>One line is marked “not for publication” (nfp) and has no amount.</li>
+</ul>
+
+<h2>Coming next</h2>
+<p>Contract notices from AusTender and grants from GrantConnect, so each box shows how much of it can be traced to named suppliers and recipients. Contract values are whole-of-life amounts; any figure spread across years will be labelled an estimate.</p>
+</div>
+{{end}}

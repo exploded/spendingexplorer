@@ -1,0 +1,43 @@
+{{define "title"}}{{.Program.Name}}{{end}}
+
+{{define "content"}}
+{{template "crumbs" .Crumbs}}
+<p class="kicker">Program · {{.Program.Outcome}}</p>
+<h1>{{.Program.Name}}</h1>
+{{template "hero" .}}
+{{if .Total.Excluded}}
+<p class="note">A further {{money .Total.Excluded}} is listed for this program but not counted, because it is counted elsewhere or is not an expense. Each line below says why.</p>
+{{end}}
+{{template "coverage" .}}
+
+<section aria-labelledby="lines-h">
+  <h2 id="lines-h">Published lines</h2>
+  <p class="muted">Each row is one line of the program’s expense table in the {{.Period.Doc.Title}}, <a href="{{.Period.Doc.Url}}">as published</a>.</p>
+  <div class="scroll">
+  <table class="data">
+    <thead><tr>
+      <th scope="col">Line</th>
+      <th scope="col">Kind</th>
+      <th scope="col" class="num">{{.Period.Prev}}<br><span class="th-sub">estimated actual</span></th>
+      <th scope="col" class="num">{{.Period.FY}}<br><span class="th-sub">Budget estimate</span></th>
+      <th scope="col" class="num">Change</th>
+      <th scope="col">Treatment</th>
+      <th scope="col">Source</th>
+    </tr></thead>
+    <tbody>
+    {{range .Lines}}
+      <tr class="{{if ne .Treatment "expense"}}excluded{{end}}">
+        <th scope="row">{{.LineItem}}</th>
+        <td>{{.ExpenseKind}}</td>
+        <td class="num">{{if .NotPublished}}<span class="badge" title="Not for publication">nfp</span>{{else}}{{money .Prev}}{{end}}</td>
+        <td class="num">{{if .NotPublished}}<span class="badge" title="Not for publication">nfp</span>{{else}}{{money .Cur}}{{end}}</td>
+        <td class="num">{{signedMoney .Node.Change}} <span class="muted">{{changePct .Node}}</span></td>
+        <td>{{if eq .Treatment "expense"}}<span class="badge badge-reported">reported</span>{{else}}<a class="badge badge-removed" href="/methodology#rule-{{.Rule.ID}}" title="{{.Rule.Reason}}">not counted: {{.Rule.Short}}</a>{{end}}</td>
+        <td class="muted small">{{.SourceTable}}, row {{.SourceRow}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+</section>
+{{end}}

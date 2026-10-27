@@ -1,0 +1,13 @@
+.env
+*.local.*
+.local/
+*.exe
+*.db
+*.db-wal
+*.db-shm
+.vscode/
+.idea/
+*.bak
+*~
+Thumbs.db
+dist/

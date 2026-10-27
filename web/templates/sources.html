@@ -1,0 +1,43 @@
+{{define "title"}}Sources and changes{{end}}
+
+{{define "content"}}
+<p class="kicker">Sources and changes</p>
+<h1>Where the data comes from</h1>
+<p class="muted">Each file is recorded with its SHA-256 fingerprint, so anyone can check we used the published version.</p>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Document</th><th scope="col">Publisher</th><th scope="col">File</th><th scope="col">SHA-256</th><th scope="col">Retrieved</th></tr></thead>
+  <tbody>
+  {{range .Sources}}
+    <tr>
+      <th scope="row"><a href="{{.Url}}">{{.Title}}</a></th>
+      <td>{{.Publisher}}</td>
+      <td class="small">{{.FileName}}</td>
+      <td class="small mono" title="{{.Sha256}}">{{slice .Sha256 0 12}}…</td>
+      <td class="small">{{.RetrievedAt.Format "2 Jan 2006"}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+
+<h2>Data changelog</h2>
+<p class="muted">Every data load, newest first.</p>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">When</th><th scope="col">Loader</th><th scope="col">Document</th><th scope="col" class="num">Rows read</th><th scope="col" class="num">Amounts written</th><th scope="col">Notes</th></tr></thead>
+  <tbody>
+  {{range .Runs}}
+    <tr>
+      <td class="small">{{.FinishedAt.Format "2 Jan 2006 15:04"}}</td>
+      <td class="mono small">{{.Command}}</td>
+      <td>{{.Title}}</td>
+      <td class="num">{{.RowsRead}}</td>
+      <td class="num">{{.RowsWritten}}</td>
+      <td class="small">{{.Notes}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}

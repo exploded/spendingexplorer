@@ -1,0 +1,32 @@
+{{define "layout"}}<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+<title>{{template "title" .}} · Federal Spending Explorer</title>
+<link rel="stylesheet" href="/static/styles.css">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<header class="masthead">
+  <div class="wrap masthead-inner">
+    <a class="brand" href="/">Federal Spending Explorer</a>
+    <nav aria-label="Site">
+      <a href="/methodology">Methodology</a>
+      <a href="/sources">Sources and changes</a>
+    </nav>
+  </div>
+</header>
+<main class="wrap">
+{{template "content" .}}
+</main>
+<footer class="wrap site-footer">
+  <p>Figures are from the {{.Period.Doc.Title}} and Budget Paper No. 1. They are Budget estimates, not actual spending, unless labelled otherwise.
+  Every number links back to its source. <a href="/methodology">How we prepare the data</a>.</p>
+</footer>
+<div id="tip" class="tip" role="tooltip" hidden></div>
+<script src="/static/htmx.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>{{end}}

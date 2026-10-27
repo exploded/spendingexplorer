@@ -1,0 +1,95 @@
+{{define "crumbs"}}{{if .}}<nav class="crumbs" aria-label="Breadcrumb">{{range .}}<a href="{{.URL}}">{{.Name}}</a><span aria-hidden="true"> / </span>{{end}}</nav>{{end}}{{end}}
+
+{{define "hero"}}
+<div class="hero">
+  <div class="hero-figure">
+    <span class="hero-number">{{money .Total.Cur}}</span>
+    <span class="hero-caption">{{.Period.FY}} Budget estimate</span>
+  </div>
+  {{if .Total.Prev}}
+  <p class="hero-change">
+    <strong>{{signedMoney .Total.Change}}</strong> ({{changePct .Total}}) on {{.Period.Prev}}
+    <span class="badge" title="The {{.Period.Prev}} figure is the estimated actual published in the same Budget, not a final outcome.">estimated actual</span>
+  </p>
+  {{end}}
+</div>
+{{end}}
+
+{{define "coverage"}}
+<section class="coverage" aria-labelledby="coverage-h">
+  <h2 id="coverage-h" class="kicker">Itemised below program level</h2>
+  <div class="meter" aria-hidden="true"><span style="width:0%"></span></div>
+  <p class="muted">Not yet loaded. Contract (AusTender) and grant (GrantConnect) records will show here, with the share of this total they account for.</p>
+</section>
+{{end}}
+
+{{define "legend"}}
+<div class="legend" aria-label="Colour shows change on {{.}}">
+  <span class="legend-title">Change on {{.}}</span>
+  <span><i class="sw t-down2"></i>−10% or more</span>
+  <span><i class="sw t-down1"></i>−2 to −10%</span>
+  <span><i class="sw t-flat"></i>within ±2%</span>
+  <span><i class="sw t-up1"></i>+2 to +10%</span>
+  <span><i class="sw t-up2"></i>+10% or more, or new</span>
+</div>
+{{end}}
+
+{{define "treemap"}}
+{{if .Tiles}}
+<figure class="treemap-figure">
+  <div class="treemap" role="list">
+    {{range .Tiles}}
+    <a role="listitem" class="tile t-{{tone .Node}}{{if .Label}} labelled{{end}}" href="{{.URL}}"
+       style="left:{{pctCSS .X}};top:{{pctCSS .Y}};width:{{pctCSS .W}};height:{{pctCSS .H}}"
+       data-tip="{{.Name}}|{{money .Cur}} · {{f1 .Share}}% of total|{{signedMoney .Change}} ({{changePct .Node}}) on {{$.Period.Prev}}"
+       aria-label="{{.Name}}: {{money .Cur}}, {{changePct .Node}} on {{$.Period.Prev}}">
+      {{if .Label}}<span class="tile-name">{{.Name}}</span><span class="tile-value">{{money .Cur}}</span><span class="tile-change">{{changePct .Node}}</span>{{end}}
+    </a>
+    {{end}}
+  </div>
+  {{template "legend" .Period.Prev}}
+  <figcaption class="muted">Area shows {{.Period.FY}} Budget estimate. Hover or focus a box for figures; the table below lists every item.</figcaption>
+</figure>
+{{end}}
+{{end}}
+
+{{define "sortlink"}}<a href="?sort={{.Key}}" class="{{if eq .Key .Cur}}active{{end}}" hx-get="?sort={{.Key}}" hx-target="#breakdown" hx-select="#breakdown" hx-swap="outerHTML" hx-push-url="true">{{.Label}}</a>{{end}}
+
+{{define "table"}}
+<section id="breakdown" class="breakdown" aria-labelledby="breakdown-h">
+  <div class="table-head">
+    <h2 id="breakdown-h">By {{lower .ChildLabel}}</h2>
+    <div class="sorts" role="group" aria-label="Sort">
+      <span class="muted">Sort:</span>
+      {{template "sortlink" (dict "Key" "change" "Label" "Largest increase" "Cur" .Sort)}}
+      {{template "sortlink" (dict "Key" "pct" "Label" "Fastest growth" "Cur" .Sort)}}
+      {{template "sortlink" (dict "Key" "size" "Label" "Largest" "Cur" .Sort)}}
+      {{template "sortlink" (dict "Key" "name" "Label" "A–Z" "Cur" .Sort)}}
+    </div>
+  </div>
+  <div class="scroll">
+  <table class="data">
+    <thead><tr>
+      <th scope="col">{{.ChildLabel}}</th>
+      <th scope="col" class="num">{{.Period.Prev}}<br><span class="th-sub">estimated actual</span></th>
+      <th scope="col" class="num">{{.Period.FY}}<br><span class="th-sub">Budget estimate</span></th>
+      <th scope="col" class="num">Change</th>
+      <th scope="col" class="num">Share</th>
+      <th scope="col" class="num"><a href="/methodology#removed" title="Listed in the tables but removed as double counting or non-expense">Removed</a></th>
+    </tr></thead>
+    <tbody>
+    {{range .Rows}}
+      <tr>
+        <th scope="row">{{if .URL}}<a href="{{.URL}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}</th>
+        <td class="num">{{money .Prev}}</td>
+        <td class="num">{{money .Cur}}</td>
+        <td class="num chg"><span>{{signedMoney .Change}}</span> <span class="muted">{{changePct .Node}}</span></td>
+        <td class="num share"><span class="sharebar" aria-hidden="true"><span style="width:{{pctCSS .Share}}"></span></span>{{f1 .Share}}%</td>
+        <td class="num muted">{{if .Excluded}}{{money .Excluded}}{{else}}–{{end}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+</section>
+{{end}}

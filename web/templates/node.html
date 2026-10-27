@@ -1,0 +1,56 @@
+{{define "title"}}{{.Title}}{{end}}
+
+{{define "content"}}
+{{template "crumbs" .Crumbs}}
+<p class="kicker">{{.Level}}</p>
+<h1>{{.Title}}</h1>
+{{template "hero" .}}
+
+{{with .Recon}}
+<section class="recon" aria-labelledby="recon-h">
+  <h2 id="recon-h" class="kicker">How the total is built</h2>
+  <ol class="equation">
+    <li><span>Program line items, as published</span><span class="num">{{money .Gross}}</span></li>
+    {{range .Removed}}
+    <li class="minus"><span>less <a href="/methodology#rule-{{.Rule.ID}}">{{.Rule.Short}}</a> <span class="badge">{{.Lines}} line{{if ne .Lines 1}}s{{end}}</span></span><span class="num">−{{money .Amount}}</span></li>
+    {{end}}
+    <li class="sub"><span>Program spending shown below</span><span class="num">{{money .LineItems}}</span></li>
+    <li class="{{if lt .Adjustment 0}}minus{{end}} adjust"><span><a href="/methodology#adjustments">Whole-of-government adjustments</a> <span class="badge badge-recon">reconciliation</span></span><span class="num">{{signedMoney .Adjustment}}</span></li>
+    <li class="total"><span>Total expenses, <a href="{{.WogURL}}">{{.WogTitle}}</a></span><span class="num">{{money .WogTotal}}</span></li>
+  </ol>
+  <p class="muted">The adjustments are the difference between the published total and the sum of program lines, after removing amounts counted twice. They are {{pct (share .Adjustment .WogTotal)}} of the total. <a href="/methodology#adjustments">What they are likely to include</a>.</p>
+</section>
+{{end}}
+
+{{if and (not .Recon) .Total.Excluded}}
+<p class="note">A further {{money .Total.Excluded}} appears in this {{lower .Level}}’s tables but is not counted here: it is counted where the money is paid from, or it is not an expense. <a href="/methodology#removed">Why</a>.</p>
+{{end}}
+
+{{if .Kinds}}
+<section class="kinds" aria-labelledby="kinds-h">
+  <h2 id="kinds-h" class="kicker">Kind of expense</h2>
+  {{range .Kinds}}
+  <div class="kind"><span class="kind-name">{{.Name}}</span><span class="meter"><span style="width:{{pctCSS .Share}}"></span></span><span class="num">{{money .Cur}} <span class="muted">{{f1 .Share}}%</span></span></div>
+  {{end}}
+</section>
+{{end}}
+
+{{if not .Recon}}{{template "coverage" .}}{{end}}
+
+{{template "treemap" .}}
+{{if .Omitted}}<p class="muted">Not shown in the chart because the {{.Period.FY}} amount is zero or negative: {{range $i, $o := .Omitted}}{{if $i}}, {{end}}{{$o.Name}} ({{money $o.Cur}}){{end}}.</p>{{end}}
+
+{{template "table" .}}
+
+{{if .Functions}}
+<section class="functions" aria-labelledby="fn-h">
+  <h2 id="fn-h">By function</h2>
+  <p class="muted">Budget Paper No. 1 also splits the total by purpose. These figures sum to the published total and are not broken down further.</p>
+  {{range .Functions}}
+  <div class="kind" data-tip="{{.Name}}|{{money .Cur}} · {{f1 .Share}}% of total|{{signedMoney .Change}} ({{changePct .Node}}) on {{$.Period.Prev}}">
+    <span class="kind-name">{{.Name}}</span><span class="meter"><span style="width:{{pctCSS .Share}}"></span></span><span class="num">{{money .Cur}} <span class="muted">{{changePct .Node}}</span></span>
+  </div>
+  {{end}}
+</section>
+{{end}}
+{{end}}
