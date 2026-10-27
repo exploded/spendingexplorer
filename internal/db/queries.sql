@@ -815,3 +815,20 @@ WHERE entity_id IS NOT NULL AND EXISTS (
   SELECT 1 FROM reported_spend s
   WHERE s.entity_name = reported_org.entity_name AND s.reporting_year = reported_org.reporting_year
     AND s.kind = reported_org.kind AND s.entity_id IS NULL);
+
+-- name: DeletePolicyInvestmentsForDoc :exec
+DELETE FROM policy_investment WHERE source_document_id = ?;
+
+-- name: InsertPolicyInvestment :exec
+INSERT INTO policy_investment (source_document_id, item, item_key, fiscal_year, estimate_type, amount, is_total)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- name: InvestmentDocument :one
+-- The investments table from one publication: doc_type bp1_investments or
+-- fbo_investments.
+SELECT id, title, url FROM source_document
+WHERE doc_type = ? AND budget_year = ?;
+
+-- name: PolicyInvestments :many
+SELECT item, item_key, fiscal_year, amount, is_total FROM policy_investment
+WHERE source_document_id = ?;

@@ -1,0 +1,68 @@
+{{define "title"}}Loans and investments{{end}}
+
+{{define "content"}}
+<p class="kicker">Not counted as expenses</p>
+<h1>Loans and investments</h1>
+<p class="objective">Besides {{money .Expenses}} of expenses, the government pays out money as loans and as equity in companies it owns. The budget records these as assets bought, so they are not in total expenses or the underlying cash balance, but the government borrows to fund them. <a href="/methodology#investments">How these are counted</a>.</p>
+
+<div class="hero">
+  <div class="hero-figure">
+    <span class="hero-number">{{money .Total.Cur}}</span>
+    <span class="hero-caption">{{.Period.FY}} Budget estimate, net paid out</span>
+  </div>
+  <p class="hero-change">
+    {{money .Total.PrevActual}} in {{.Period.Prev}}
+    {{if .Outcome}}<span class="badge">actual</span>{{else}}<span class="badge">estimated actual</span>{{end}}
+    · {{money .Total.Forward}} over {{.Period.FY}} to {{.LastYear}}
+  </p>
+</div>
+
+<section class="coverage" aria-labelledby="coverage-h">
+  <h2 id="coverage-h" class="kicker">Itemised by Treasury</h2>
+  <div class="meter" aria-hidden="true"><span style="width:{{pctCSS (cap100 (share .Itemised .Total.Cur))}}"></span></div>
+  <p><strong>{{money .Itemised}}</strong> of the {{.Period.FY}} total is itemised, {{f1 (share .Itemised .Total.Cur)}}%. The rest is “Net other”: commercial-in-confidence transactions and decisions not yet announced.</p>
+</section>
+
+<section aria-labelledby="items-h">
+  <h2 id="items-h">By item</h2>
+  <p class="muted">Net amounts: loans and equity paid out, less repayments and returns in the same year. A negative amount means more came back than went out.</p>
+  <div class="scroll">
+  <table class="data">
+    <thead><tr>
+      <th scope="col">Item</th>
+      <th scope="col" class="num">{{.Period.Prev}}<br><span class="th-sub">{{if .Outcome}}actual{{else}}estimated actual{{end}}</span></th>
+      <th scope="col" class="num">{{.Period.FY}}<br><span class="th-sub">Budget estimate</span></th>
+      {{if .Earlier}}<th scope="col" class="num">{{.Period.FY}}<br><span class="th-sub">in the {{.Period.Prev}} Budget</span></th>{{end}}
+      <th scope="col" class="num">{{.Period.FY}} to {{.LastYear}}<br><span class="th-sub">estimates</span></th>
+    </tr></thead>
+    <tbody>
+    {{range .Rows}}
+      <tr>
+        <th scope="row">{{.Name}}{{if .Other}}<span class="row-note">Not itemised: commercial-in-confidence transactions and decisions not yet announced.</span>{{end}}</th>
+        <td class="num">{{money .PrevActual}}</td>
+        <td class="num">{{money .Cur}}</td>
+        {{if $.Earlier}}<td class="num">{{if .HasEarlier}}{{money .Earlier}}{{else}}<span class="muted" title="Not itemised in that Budget; it may have been in “Net other”">not itemised</span>{{end}}</td>{{end}}
+        <td class="num">{{money .Forward}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+    <tfoot>
+      <tr class="current">
+        <th scope="row">Total</th>
+        <td class="num">{{money .Total.PrevActual}}</td>
+        <td class="num">{{money .Total.Cur}}</td>
+        {{if .Earlier}}<td class="num">{{money .Total.Earlier}}</td>{{end}}
+        <td class="num">{{money .Total.Forward}}</td>
+      </tr>
+    </tfoot>
+  </table>
+  </div>
+</section>
+
+<h2>Sources</h2>
+<ul class="small">
+  <li><a href="{{.Budget.Url}}">{{.Budget.Title}}</a></li>
+  {{with .Outcome}}<li><a href="{{.Url}}">{{.Title}}</a></li>{{end}}
+  {{with .Earlier}}<li><a href="{{.Url}}">{{.Title}}</a></li>{{end}}
+</ul>
+{{end}}

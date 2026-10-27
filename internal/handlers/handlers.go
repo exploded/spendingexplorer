@@ -78,7 +78,7 @@ func New(q *db.Queries, templates fs.FS) (*Handler, error) {
 		},
 	}
 	h := &Handler{q: q, pages: map[string]*template.Template{}}
-	for _, page := range []string{"node.html", "program.html", "methodology.html", "sources.html", "supplier.html", "contract.html", "signals.html", "signal.html"} {
+	for _, page := range []string{"node.html", "program.html", "methodology.html", "sources.html", "supplier.html", "contract.html", "signals.html", "signal.html", "investments.html"} {
 		t, err := template.New("").Funcs(funcs).ParseFS(templates, "layout.html", "partials.html", page)
 		if err != nil {
 			return nil, err
@@ -97,6 +97,7 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /contract/{cn}", h.contract)
 	mux.HandleFunc("GET /signals", h.signalsIndex)
 	mux.HandleFunc("GET /signals/{rule}", h.signalRule)
+	mux.HandleFunc("GET /investments", h.investments)
 	mux.HandleFunc("GET /methodology", h.methodology)
 	mux.HandleFunc("GET /sources", h.sources)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
@@ -158,6 +159,7 @@ type recon struct {
 	Adjustment  int64
 	WogTitle    string
 	WogURL      string
+	Investments int64 // net loans and equity paid out in the year, which are not expenses
 }
 
 type removal struct {
@@ -196,6 +198,10 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	page.Level = "Australian Government general government sector"
 	page.ChildLabel = "Portfolio"
 	page.Recon = rc
+	if rc.Investments, err = h.investmentTotal(ctx, p.FY); err != nil {
+		h.fail(w, err)
+		return
+	}
 	page.Functions = funcs
 	byPortfolio, err := h.q.PortfolioContractTotals(ctx, db.PortfolioContractTotalsParams{BudgetYear: p.FY, Fy: p.FY})
 	if err != nil {

@@ -75,6 +75,12 @@
 <p>AusTender’s categories (UNSPSC codes) are broad: “management and business professionals” covers consultants, contractors filling roles, lawyers and auditors alike. To tell these apart, we ask a Claude model to read each contract’s description, agency and supplier and choose one category from a fixed list. It runs in batches with a fixed prompt; each result records the model, prompt version and a fingerprint of the text it read, and is labelled <span class="badge badge-ai">AI-classified</span> wherever it appears.</p>
 <p>The model can be wrong, especially when descriptions are short. Results marked low confidence are shown but not counted in totals. The model is never asked to judge value for money or wrongdoing.</p>
 
+<h2 id="investments">Loans and investments</h2>
+<p>When the government lends money or buys equity in a company it owns, the budget records an asset bought, not an expense. These amounts are left out of total expenses and the underlying cash balance, but they are added to the headline cash balance, and the government borrows to pay them. Examples are student loans, the Clean Energy Finance Corporation, Housing Australia and Snowy Hydro.</p>
+<p>The <a href="/investments">Loans and investments</a> page shows them as Treasury itemises them in Budget Paper No. 1, in the table that reconciles the underlying and headline cash balances, and the year’s actual from the Final Budget Outcome. Amounts are net: new loans and equity less repayments and returns of equity in the same year. A negative amount means more came back than went out.</p>
+<p>Treasury groups some amounts as “Net other”: commercial-in-confidence transactions and decisions not yet announced. We show that line as published. A loss on a loan or investment, such as a write-down of a government company’s value, does not appear in these amounts.</p>
+<p>The tables are only published in PDF. We extract them with a script and check that the items add up to the published total in every column.</p>
+
 <h2>Known gaps in the source data</h2>
 <ul>
   <li>The 2025-26 PBS line items omit the Department of Education’s Outcome 2 (higher education, about $28bn). We use the 2026-27 publication, which includes it.</li>

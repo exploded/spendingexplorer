@@ -482,6 +482,15 @@ func (q *Queries) DeleteEntity(ctx context.Context, id int64) error {
 	return err
 }
 
+const deletePolicyInvestmentsForDoc = `-- name: DeletePolicyInvestmentsForDoc :exec
+DELETE FROM policy_investment WHERE source_document_id = ?
+`
+
+func (q *Queries) DeletePolicyInvestmentsForDoc(ctx context.Context, sourceDocumentID int64) error {
+	_, err := q.db.ExecContext(ctx, deletePolicyInvestmentsForDoc, sourceDocumentID)
+	return err
+}
+
 const deleteProgramExpensesForDoc = `-- name: DeleteProgramExpensesForDoc :exec
 DELETE FROM program_expense WHERE source_document_id = ?
 `
@@ -1575,6 +1584,34 @@ func (q *Queries) InsertLoadRun(ctx context.Context, arg InsertLoadRunParams) er
 	return err
 }
 
+const insertPolicyInvestment = `-- name: InsertPolicyInvestment :exec
+INSERT INTO policy_investment (source_document_id, item, item_key, fiscal_year, estimate_type, amount, is_total)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type InsertPolicyInvestmentParams struct {
+	SourceDocumentID int64
+	Item             string
+	ItemKey          string
+	FiscalYear       string
+	EstimateType     string
+	Amount           int64
+	IsTotal          int64
+}
+
+func (q *Queries) InsertPolicyInvestment(ctx context.Context, arg InsertPolicyInvestmentParams) error {
+	_, err := q.db.ExecContext(ctx, insertPolicyInvestment,
+		arg.SourceDocumentID,
+		arg.Item,
+		arg.ItemKey,
+		arg.FiscalYear,
+		arg.EstimateType,
+		arg.Amount,
+		arg.IsTotal,
+	)
+	return err
+}
+
 const insertProgramExpense = `-- name: InsertProgramExpense :exec
 INSERT INTO program_expense (
   program_id, source_document_id, source_table, source_row, fiscal_year, estimate_type,
@@ -1727,6 +1764,31 @@ func (q *Queries) InsertWogExpense(ctx context.Context, arg InsertWogExpensePara
 		arg.Amount,
 	)
 	return err
+}
+
+const investmentDocument = `-- name: InvestmentDocument :one
+SELECT id, title, url FROM source_document
+WHERE doc_type = ? AND budget_year = ?
+`
+
+type InvestmentDocumentParams struct {
+	DocType    string
+	BudgetYear string
+}
+
+type InvestmentDocumentRow struct {
+	ID    int64
+	Title string
+	Url   string
+}
+
+// The investments table from one publication: doc_type bp1_investments or
+// fbo_investments.
+func (q *Queries) InvestmentDocument(ctx context.Context, arg InvestmentDocumentParams) (InvestmentDocumentRow, error) {
+	row := q.db.QueryRowContext(ctx, investmentDocument, arg.DocType, arg.BudgetYear)
+	var i InvestmentDocumentRow
+	err := row.Scan(&i.ID, &i.Title, &i.Url)
+	return i, err
 }
 
 const kindTotals = `-- name: KindTotals :many
@@ -2199,6 +2261,48 @@ func (q *Queries) OpenLLMBatches(ctx context.Context) ([]OpenLLMBatchesRow, erro
 			&i.Task,
 			&i.PromptVersion,
 			&i.Model,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const policyInvestments = `-- name: PolicyInvestments :many
+SELECT item, item_key, fiscal_year, amount, is_total FROM policy_investment
+WHERE source_document_id = ?
+`
+
+type PolicyInvestmentsRow struct {
+	Item       string
+	ItemKey    string
+	FiscalYear string
+	Amount     int64
+	IsTotal    int64
+}
+
+func (q *Queries) PolicyInvestments(ctx context.Context, sourceDocumentID int64) ([]PolicyInvestmentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, policyInvestments, sourceDocumentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PolicyInvestmentsRow
+	for rows.Next() {
+		var i PolicyInvestmentsRow
+		if err := rows.Scan(
+			&i.Item,
+			&i.ItemKey,
+			&i.FiscalYear,
+			&i.Amount,
+			&i.IsTotal,
 		); err != nil {
 			return nil, err
 		}

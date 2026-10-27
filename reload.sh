@@ -10,6 +10,7 @@ go run ./cmd/load-pbs -budget 2026-27 -file data/raw/pbs-2026-27.xlsx -url "http
 go run ./cmd/load-bp1 -budget 2025-26 -file data/raw/bp1-2025-26-table-5.3.csv -url "https://data.gov.au/data/dataset/4f025f38-0c70-45e2-8106-4c29a5e48637/resource/b9c368f4-f7de-4a44-9917-338f596a2b85/download/bp1.zip"
 go run ./cmd/load-bp1 -budget 2026-27 -file data/raw/bp1-2026-27-table-6.3.csv -url "https://data.gov.au/data/dataset/5400a217-82f4-425c-b713-b7ba2ee78e5a/resource/e8615266-48a4-4258-9c3b-9283f4c593cd/download/budget-paper-no.1-tables.zip"
 go run ./cmd/load-descriptions -budget 2026-27
+go run ./cmd/load-investments
 if ls .local/abr/public_split_*.zip >/dev/null 2>&1; then
   go run ./cmd/load-abr
 fi

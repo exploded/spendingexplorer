@@ -327,3 +327,22 @@ CREATE TABLE IF NOT EXISTS reported_org (
   source_document_id  INTEGER NOT NULL REFERENCES source_document(id)
 );
 CREATE INDEX IF NOT EXISTS reported_org_entity ON reported_org(entity_id, reporting_year);
+
+-- Loans and investments -----------------------------------------------------
+
+-- Net cash flows from investments in financial assets for policy purposes:
+-- loans and equity the government provides, which are not expenses. From the
+-- table reconciling the underlying to the headline cash balance in Budget
+-- Paper No. 1 and the Final Budget Outcome. Amounts are as published:
+-- negative is net cash paid out. The row with is_total = 1 holds the
+-- published total.
+CREATE TABLE IF NOT EXISTS policy_investment (
+  source_document_id  INTEGER NOT NULL REFERENCES source_document(id),
+  item                TEXT NOT NULL,      -- as published
+  item_key            TEXT NOT NULL,      -- normalised, to match items across publications
+  fiscal_year         TEXT NOT NULL,
+  estimate_type       TEXT NOT NULL,
+  amount              INTEGER NOT NULL,   -- whole dollars
+  is_total            INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (source_document_id, item_key, fiscal_year)
+);

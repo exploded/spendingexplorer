@@ -160,6 +160,7 @@ table.data th, table.data td { padding: 8px 10px; border-bottom: 1px solid var(-
 table.data thead th { font-weight: 600; font-size: 13px; color: var(--ink-2); border-bottom: 2px solid var(--ink); vertical-align: bottom; text-align: left; }
 table.data thead th.num { text-align: right; }
 table.data tbody th { font-weight: 500; text-align: left; min-width: 200px; }
+table.data tfoot th { text-align: left; }
 .th-sub { font-weight: 400; color: var(--ink-3); }
 tr.excluded th, tr.excluded td.num { color: var(--ink-3); }
 tr.excluded th { text-decoration: line-through; text-decoration-color: var(--rule); }

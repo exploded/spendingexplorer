@@ -72,6 +72,21 @@ The loader scans about 20 million records in seconds and keeps only supplier ABN
 stores no individual's name, only counts of given names (kept at 200 registrations or
 more), which `derive` uses to spot people's names among suppliers with no ABN.
 
+## Loans and investments
+
+Loans and equity the government provides are not expenses, so they sit outside the total. Treasury
+itemises them in the table that reconciles the underlying and headline cash balances: Budget
+Paper No. 1, Statement 3, and the Final Budget Outcome, Part 1. These are PDF only. The
+publications are listed in `data/investment_documents.csv`; extraction needs `pdftotext` and runs
+locally, and its output, `data/investments.csv`, is committed so the server only loads it.
+
+```
+go run ./cmd/extract-investments   # check that every column sums to the published total
+go run ./cmd/load-investments
+```
+
+To add a new Budget or Final Budget Outcome, add a row to `data/investment_documents.csv`.
+
 ## Program descriptions
 
 Program objectives are quoted from each entity's PBS document. Extraction needs

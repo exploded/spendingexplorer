@@ -152,6 +152,16 @@ type LoadRun struct {
 	FinishedAt       time.Time
 }
 
+type PolicyInvestment struct {
+	SourceDocumentID int64
+	Item             string
+	ItemKey          string
+	FiscalYear       string
+	EstimateType     string
+	Amount           int64
+	IsTotal          int64
+}
+
 type Program struct {
 	ID         int64
 	EntityID   int64
