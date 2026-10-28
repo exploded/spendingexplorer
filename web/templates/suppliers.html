@@ -28,7 +28,7 @@
   {{end}}
   <div class="scroll">
   <table class="data">
-    <thead><tr><th scope="col">#</th><th scope="col">Supplier</th><th scope="col" class="num">{{.Period.FY}} est.</th><th scope="col" class="num">Share</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">Entities</th><th scope="col" class="num">Limited tender</th></tr></thead>
+    <thead><tr><th scope="col">#</th><th scope="col">Supplier</th><th scope="col" class="num">{{.Period.FY}} est.</th><th scope="col" class="num">Share</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">Entities</th>{{template "limited-th"}}</tr></thead>
     <tbody>
     {{range $i, $r := .Rows}}
       <tr>

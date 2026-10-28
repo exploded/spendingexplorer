@@ -77,7 +77,7 @@
   <p class="muted small">Suppliers who are individuals are counted in the totals above but not listed. <a href="/methodology#individuals">Why</a></p>
   <div class="scroll">
   <table class="data">
-    <thead><tr><th scope="col">Supplier</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">{{$.Period.FY}} est.</th><th scope="col" class="num">Limited tender</th></tr></thead>
+    <thead><tr><th scope="col">Supplier</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">{{$.Period.FY}} est.</th>{{template "limited-th"}}</tr></thead>
     <tbody>
     {{range .Suppliers}}
       <tr>

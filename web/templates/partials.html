@@ -110,6 +110,8 @@
 
 {{define "fms-tag"}}{{if fms .}} <a class="badge" href="/methodology#fms" title="FMS: Foreign Military Sales, bought from the US Government">US Foreign Military Sales</a>{{end}}{{end}}
 
+{{define "limited-th"}}<th scope="col" class="num"><a href="/methodology#limited" data-tip="Limited tender|Share of the row’s contract value awarded by limited tender, where the agency approached suppliers directly instead of advertising openly.|Below the open-tender threshold agencies need not give a reason, so this is common for smaller contracts.">Limited tender</a></th>{{end}}
+
 {{define "abn"}}{{if .}}<a class="mono" href="https://abr.business.gov.au/ABN/View/{{.}}" title="Look up this ABN in the Australian Business Register">{{.}}</a>{{end}}{{end}}
 
 {{define "method"}}{{if eq . "limited"}}<a class="badge badge-limited" href="/methodology#limited">limited tender</a>{{else if eq . "open"}}<span class="badge">open tender</span>{{else}}<span class="badge">{{.}}</span>{{end}}{{end}}
