@@ -10,8 +10,9 @@
 <div class="hero">
   <div class="hero-figure">
     <span class="hero-number">{{money .Totals.Value}}</span>
-    <span class="hero-caption">total value of {{.Totals.Contracts}} contract{{if ne .Totals.Contracts 1}}s{{end}} published {{.Totals.FirstPublished}} to {{.Totals.LastPublished}}</span>
+    <span class="hero-caption">whole-of-life value of {{.Totals.Contracts}} contract{{if ne .Totals.Contracts 1}}s{{end}} published {{.Totals.FirstPublished}} to {{.Totals.LastPublished}}</span>
   </div>
+  {{if .Year.Amount}}<p class="hero-change"><strong>{{money .Year.Amount}}</strong> falls in {{.Period.FY}}, from {{.Year.Contracts}} active contract{{if ne .Year.Contracts 1}}s{{end}}.{{if not .Year.Individual}} This is the figure in the <a href="/suppliers?view=abn">supplier rankings</a>.{{end}} <a class="badge badge-estimate" href="/methodology#annualised">estimate: annualised</a></p>{{end}}
 </div>
 <p class="note">Whole-of-life contract values as published on AusTender, including amendments. They are commitments, not payments. {{if .Totals.LimitedContracts}}{{.Totals.LimitedContracts}} of these contracts ({{f1 (share .Totals.LimitedValue .Totals.Value)}}% of value) were awarded by <a href="/methodology#limited">limited tender</a>.{{end}}</p>
 

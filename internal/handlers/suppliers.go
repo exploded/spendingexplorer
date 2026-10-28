@@ -115,6 +115,7 @@ type groupPage struct {
 	Members   []db.SupplierGroupMembersRow
 	ByAI      int
 	Totals    db.GroupTotalsRow
+	Year      db.GroupYearRow // value falling in the budget year, as ranked
 	Agencies  []db.GroupAgenciesRow
 	Contracts []db.GroupContractsRow
 	Crumbs    []crumb
@@ -151,6 +152,10 @@ func (h *Handler) supplierGroup(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if page.Totals, err = h.q.GroupTotals(ctx, id); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if page.Year, err = h.q.GroupYear(ctx, db.GroupYearParams{Fy: p.FY, GroupID: id}); err != nil {
 		h.fail(w, err)
 		return
 	}

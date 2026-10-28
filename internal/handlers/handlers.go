@@ -726,6 +726,11 @@ func (h *Handler) render(w http.ResponseWriter, page string, data any) {
 }
 
 func (h *Handler) fail(w http.ResponseWriter, err error) {
+	// The client went away (HTMX aborts a superseded search, or the user
+	// navigated off); nobody is left to read a response.
+	if errors.Is(err, context.Canceled) {
+		return
+	}
 	slog.Error("request failed", "error", err)
 	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 }

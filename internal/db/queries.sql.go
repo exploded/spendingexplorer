@@ -2171,6 +2171,36 @@ func (q *Queries) GroupTotals(ctx context.Context, groupID int64) (GroupTotalsRo
 	return i, err
 }
 
+const groupYear = `-- name: GroupYear :one
+SELECT CAST(COUNT(DISTINCT c.cn_id) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+WHERE cf.fiscal_year = ?1 AND a.entity_id IS NOT NULL
+  AND c.supplier_id IN (SELECT supplier_id FROM supplier_group_member WHERE group_id = ?2)
+  AND c.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual)
+`
+
+type GroupYearParams struct {
+	Fy      string
+	GroupID int64
+}
+
+type GroupYearRow struct {
+	Contracts int64
+	Amount    int64
+}
+
+// A corporate group's contract value falling in a year, counted as
+// TopSupplierGroups counts it.
+func (q *Queries) GroupYear(ctx context.Context, arg GroupYearParams) (GroupYearRow, error) {
+	row := q.db.QueryRowContext(ctx, groupYear, arg.Fy, arg.GroupID)
+	var i GroupYearRow
+	err := row.Scan(&i.Contracts, &i.Amount)
+	return i, err
+}
+
 const groupedClusterHashes = `-- name: GroupedClusterHashes :many
 SELECT DISTINCT cluster_key, input_hash FROM llm_supplier_group WHERE prompt_version = ?
 `
@@ -5450,6 +5480,36 @@ func (q *Queries) SupplierTotals(ctx context.Context, supplierID sql.NullInt64) 
 		&i.FirstPublished,
 		&i.LastPublished,
 	)
+	return i, err
+}
+
+const supplierYear = `-- name: SupplierYear :one
+SELECT CAST(COUNT(DISTINCT c.cn_id) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount,
+  CAST(EXISTS (SELECT 1 FROM supplier_individual i WHERE i.supplier_id = ?1) AS INTEGER) AS individual
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+WHERE cf.fiscal_year = ?2 AND a.entity_id IS NOT NULL AND c.supplier_id = ?1
+`
+
+type SupplierYearParams struct {
+	SupplierID int64
+	Fy         string
+}
+
+type SupplierYearRow struct {
+	Contracts  int64
+	Amount     int64
+	Individual int64
+}
+
+// A supplier's contract value falling in a year, counted as TopSuppliers
+// counts it. individual says whether the rankings leave the supplier out.
+func (q *Queries) SupplierYear(ctx context.Context, arg SupplierYearParams) (SupplierYearRow, error) {
+	row := q.db.QueryRowContext(ctx, supplierYear, arg.SupplierID, arg.Fy)
+	var i SupplierYearRow
+	err := row.Scan(&i.Contracts, &i.Amount, &i.Individual)
 	return i, err
 }
 

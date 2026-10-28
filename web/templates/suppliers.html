@@ -28,7 +28,7 @@
   {{end}}
   <div class="scroll">
   <table class="data">
-    <thead><tr><th scope="col">#</th><th scope="col">Supplier</th><th scope="col" class="num">{{.Period.FY}} est.</th><th scope="col" class="num">Share</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">Entities</th>{{template "limited-th"}}</tr></thead>
+    <thead><tr><th scope="col">#</th><th scope="col">Supplier</th><th scope="col" class="num"><a href="/methodology#annualised" data-tip="{{.Period.FY}} estimate|Contract value falling in {{.Period.FY}}, with each contract’s whole-of-life value spread evenly from its start to end date.|Supplier and group pages lead with the whole-of-life total, which covers every year and is larger.">{{.Period.FY}} est.</a></th><th scope="col" class="num">Share</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">Entities</th>{{template "limited-th"}}</tr></thead>
     <tbody>
     {{range $i, $r := .Rows}}
       <tr>

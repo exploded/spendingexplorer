@@ -70,6 +70,7 @@ type supplierPage struct {
 	Period    period
 	Supplier  db.Supplier
 	Totals    db.SupplierTotalsRow
+	Year      db.SupplierYearRow // value falling in the budget year, as ranked
 	Agencies  []db.SupplierAgenciesRow
 	Contracts []db.SupplierContractsRow
 	Group     *db.SupplierGroupOfRow
@@ -109,6 +110,10 @@ func (h *Handler) supplier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if page.Totals, err = h.q.SupplierTotals(ctx, sql.NullInt64{Int64: id, Valid: true}); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if page.Year, err = h.q.SupplierYear(ctx, db.SupplierYearParams{SupplierID: id, Fy: p.FY}); err != nil {
 		h.fail(w, err)
 		return
 	}

@@ -387,6 +387,17 @@ WHERE c.supplier_id = ?
 GROUP BY a.name, a.entity_id
 ORDER BY value DESC;
 
+-- name: SupplierYear :one
+-- A supplier's contract value falling in a year, counted as TopSuppliers
+-- counts it. individual says whether the rankings leave the supplier out.
+SELECT CAST(COUNT(DISTINCT c.cn_id) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount,
+  CAST(EXISTS (SELECT 1 FROM supplier_individual i WHERE i.supplier_id = sqlc.arg(supplier_id)) AS INTEGER) AS individual
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id IS NOT NULL AND c.supplier_id = sqlc.arg(supplier_id);
+
 -- name: SupplierContracts :many
 SELECT c.cn_id, c.description, c.method, c.start_date, c.end_date, c.published_date, c.value,
   c.original_value, c.amendment_count, a.name AS agency
@@ -978,6 +989,18 @@ FROM contract c JOIN agency a ON a.id = c.agency_id
 WHERE c.supplier_id IN (SELECT supplier_id FROM supplier_group_member WHERE group_id = ?)
 GROUP BY a.name, a.entity_id
 ORDER BY value DESC;
+
+-- name: GroupYear :one
+-- A corporate group's contract value falling in a year, counted as
+-- TopSupplierGroups counts it.
+SELECT CAST(COUNT(DISTINCT c.cn_id) AS INTEGER) AS contracts,
+  CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id IS NOT NULL
+  AND c.supplier_id IN (SELECT supplier_id FROM supplier_group_member WHERE group_id = sqlc.arg(group_id))
+  AND c.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual);
 
 -- name: GroupContracts :many
 SELECT c.cn_id, c.description, c.method, c.start_date, c.end_date, c.published_date, c.value,
