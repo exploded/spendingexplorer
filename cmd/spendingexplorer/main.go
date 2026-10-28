@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/exploded/monitor/pkg/logship"
+
 	"spendingexplorer/internal/db"
 	"spendingexplorer/internal/handlers"
 	"spendingexplorer/internal/pagecache"
@@ -26,6 +28,8 @@ func main() {
 	if dbPath == "" {
 		dbPath = "spending.db"
 	}
+	stopLogs := setupLogging(os.Getenv("MONITOR_URL"), os.Getenv("MONITOR_API_KEY"))
+	defer stopLogs()
 
 	conn, err := db.OpenReadOnly(dbPath)
 	if err != nil {
@@ -65,6 +69,28 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	srv.Shutdown(ctx)
+}
+
+// setupLogging also ships warnings and errors to monitor when MONITOR_URL and
+// MONITOR_API_KEY are set (on the server); locally it logs to stderr only.
+// The returned func flushes anything still buffered.
+func setupLogging(monitorURL, apiKey string) func() {
+	var handler slog.Handler = slog.NewTextHandler(os.Stderr, nil)
+	if monitorURL == "" || apiKey == "" {
+		slog.SetDefault(slog.New(handler))
+		return func() {}
+	}
+	ship := logship.New(logship.Options{
+		Endpoint: monitorURL + "/api/logs",
+		APIKey:   apiKey,
+		App:      "spendingexplorer",
+		Level:    slog.LevelWarn,
+	})
+	slog.SetDefault(slog.New(logship.Multi(handler, ship)))
+	// WARN so it ships: it proves shipping works after a deploy without
+	// raising an alert (only ERROR does).
+	slog.Warn("started; log shipping to monitor enabled")
+	return ship.Shutdown
 }
 
 // staticFiles lets browsers keep versioned assets (URLs carrying ?v=, a hash

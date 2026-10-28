@@ -1,0 +1,57 @@
+#!/bin/bash
+# /usr/local/bin/install-db-spendingexplorer
+# Replaces the live database with a snapshot uploaded from the PC, then
+# restarts the service. Run with sudo:
+#   sudo install-db-spendingexplorer /tmp/spending.db
+#
+# Make the snapshot on the PC with `go run ./cmd/snapshot-db` (writes
+# dist/spending.db). The web app keeps its database open, so it must restart
+# to see the new file.
+
+set -e
+
+SRC="${1:-/tmp/spending.db}"
+DEPLOY_DIR=/var/www/spendingexplorer
+DB="$DEPLOY_DIR/spending.db"
+
+if [ ! -f "$SRC" ]; then
+    echo "[db] ERROR: $SRC not found"
+    exit 1
+fi
+if [ "$(head -c 15 "$SRC")" != "SQLite format 3" ]; then
+    echo "[db] ERROR: $SRC is not an SQLite database"
+    exit 1
+fi
+
+SERVICE_USER=$(systemctl show spendingexplorer --property=User --value)
+SERVICE_GROUP=$(systemctl show spendingexplorer --property=Group --value)
+if [ -z "$SERVICE_USER" ]; then
+    echo "[db] ERROR: Could not read User from spendingexplorer.service"
+    exit 1
+fi
+
+echo "[db] Installing $SRC as $DB..."
+install -o "$SERVICE_USER" -g "$SERVICE_GROUP" -m 640 "$SRC" "$DB.new"
+mv -f "$DB.new" "$DB"
+rm -f "$DB-wal" "$DB-shm"
+rm -f "$SRC"
+
+if [ ! -x "$DEPLOY_DIR/spendingexplorer" ]; then
+    echo "[db] Done. No binary yet - the next GitHub Actions deploy starts the service."
+    exit 0
+fi
+
+echo "[db] Restarting service..."
+systemctl restart spendingexplorer
+for i in 1 2 3 4 5; do
+    if systemctl is-active --quiet spendingexplorer; then
+        break
+    fi
+    sleep 1
+done
+if ! systemctl is-active --quiet spendingexplorer; then
+    echo "[db] ERROR: Service failed to start. Status:"
+    systemctl status spendingexplorer --no-pager --lines=30
+    exit 1
+fi
+echo "[db] Done - spendingexplorer is running on the new database."

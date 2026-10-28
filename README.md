@@ -14,6 +14,38 @@ sh reload.sh      # rebuild spending.db from data/raw
 The web app opens the database read-only. Templates and static files are embedded in the
 binary.
 
+## Deploy
+
+The site runs at https://spending.mchugh.au on the Linode: service `spendingexplorer`,
+directory `/var/www/spendingexplorer`, port 8995, behind Caddy. Pushing to `main` runs
+`.github/workflows/deploy.yml`, which tests, builds the Linux binary and installs it with
+`scripts/deploy-spendingexplorer`.
+
+The database is not built on the server. Build it on the PC, then upload a snapshot.
+
+PowerShell on your PC, in `C:\Projects\go\spendingexplorer`:
+
+```
+go run ./cmd/snapshot-db                        # writes dist/spending.db
+scp -C dist/spending.db linode:/tmp/spending.db
+```
+
+On the Linode (`ssh linode`):
+
+```
+sudo install-db-spendingexplorer /tmp/spending.db
+```
+
+`snapshot-db` uses `VACUUM INTO`, so a loader running at the same time can't leave a
+half-written copy, and switches the copy to a rollback journal. `install-db-spendingexplorer`
+swaps the file in and restarts the service, which keeps the old file open until it restarts.
+
+First-time server setup is `scripts/server-setup.sh`:
+
+```
+curl -fsSL https://raw.githubusercontent.com/exploded/spendingexplorer/main/scripts/server-setup.sh | sudo bash
+```
+
 ## Load and reconcile
 
 Raw files live in `data/raw/` and are committed, so the server can rebuild the database. Sources are on data.gov.au:

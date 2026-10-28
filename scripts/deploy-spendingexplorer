@@ -1,0 +1,79 @@
+#!/bin/bash
+# /usr/local/bin/deploy-spendingexplorer
+# Runs as root (via sudo) during GitHub Actions deployments.
+#
+# To update this script on the server, include scripts/deploy-spendingexplorer
+# in the SCP bundle - it will self-update and re-exec before doing anything else.
+# It also installs scripts/install-db-spendingexplorer from the bundle.
+#
+# Templates and static assets are embedded in the binary, so the only artifact
+# to install is the binary. The database is uploaded separately from the PC
+# with install-db-spendingexplorer; until it exists, the service is installed
+# and enabled but not started.
+
+set -e
+
+DEPLOY_SRC="${1:-/tmp/spendingexplorer-deploy}"
+DEPLOY_DIR=/var/www/spendingexplorer
+
+# Self-update: if the bundle contains a newer version of this script, install
+# it and re-exec so the rest of the deployment runs with the updated logic.
+BUNDLE_SCRIPT="$DEPLOY_SRC/scripts/deploy-spendingexplorer"
+if [ -f "$BUNDLE_SCRIPT" ] && ! diff -q /usr/local/bin/deploy-spendingexplorer "$BUNDLE_SCRIPT" > /dev/null 2>&1; then
+    echo "[deploy] Updating deploy script from bundle..."
+    install -m 755 "$BUNDLE_SCRIPT" /usr/local/bin/deploy-spendingexplorer
+    exec /usr/local/bin/deploy-spendingexplorer "$@"
+fi
+
+BUNDLE_DB_SCRIPT="$DEPLOY_SRC/scripts/install-db-spendingexplorer"
+if [ -f "$BUNDLE_DB_SCRIPT" ]; then
+    install -m 755 "$BUNDLE_DB_SCRIPT" /usr/local/bin/install-db-spendingexplorer
+fi
+
+# Read the service owner from the installed unit - no hardcoded username.
+SERVICE_USER=$(systemctl show spendingexplorer --property=User --value)
+SERVICE_GROUP=$(systemctl show spendingexplorer --property=Group --value)
+
+if [ -z "$SERVICE_USER" ]; then
+    echo "[deploy] ERROR: Could not read User from spendingexplorer.service"
+    exit 1
+fi
+
+echo "[deploy] Stopping service..."
+systemctl stop spendingexplorer || true
+
+echo "[deploy] Installing binary to $DEPLOY_DIR/spendingexplorer (owner: $SERVICE_USER:$SERVICE_GROUP)..."
+rm -f "$DEPLOY_DIR/spendingexplorer"
+cp "$DEPLOY_SRC/spendingexplorer" "$DEPLOY_DIR/spendingexplorer"
+chmod +x "$DEPLOY_DIR/spendingexplorer"
+chown -R "$SERVICE_USER:$SERVICE_GROUP" "$DEPLOY_DIR"
+
+echo "[deploy] Enabling service on boot..."
+systemctl enable spendingexplorer
+
+echo "[deploy] Cleaning up..."
+rm -rf "$DEPLOY_SRC"
+
+if [ ! -f "$DEPLOY_DIR/spending.db" ]; then
+    echo "[deploy] No $DEPLOY_DIR/spending.db yet - not starting the service."
+    echo "[deploy] Upload it from the PC, then run: sudo install-db-spendingexplorer /tmp/spending.db"
+    exit 0
+fi
+
+echo "[deploy] Starting service..."
+systemctl start spendingexplorer
+
+echo "[deploy] Verifying service is active..."
+for i in 1 2 3 4 5; do
+    if systemctl is-active --quiet spendingexplorer; then
+        break
+    fi
+    sleep 1
+done
+if ! systemctl is-active --quiet spendingexplorer; then
+    echo "[deploy] ERROR: Service failed to start. Status:"
+    systemctl status spendingexplorer --no-pager --lines=30
+    exit 1
+fi
+
+echo "[deploy] Done - spendingexplorer is running."
