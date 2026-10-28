@@ -16,6 +16,7 @@ import (
 	"spendingexplorer/internal/db"
 	"spendingexplorer/internal/handlers"
 	"spendingexplorer/internal/pagecache"
+	"spendingexplorer/internal/ratelimit"
 	"spendingexplorer/web"
 )
 
@@ -46,7 +47,9 @@ func main() {
 	pages := http.NewServeMux()
 	h.Routes(pages)
 	mux := http.NewServeMux()
-	mux.Handle("/", pagecache.New(pages, 64<<20, dbPath, dbPath+"-wal"))
+	// 4 pages a second per client, after a burst of 40, is far more than a
+	// person clicks through but keeps a crawler from overloading the server.
+	mux.Handle("/", ratelimit.New(pagecache.New(pages, 64<<20, dbPath, dbPath+"-wal"), 4, 40))
 	mux.Handle("GET /static/", staticFiles(http.StripPrefix("/static/", http.FileServerFS(web.Static))))
 
 	srv := &http.Server{

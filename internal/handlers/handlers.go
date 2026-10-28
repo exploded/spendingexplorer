@@ -135,7 +135,22 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /methodology", h.methodology)
 	mux.HandleFunc("GET /sources", h.sources)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
+	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Write([]byte(robotsTxt))
+	})
 }
+
+// robotsTxt welcomes crawlers but keeps them off search results and the
+// re-sorted copies of each breakdown, which add requests and no new pages.
+// The rate limit in front of the app is what actually protects it.
+const robotsTxt = `# Crawlers are welcome. Each client may make about 4 requests a second;
+# faster than that gets 429 Too Many Requests with Retry-After.
+User-agent: *
+Crawl-delay: 1
+Disallow: /search
+Disallow: /*?sort=
+`
 
 // period is the publication and years every page reports on.
 type period struct {
