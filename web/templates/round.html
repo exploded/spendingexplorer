@@ -1,0 +1,50 @@
+{{define "title"}}Grant round {{.GoID}}{{end}}
+
+{{define "content"}}
+{{template "crumbs" .Crumbs}}
+<p class="kicker">Grant round · GrantConnect grant opportunity</p>
+<h1>Grant round {{.GoID}}</h1>
+{{with .Activities}}{{if eq (len .) 1}}{{with index . 0}}<p>Every award in this round is described as “{{.Activity}}”.</p>{{end}}
+{{else}}<p>Awards in this round describe their activity in more than one way. The most common:</p>
+<ul class="small">{{range .}}<li>“{{.Activity}}” <span class="muted">({{count .Awards}} award{{if ne .Awards 1}}s{{end}})</span></li>{{end}}</ul>{{end}}{{end}}
+<div class="hero">
+  <div class="hero-figure">
+    <span class="hero-number">{{money .Totals.Value}}</span>
+    <span class="hero-caption">whole-of-term value of {{count .Totals.Awards}} award{{if ne .Totals.Awards 1}}s{{end}} to {{count .Totals.Recipients}} named recipient{{if ne .Totals.Recipients 1}}s{{end}}, published {{.Totals.FirstPublished}} to {{.Totals.LastPublished}}</span>
+  </div>
+  {{if .Year.Amount}}<p class="hero-change"><strong>{{money .Year.Amount}}</strong> falls in {{.Period.FY}}, from {{count .Year.Awards}} active award{{if ne .Year.Awards 1}}s{{end}}. <a class="badge badge-estimate" href="/methodology#grants">estimate: annualised</a></p>{{end}}
+</div>
+<p class="note">A grant round is a grant opportunity on GrantConnect: an open or targeted call for applications under published guidelines. GrantConnect’s award lists give the opportunity’s ID but not its title; search <a href="https://www.grants.gov.au/Go/List">GrantConnect</a> for {{.GoID}} to read its guidelines.</p>
+
+<h2>By agency</h2>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Granting agency</th><th scope="col" class="num">Awards</th><th scope="col" class="num">Total value</th></tr></thead>
+  <tbody>
+  {{range .Agencies}}
+    <tr>
+      <th scope="row">{{if .EntityID}}<a href="/entity/{{.EntityID}}">{{.AgencyName}}</a>{{else}}{{.AgencyName}}{{end}}</th>
+      <td class="num">{{count .Awards}}</td>
+      <td class="num">{{money .Value}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+
+{{if .Recipients}}
+<h2>Largest recipients</h2>
+<p class="muted small">{{if .Totals.UnlistedValue}}{{money .Totals.UnlistedValue}} went to recipients who are individuals, or to awards that name no single recipient. It is counted above but not listed. {{else}}Recipients who are individuals, and awards that name no single recipient, are counted above but not listed. {{end}}<a href="/methodology#individuals">Why</a></p>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Recipient</th><th scope="col" class="num">Awards</th><th scope="col" class="num">Total value</th></tr></thead>
+  <tbody>
+  {{range .Recipients}}
+    <tr><th scope="row"><a href="{{recipientURL .RecipientKey}}">{{.Recipient}}</a></th><td class="num">{{count .Awards}}</td><td class="num">{{money .Value}}</td></tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{if gt .Totals.Recipients (len .Recipients)}}<p class="muted small">The {{len .Recipients}} largest of {{count .Totals.Recipients}} named recipients.</p>{{end}}
+{{end}}
+{{end}}

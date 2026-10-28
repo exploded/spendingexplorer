@@ -146,12 +146,18 @@ type GrantAward struct {
 	OneOff           int64
 	Aggregate        int64
 	SourceDocumentID int64
+	RecipientKey     string
 }
 
 type GrantFy struct {
 	GaID       string
 	FiscalYear string
 	Amount     int64
+}
+
+type GrantRecipientSupplier struct {
+	RecipientKey string
+	SupplierID   int64
 }
 
 type LlmBatch struct {

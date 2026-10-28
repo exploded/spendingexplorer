@@ -17,7 +17,7 @@ import (
 const sitemapSize = 50000
 
 // sitemapIndex lists the sitemap files: one for the explorer's pages, one for
-// suppliers and as many as the contracts need.
+// suppliers and as many as the contracts and grant recipients need.
 func (h *Handler) sitemapIndex(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	asAt, err := h.q.DataAsAt(ctx)
@@ -30,9 +30,17 @@ func (h *Handler) sitemapIndex(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	recipients, err := h.q.SitemapRecipientCount(ctx)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
 	files := []string{"pages.xml", "suppliers.xml"}
 	for i := int64(1); i <= (contracts+sitemapSize-1)/sitemapSize; i++ {
 		files = append(files, "contracts-"+strconv.FormatInt(i, 10)+".xml")
+	}
+	for i := int64(1); i <= (recipients+sitemapSize-1)/sitemapSize; i++ {
+		files = append(files, "recipients-"+strconv.FormatInt(i, 10)+".xml")
 	}
 	var b bytes.Buffer
 	b.WriteString(xml.Header + `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
@@ -82,6 +90,24 @@ func (h *Handler) sitemapFile(w http.ResponseWriter, r *http.Request) {
 		for _, c := range cs {
 			s.add("/contract/"+url.PathEscape(c.CnID), c.ReleaseDate)
 		}
+	case strings.HasPrefix(file, "recipients-") && strings.HasSuffix(file, ".xml"):
+		n, err := strconv.ParseInt(strings.TrimSuffix(strings.TrimPrefix(file, "recipients-"), ".xml"), 10, 64)
+		if err != nil || n < 1 {
+			http.NotFound(w, r)
+			return
+		}
+		rs, err := h.q.SitemapRecipients(ctx, db.SitemapRecipientsParams{Limit: sitemapSize, Offset: (n - 1) * sitemapSize})
+		if err != nil {
+			h.fail(w, err)
+			return
+		}
+		if len(rs) == 0 {
+			http.NotFound(w, r)
+			return
+		}
+		for _, rc := range rs {
+			s.add(recipientURL(rc.RecipientKey), rc.LastPublished)
+		}
 	default:
 		http.NotFound(w, r)
 		return
@@ -89,8 +115,9 @@ func (h *Handler) sitemapFile(w http.ResponseWriter, r *http.Request) {
 	writeXML(w, s.bytes())
 }
 
-// sitemapPages lists every page other than suppliers and contracts. They all
-// change when the data is reloaded, so each carries the load date.
+// sitemapPages lists every page other than suppliers, contracts and grant
+// recipients. Most change when the data is reloaded, so they carry the load
+// date; a grant round carries its latest award's.
 func (h *Handler) sitemapPages(r *http.Request, s *urlset) error {
 	ctx := r.Context()
 	asAt, err := h.q.DataAsAt(ctx)
@@ -113,6 +140,13 @@ func (h *Handler) sitemapPages(r *http.Request, s *urlset) error {
 	}
 	for _, k := range projects {
 		s.add("/projects/"+url.PathEscape(k), asAt)
+	}
+	rounds, err := h.q.SitemapRounds(ctx)
+	if err != nil {
+		return err
+	}
+	for _, rd := range rounds {
+		s.add("/grants/round/"+url.PathEscape(rd.GoID), rd.LastPublished)
 	}
 	ports, err := h.q.SitemapPortfolios(ctx, p.Doc.ID)
 	if err != nil {

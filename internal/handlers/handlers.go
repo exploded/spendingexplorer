@@ -77,11 +77,12 @@ func New(q *db.Queries, downloads *export.Store, templates, static fs.FS) (*Hand
 			}
 			return m
 		},
-		"pathEscape": url.PathEscape,
-		"megabytes":  megabytes,
-		"count":      count,
-		"add":        func(a, b int) int { return a + b },
-		"cap100":     func(f float64) float64 { return min(max(f, 0), 100) },
+		"pathEscape":   url.PathEscape,
+		"recipientURL": recipientURL,
+		"megabytes":    megabytes,
+		"count":        count,
+		"add":          func(a, b int) int { return a + b },
+		"cap100":       func(f float64) float64 { return min(max(f, 0), 100) },
 		"trunc": func(s string, n int) string {
 			r := []rune(s)
 			if len(r) <= n {
@@ -91,7 +92,7 @@ func New(q *db.Queries, downloads *export.Store, templates, static fs.FS) (*Hand
 		},
 	}
 	h := &Handler{q: q, downloads: downloads, pages: map[string]*template.Template{}}
-	for _, page := range []string{"node.html", "program.html", "about.html", "methodology.html", "sources.html", "data.html", "supplier.html", "suppliers.html", "group.html", "contract.html", "signals.html", "signal.html", "investments.html", "projects.html", "project.html", "search.html"} {
+	for _, page := range []string{"node.html", "program.html", "about.html", "methodology.html", "sources.html", "data.html", "supplier.html", "suppliers.html", "group.html", "contract.html", "signals.html", "signal.html", "investments.html", "projects.html", "project.html", "search.html", "recipient.html", "round.html"} {
 		t, err := template.New("").Funcs(funcs).ParseFS(templates, "layout.html", "partials.html", "projectparts.html", page)
 		if err != nil {
 			return nil, err
@@ -129,6 +130,8 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /supplier/{id}", h.supplier)
 	mux.HandleFunc("GET /group/{id}", h.supplierGroup)
 	mux.HandleFunc("GET /contract/{cn}", h.contract)
+	mux.HandleFunc("GET /recipient/{key}", h.recipient)
+	mux.HandleFunc("GET /grants/round/{go}", h.round)
 	mux.HandleFunc("GET /signals", h.signalsIndex)
 	mux.HandleFunc("GET /signals/{rule}", h.signalRule)
 	mux.HandleFunc("GET /investments", h.investments)

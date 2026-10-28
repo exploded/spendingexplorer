@@ -1,7 +1,8 @@
 // Command derive rebuilds derived tables from loaded data: each contract's
 // value spread across financial years (contract_fy), suppliers who may be
 // individuals (supplier_individual), corporate groups of suppliers
-// (supplier_group), corporate entities from the reviewed list
+// (supplier_group), grant recipients matched to suppliers by name
+// (grant_recipient_supplier), corporate entities from the reviewed list
 // (corporate_agency), and the "worth a closer look" signals (signal). Run it
 // after any loader.
 package main
@@ -19,6 +20,7 @@ import (
 	"spendingexplorer/internal/corpgroup"
 	"spendingexplorer/internal/db"
 	"spendingexplorer/internal/fiscal"
+	"spendingexplorer/internal/grantconnect"
 )
 
 func main() {
@@ -105,6 +107,9 @@ func main() {
 	if err := deriveGroups(ctx, q); err != nil {
 		log.Fatal(err)
 	}
+	if err := deriveGrantSuppliers(ctx, q); err != nil {
+		log.Fatal(err)
+	}
 
 	// Corporate entities have a higher open-tender threshold; the contract_pub
 	// view reads this table, so it must be loaded before the signals.
@@ -135,6 +140,53 @@ func main() {
 	if err := tx.Commit(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// deriveGrantSuppliers matches grant recipients to suppliers by name key,
+// since GrantConnect publishes no ABN. A key shared by more than one supplier
+// is ambiguous and left unmatched, as is a supplier who may be an individual.
+func deriveGrantSuppliers(ctx context.Context, q *db.Queries) error {
+	if err := q.ClearGrantRecipientSuppliers(ctx); err != nil {
+		return err
+	}
+	sups, err := q.SupplierNames(ctx)
+	if err != nil {
+		return err
+	}
+	type match struct {
+		id         int64
+		n          int
+		individual bool
+	}
+	byKey := map[string]*match{}
+	for _, s := range sups {
+		k := grantconnect.RecipientKey(s.Name)
+		if k == "" {
+			continue
+		}
+		if m := byKey[k]; m != nil {
+			m.n++
+			continue
+		}
+		byKey[k] = &match{id: s.ID, n: 1, individual: s.Individual == 1}
+	}
+	keys, err := q.GrantRecipientKeys(ctx)
+	if err != nil {
+		return err
+	}
+	matched := 0
+	for _, k := range keys {
+		m := byKey[k]
+		if m == nil || m.n > 1 || m.individual {
+			continue
+		}
+		if err := q.InsertGrantRecipientSupplier(ctx, db.InsertGrantRecipientSupplierParams{RecipientKey: k, SupplierID: m.id}); err != nil {
+			return err
+		}
+		matched++
+	}
+	fmt.Printf("grant recipients matched to suppliers by name: %d of %d\n", matched, len(keys))
+	return nil
 }
 
 // unionFind joins string nodes into components.

@@ -156,7 +156,7 @@
     <thead><tr><th scope="col">Recipient</th><th scope="col" class="num">Grants</th><th scope="col" class="num">{{$.Period.FY}} est.</th></tr></thead>
     <tbody>
     {{range .Recipients}}
-      <tr><th scope="row">{{.Recipient}}</th><td class="num">{{.Grants}}</td><td class="num">{{money .Amount}}</td></tr>
+      <tr><th scope="row"><a href="{{recipientURL .RecipientKey}}">{{.Recipient}}</a></th><td class="num">{{.Grants}}</td><td class="num">{{money .Amount}}</td></tr>
     {{end}}
     </tbody>
   </table>

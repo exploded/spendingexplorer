@@ -56,3 +56,16 @@ func TestCappedAndMerge(t *testing.T) {
 		t.Errorf("merged = %+v", got)
 	}
 }
+
+func TestRecipientKey(t *testing.T) {
+	if a, b := RecipientKey("BAE JUICE PTY LTD"), RecipientKey("Bae Juice Pty. Ltd."); a != b || a != "bae juice" {
+		t.Errorf("keys %q and %q, want both %q", a, b, "bae juice")
+	}
+	if got := RecipientKey("The University of Sydney"); got != "university of sydney" {
+		t.Errorf("leading \"the\" kept: %q", got)
+	}
+	k := RecipientKey("Leo Baeck Centre for Progressive Judaism Inc.")
+	if s := RecipientSlug(k); s != "leo-baeck-centre-for-progressive-judaism" || KeyFromSlug(s) != k {
+		t.Errorf("slug %q does not reverse to %q", s, k)
+	}
+}

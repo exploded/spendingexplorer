@@ -199,6 +199,15 @@ func (q *Queries) ClearGrantFY(ctx context.Context) error {
 	return err
 }
 
+const clearGrantRecipientSuppliers = `-- name: ClearGrantRecipientSuppliers :exec
+DELETE FROM grant_recipient_supplier
+`
+
+func (q *Queries) ClearGrantRecipientSuppliers(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearGrantRecipientSuppliers)
+	return err
+}
+
 const clearProjectEstimates = `-- name: ClearProjectEstimates :exec
 DELETE FROM project_estimate
 `
@@ -1180,10 +1189,11 @@ func (q *Queries) EntityGrantCategories(ctx context.Context, arg EntityGrantCate
 }
 
 const entityGrantRecipients = `-- name: EntityGrantRecipients :many
-SELECT g.recipient, CAST(COUNT(*) AS INTEGER) AS grants, CAST(SUM(gf.amount) AS INTEGER) AS amount
+SELECT g.recipient_key, CAST(MAX(g.recipient) AS TEXT) AS recipient,
+  CAST(COUNT(*) AS INTEGER) AS grants, CAST(SUM(gf.amount) AS INTEGER) AS amount
 FROM grant_fy gf JOIN grant_award g ON g.ga_id = gf.ga_id
 WHERE gf.fiscal_year = ?1 AND g.entity_id = ?2 AND g.individual = 0 AND g.unnamed = 0
-GROUP BY g.recipient
+GROUP BY g.recipient_key
 ORDER BY amount DESC
 LIMIT ?3
 `
@@ -1195,9 +1205,10 @@ type EntityGrantRecipientsParams struct {
 }
 
 type EntityGrantRecipientsRow struct {
-	Recipient string
-	Grants    int64
-	Amount    int64
+	RecipientKey string
+	Recipient    string
+	Grants       int64
+	Amount       int64
 }
 
 // Rankings leave out recipients whose names read as a person's, and awards
@@ -1211,7 +1222,12 @@ func (q *Queries) EntityGrantRecipients(ctx context.Context, arg EntityGrantReci
 	var items []EntityGrantRecipientsRow
 	for rows.Next() {
 		var i EntityGrantRecipientsRow
-		if err := rows.Scan(&i.Recipient, &i.Grants, &i.Amount); err != nil {
+		if err := rows.Scan(
+			&i.RecipientKey,
+			&i.Recipient,
+			&i.Grants,
+			&i.Amount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2148,6 +2164,35 @@ func (q *Queries) GetSupplierGroup(ctx context.Context, id int64) (GetSupplierGr
 	return i, err
 }
 
+const grantRecipientKeys = `-- name: GrantRecipientKeys :many
+SELECT recipient_key FROM grant_award WHERE recipient_key <> ''
+GROUP BY recipient_key HAVING MAX(individual) = 0
+`
+
+// Named recipients that are not individuals, for matching to suppliers.
+func (q *Queries) GrantRecipientKeys(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, grantRecipientKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var recipient_key string
+		if err := rows.Scan(&recipient_key); err != nil {
+			return nil, err
+		}
+		items = append(items, recipient_key)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const groupAgencies = `-- name: GroupAgencies :many
 SELECT a.name AS agency, a.entity_id,
   CAST(COUNT(*) AS INTEGER) AS contracts,
@@ -2469,8 +2514,8 @@ func (q *Queries) InsertGivenName(ctx context.Context, arg InsertGivenNameParams
 
 const insertGrantAward = `-- name: InsertGrantAward :exec
 INSERT INTO grant_award (ga_id, version_id, activity, agency_name, entity_id, publish_date, category,
-  start_date, end_date, value, go_id, recipient, individual, unnamed, one_off, aggregate, source_document_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  start_date, end_date, value, go_id, recipient, recipient_key, individual, unnamed, one_off, aggregate, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertGrantAwardParams struct {
@@ -2486,6 +2531,7 @@ type InsertGrantAwardParams struct {
 	Value            int64
 	GoID             string
 	Recipient        string
+	RecipientKey     string
 	Individual       int64
 	Unnamed          int64
 	OneOff           int64
@@ -2507,6 +2553,7 @@ func (q *Queries) InsertGrantAward(ctx context.Context, arg InsertGrantAwardPara
 		arg.Value,
 		arg.GoID,
 		arg.Recipient,
+		arg.RecipientKey,
 		arg.Individual,
 		arg.Unnamed,
 		arg.OneOff,
@@ -2528,6 +2575,20 @@ type InsertGrantFYParams struct {
 
 func (q *Queries) InsertGrantFY(ctx context.Context, arg InsertGrantFYParams) error {
 	_, err := q.db.ExecContext(ctx, insertGrantFY, arg.GaID, arg.FiscalYear, arg.Amount)
+	return err
+}
+
+const insertGrantRecipientSupplier = `-- name: InsertGrantRecipientSupplier :exec
+INSERT INTO grant_recipient_supplier (recipient_key, supplier_id) VALUES (?, ?)
+`
+
+type InsertGrantRecipientSupplierParams struct {
+	RecipientKey string
+	SupplierID   int64
+}
+
+func (q *Queries) InsertGrantRecipientSupplier(ctx context.Context, arg InsertGrantRecipientSupplierParams) error {
+	_, err := q.db.ExecContext(ctx, insertGrantRecipientSupplier, arg.RecipientKey, arg.SupplierID)
 	return err
 }
 
@@ -4130,6 +4191,211 @@ func (q *Queries) ProjectLinks(ctx context.Context) ([]ProjectLinksRow, error) {
 	return items, nil
 }
 
+const recipientAgencies = `-- name: RecipientAgencies :many
+SELECT agency_name, CAST(COALESCE(entity_id, 0) AS INTEGER) AS entity_id,
+  CAST(COUNT(*) AS INTEGER) AS awards, CAST(SUM(value) AS INTEGER) AS value
+FROM grant_award WHERE recipient_key = ?
+GROUP BY agency_name, entity_id
+ORDER BY value DESC
+`
+
+type RecipientAgenciesRow struct {
+	AgencyName string
+	EntityID   int64
+	Awards     int64
+	Value      int64
+}
+
+func (q *Queries) RecipientAgencies(ctx context.Context, recipientKey string) ([]RecipientAgenciesRow, error) {
+	rows, err := q.db.QueryContext(ctx, recipientAgencies, recipientKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RecipientAgenciesRow
+	for rows.Next() {
+		var i RecipientAgenciesRow
+		if err := rows.Scan(
+			&i.AgencyName,
+			&i.EntityID,
+			&i.Awards,
+			&i.Value,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const recipientAwards = `-- name: RecipientAwards :many
+SELECT ga_id, version_id, recipient, activity, agency_name, CAST(COALESCE(entity_id, 0) AS INTEGER) AS entity_id,
+  publish_date, category, start_date, end_date, value, go_id
+FROM grant_award WHERE recipient_key = ?
+ORDER BY value DESC, publish_date DESC
+LIMIT ?
+`
+
+type RecipientAwardsParams struct {
+	RecipientKey string
+	Limit        int64
+}
+
+type RecipientAwardsRow struct {
+	GaID        string
+	VersionID   string
+	Recipient   string
+	Activity    string
+	AgencyName  string
+	EntityID    int64
+	PublishDate string
+	Category    string
+	StartDate   string
+	EndDate     string
+	Value       int64
+	GoID        string
+}
+
+func (q *Queries) RecipientAwards(ctx context.Context, arg RecipientAwardsParams) ([]RecipientAwardsRow, error) {
+	rows, err := q.db.QueryContext(ctx, recipientAwards, arg.RecipientKey, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RecipientAwardsRow
+	for rows.Next() {
+		var i RecipientAwardsRow
+		if err := rows.Scan(
+			&i.GaID,
+			&i.VersionID,
+			&i.Recipient,
+			&i.Activity,
+			&i.AgencyName,
+			&i.EntityID,
+			&i.PublishDate,
+			&i.Category,
+			&i.StartDate,
+			&i.EndDate,
+			&i.Value,
+			&i.GoID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const recipientName = `-- name: RecipientName :one
+SELECT recipient FROM grant_award WHERE recipient_key = ?
+GROUP BY recipient ORDER BY COUNT(*) DESC, recipient LIMIT 1
+`
+
+// A recipient's most common spelling.
+func (q *Queries) RecipientName(ctx context.Context, recipientKey string) (string, error) {
+	row := q.db.QueryRowContext(ctx, recipientName, recipientKey)
+	var recipient string
+	err := row.Scan(&recipient)
+	return recipient, err
+}
+
+const recipientSupplier = `-- name: RecipientSupplier :one
+SELECT s.id, s.name, CAST(COUNT(c.cn_id) AS INTEGER) AS contracts, CAST(COALESCE(SUM(c.value), 0) AS INTEGER) AS value
+FROM grant_recipient_supplier m
+JOIN supplier s ON s.id = m.supplier_id
+LEFT JOIN contract c ON c.supplier_id = s.id
+WHERE m.recipient_key = ?
+GROUP BY s.id, s.name
+`
+
+type RecipientSupplierRow struct {
+	ID        int64
+	Name      string
+	Contracts int64
+	Value     int64
+}
+
+// The AusTender supplier matched to a recipient by name, with its contracts.
+func (q *Queries) RecipientSupplier(ctx context.Context, recipientKey string) (RecipientSupplierRow, error) {
+	row := q.db.QueryRowContext(ctx, recipientSupplier, recipientKey)
+	var i RecipientSupplierRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Contracts,
+		&i.Value,
+	)
+	return i, err
+}
+
+const recipientTotals = `-- name: RecipientTotals :one
+SELECT CAST(COUNT(*) AS INTEGER) AS awards,
+  CAST(COALESCE(SUM(value), 0) AS INTEGER) AS value,
+  CAST(COALESCE(MIN(publish_date), '') AS TEXT) AS first_published,
+  CAST(COALESCE(MAX(publish_date), '') AS TEXT) AS last_published,
+  CAST(COALESCE(MAX(individual), 0) AS INTEGER) AS individual
+FROM grant_award WHERE recipient_key = ?
+`
+
+type RecipientTotalsRow struct {
+	Awards         int64
+	Value          int64
+	FirstPublished string
+	LastPublished  string
+	Individual     int64
+}
+
+// individual is 1 when any award's recipient name reads as a person's.
+func (q *Queries) RecipientTotals(ctx context.Context, recipientKey string) (RecipientTotalsRow, error) {
+	row := q.db.QueryRowContext(ctx, recipientTotals, recipientKey)
+	var i RecipientTotalsRow
+	err := row.Scan(
+		&i.Awards,
+		&i.Value,
+		&i.FirstPublished,
+		&i.LastPublished,
+		&i.Individual,
+	)
+	return i, err
+}
+
+const recipientYear = `-- name: RecipientYear :one
+SELECT CAST(COUNT(*) AS INTEGER) AS awards, CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount
+FROM grant_award g CROSS JOIN grant_fy gf ON gf.ga_id = g.ga_id
+WHERE gf.fiscal_year = ?1 AND g.recipient_key = ?2
+`
+
+type RecipientYearParams struct {
+	Fy           string
+	RecipientKey string
+}
+
+type RecipientYearRow struct {
+	Awards int64
+	Amount int64
+}
+
+// CROSS JOIN makes SQLite start from the recipient's awards rather than every
+// award active in the year.
+func (q *Queries) RecipientYear(ctx context.Context, arg RecipientYearParams) (RecipientYearRow, error) {
+	row := q.db.QueryRowContext(ctx, recipientYear, arg.Fy, arg.RecipientKey)
+	var i RecipientYearRow
+	err := row.Scan(&i.Awards, &i.Amount)
+	return i, err
+}
+
 const removeBatchedLate = `-- name: RemoveBatchedLate :exec
 DELETE FROM signal WHERE rule_id = 'late-publication'
   AND cn_id IN (SELECT cn_id FROM signal WHERE rule_id = 'late-batch')
@@ -4138,6 +4404,199 @@ DELETE FROM signal WHERE rule_id = 'late-publication'
 func (q *Queries) RemoveBatchedLate(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, removeBatchedLate)
 	return err
+}
+
+const roundActivities = `-- name: RoundActivities :many
+SELECT activity, CAST(COUNT(*) AS INTEGER) AS awards
+FROM grant_award WHERE go_id = ?
+GROUP BY activity ORDER BY awards DESC, activity LIMIT ?
+`
+
+type RoundActivitiesParams struct {
+	GoID  string
+	Limit int64
+}
+
+type RoundActivitiesRow struct {
+	Activity string
+	Awards   int64
+}
+
+// How a round's awards describe their activity, most common first.
+func (q *Queries) RoundActivities(ctx context.Context, arg RoundActivitiesParams) ([]RoundActivitiesRow, error) {
+	rows, err := q.db.QueryContext(ctx, roundActivities, arg.GoID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RoundActivitiesRow
+	for rows.Next() {
+		var i RoundActivitiesRow
+		if err := rows.Scan(&i.Activity, &i.Awards); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const roundAgencies = `-- name: RoundAgencies :many
+SELECT agency_name, CAST(COALESCE(entity_id, 0) AS INTEGER) AS entity_id,
+  CAST(COUNT(*) AS INTEGER) AS awards, CAST(SUM(value) AS INTEGER) AS value
+FROM grant_award WHERE go_id = ?
+GROUP BY agency_name, entity_id
+ORDER BY value DESC
+`
+
+type RoundAgenciesRow struct {
+	AgencyName string
+	EntityID   int64
+	Awards     int64
+	Value      int64
+}
+
+func (q *Queries) RoundAgencies(ctx context.Context, goID string) ([]RoundAgenciesRow, error) {
+	rows, err := q.db.QueryContext(ctx, roundAgencies, goID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RoundAgenciesRow
+	for rows.Next() {
+		var i RoundAgenciesRow
+		if err := rows.Scan(
+			&i.AgencyName,
+			&i.EntityID,
+			&i.Awards,
+			&i.Value,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const roundRecipients = `-- name: RoundRecipients :many
+SELECT recipient_key, CAST(MAX(recipient) AS TEXT) AS recipient,
+  CAST(COUNT(*) AS INTEGER) AS awards, CAST(SUM(value) AS INTEGER) AS value
+FROM grant_award
+WHERE go_id = ?1 AND individual = 0 AND unnamed = 0
+GROUP BY recipient_key
+ORDER BY value DESC
+LIMIT ?2
+`
+
+type RoundRecipientsParams struct {
+	GoID string
+	Lim  int64
+}
+
+type RoundRecipientsRow struct {
+	RecipientKey string
+	Recipient    string
+	Awards       int64
+	Value        int64
+}
+
+// As in the rankings, recipients whose names read as a person's and awards
+// with no named recipient are left out.
+func (q *Queries) RoundRecipients(ctx context.Context, arg RoundRecipientsParams) ([]RoundRecipientsRow, error) {
+	rows, err := q.db.QueryContext(ctx, roundRecipients, arg.GoID, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RoundRecipientsRow
+	for rows.Next() {
+		var i RoundRecipientsRow
+		if err := rows.Scan(
+			&i.RecipientKey,
+			&i.Recipient,
+			&i.Awards,
+			&i.Value,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const roundTotals = `-- name: RoundTotals :one
+SELECT CAST(COUNT(*) AS INTEGER) AS awards,
+  CAST(COALESCE(SUM(value), 0) AS INTEGER) AS value,
+  CAST(COUNT(DISTINCT CASE WHEN unnamed = 0 THEN recipient_key END) AS INTEGER) AS recipients,
+  CAST(COALESCE(MIN(publish_date), '') AS TEXT) AS first_published,
+  CAST(COALESCE(MAX(publish_date), '') AS TEXT) AS last_published,
+  CAST(COALESCE(SUM(CASE WHEN individual = 1 OR unnamed = 1 THEN value END), 0) AS INTEGER) AS unlisted_value
+FROM grant_award WHERE go_id = ?
+`
+
+type RoundTotalsRow struct {
+	Awards         int64
+	Value          int64
+	Recipients     int64
+	FirstPublished string
+	LastPublished  string
+	UnlistedValue  int64
+}
+
+// One grant opportunity (round). recipients counts named recipients.
+func (q *Queries) RoundTotals(ctx context.Context, goID string) (RoundTotalsRow, error) {
+	row := q.db.QueryRowContext(ctx, roundTotals, goID)
+	var i RoundTotalsRow
+	err := row.Scan(
+		&i.Awards,
+		&i.Value,
+		&i.Recipients,
+		&i.FirstPublished,
+		&i.LastPublished,
+		&i.UnlistedValue,
+	)
+	return i, err
+}
+
+const roundYear = `-- name: RoundYear :one
+SELECT CAST(COUNT(*) AS INTEGER) AS awards, CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount
+FROM grant_award g CROSS JOIN grant_fy gf ON gf.ga_id = g.ga_id
+WHERE gf.fiscal_year = ?1 AND g.go_id = ?2
+`
+
+type RoundYearParams struct {
+	Fy   string
+	GoID string
+}
+
+type RoundYearRow struct {
+	Awards int64
+	Amount int64
+}
+
+// CROSS JOIN starts from the round's awards, as in RecipientYear.
+func (q *Queries) RoundYear(ctx context.Context, arg RoundYearParams) (RoundYearRow, error) {
+	row := q.db.QueryRowContext(ctx, roundYear, arg.Fy, arg.GoID)
+	var i RoundYearRow
+	err := row.Scan(&i.Awards, &i.Amount)
+	return i, err
 }
 
 const ruleBatches = `-- name: RuleBatches :many
@@ -4763,11 +5222,12 @@ func (q *Queries) SearchEntities(ctx context.Context, arg SearchEntitiesParams) 
 }
 
 const searchGrantRecipients = `-- name: SearchGrantRecipients :many
-SELECT g.recipient, g.agency_name, CAST(COALESCE(g.entity_id, 0) AS INTEGER) AS entity_id,
+SELECT g.recipient_key, CAST(MAX(g.recipient) AS TEXT) AS recipient, g.agency_name,
+  CAST(COALESCE(g.entity_id, 0) AS INTEGER) AS entity_id,
   CAST(COUNT(*) AS INTEGER) AS grants, CAST(SUM(g.value) AS INTEGER) AS value
 FROM grant_award g
 WHERE g.individual = 0 AND g.unnamed = 0 AND instr(upper(g.recipient), upper(?1)) > 0
-GROUP BY g.recipient, g.agency_name, g.entity_id
+GROUP BY g.recipient_key, g.agency_name, g.entity_id
 ORDER BY value DESC
 LIMIT ?2
 `
@@ -4778,11 +5238,12 @@ type SearchGrantRecipientsParams struct {
 }
 
 type SearchGrantRecipientsRow struct {
-	Recipient  string
-	AgencyName string
-	EntityID   int64
-	Grants     int64
-	Value      int64
+	RecipientKey string
+	Recipient    string
+	AgencyName   string
+	EntityID     int64
+	Grants       int64
+	Value        int64
 }
 
 // Grant recipients whose name contains the fragment, one row per recipient and
@@ -4798,6 +5259,7 @@ func (q *Queries) SearchGrantRecipients(ctx context.Context, arg SearchGrantReci
 	for rows.Next() {
 		var i SearchGrantRecipientsRow
 		if err := rows.Scan(
+			&i.RecipientKey,
 			&i.Recipient,
 			&i.AgencyName,
 			&i.EntityID,
@@ -5285,6 +5747,94 @@ func (q *Queries) SitemapProjects(ctx context.Context) ([]string, error) {
 	return items, nil
 }
 
+const sitemapRecipientCount = `-- name: SitemapRecipientCount :one
+SELECT CAST(COUNT(*) AS INTEGER) AS recipients FROM (
+  SELECT recipient_key FROM grant_award WHERE recipient_key <> ''
+  GROUP BY recipient_key HAVING MAX(individual) = 0)
+`
+
+// Grant recipients, leaving out those who are, or may be, individuals.
+func (q *Queries) SitemapRecipientCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, sitemapRecipientCount)
+	var recipients int64
+	err := row.Scan(&recipients)
+	return recipients, err
+}
+
+const sitemapRecipients = `-- name: SitemapRecipients :many
+SELECT recipient_key, CAST(MAX(publish_date) AS TEXT) AS last_published
+FROM grant_award WHERE recipient_key <> ''
+GROUP BY recipient_key HAVING MAX(individual) = 0
+ORDER BY recipient_key LIMIT ? OFFSET ?
+`
+
+type SitemapRecipientsParams struct {
+	Limit  int64
+	Offset int64
+}
+
+type SitemapRecipientsRow struct {
+	RecipientKey  string
+	LastPublished string
+}
+
+func (q *Queries) SitemapRecipients(ctx context.Context, arg SitemapRecipientsParams) ([]SitemapRecipientsRow, error) {
+	rows, err := q.db.QueryContext(ctx, sitemapRecipients, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SitemapRecipientsRow
+	for rows.Next() {
+		var i SitemapRecipientsRow
+		if err := rows.Scan(&i.RecipientKey, &i.LastPublished); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sitemapRounds = `-- name: SitemapRounds :many
+SELECT go_id, CAST(MAX(publish_date) AS TEXT) AS last_published
+FROM grant_award WHERE go_id <> ''
+GROUP BY go_id ORDER BY go_id
+`
+
+type SitemapRoundsRow struct {
+	GoID          string
+	LastPublished string
+}
+
+func (q *Queries) SitemapRounds(ctx context.Context) ([]SitemapRoundsRow, error) {
+	rows, err := q.db.QueryContext(ctx, sitemapRounds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SitemapRoundsRow
+	for rows.Next() {
+		var i SitemapRoundsRow
+		if err := rows.Scan(&i.GoID, &i.LastPublished); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const sitemapSuppliers = `-- name: SitemapSuppliers :many
 SELECT s.id, CAST(MAX(c.release_date) AS TEXT) AS last_release
 FROM supplier s JOIN contract c ON c.supplier_id = s.id
@@ -5669,6 +6219,27 @@ func (q *Queries) SupplierContracts(ctx context.Context, arg SupplierContractsPa
 	return items, nil
 }
 
+const supplierGrants = `-- name: SupplierGrants :one
+SELECT m.recipient_key, CAST(COUNT(*) AS INTEGER) AS awards, CAST(SUM(g.value) AS INTEGER) AS value
+FROM grant_recipient_supplier m JOIN grant_award g ON g.recipient_key = m.recipient_key
+WHERE m.supplier_id = ?
+GROUP BY m.recipient_key
+`
+
+type SupplierGrantsRow struct {
+	RecipientKey string
+	Awards       int64
+	Value        int64
+}
+
+// Grants to the recipient matched to a supplier by name.
+func (q *Queries) SupplierGrants(ctx context.Context, supplierID int64) (SupplierGrantsRow, error) {
+	row := q.db.QueryRowContext(ctx, supplierGrants, supplierID)
+	var i SupplierGrantsRow
+	err := row.Scan(&i.RecipientKey, &i.Awards, &i.Value)
+	return i, err
+}
+
 const supplierGroupMembers = `-- name: SupplierGroupMembers :many
 SELECT s.id, s.name, s.abn, s.country, m.basis,
   CAST(COALESCE(ge.lei, '') AS TEXT) AS lei,
@@ -5818,6 +6389,40 @@ func (q *Queries) SupplierIndividualCounts(ctx context.Context) ([]SupplierIndiv
 	for rows.Next() {
 		var i SupplierIndividualCountsRow
 		if err := rows.Scan(&i.Basis, &i.Suppliers); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const supplierNames = `-- name: SupplierNames :many
+SELECT s.id, s.name, CAST(EXISTS (SELECT 1 FROM supplier_individual i WHERE i.supplier_id = s.id) AS INTEGER) AS individual
+FROM supplier s
+`
+
+type SupplierNamesRow struct {
+	ID         int64
+	Name       string
+	Individual int64
+}
+
+func (q *Queries) SupplierNames(ctx context.Context) ([]SupplierNamesRow, error) {
+	rows, err := q.db.QueryContext(ctx, supplierNames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SupplierNamesRow
+	for rows.Next() {
+		var i SupplierNamesRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Individual); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

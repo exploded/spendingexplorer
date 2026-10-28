@@ -439,9 +439,12 @@ CREATE TABLE IF NOT EXISTS grant_award (
   unnamed             INTEGER NOT NULL DEFAULT 0,  -- aggregated ("Multiple") or withheld ("n/a") recipient
   one_off             INTEGER NOT NULL,
   aggregate           INTEGER NOT NULL,
-  source_document_id  INTEGER NOT NULL REFERENCES source_document(id)
+  source_document_id  INTEGER NOT NULL REFERENCES source_document(id),
+  recipient_key       TEXT NOT NULL DEFAULT ''  -- grantconnect.RecipientKey; '' when unnamed
 );
 CREATE INDEX IF NOT EXISTS grant_award_entity ON grant_award(entity_id);
+CREATE INDEX IF NOT EXISTS grant_award_recipient ON grant_award(recipient_key);
+CREATE INDEX IF NOT EXISTS grant_award_round ON grant_award(go_id);
 
 -- Each award's value spread evenly over its term by financial year (an
 -- estimate, like contract_fy). Rebuilt by cmd/load-grants, not by derive.
@@ -452,6 +455,14 @@ CREATE TABLE IF NOT EXISTS grant_fy (
   PRIMARY KEY (ga_id, fiscal_year)
 );
 CREATE INDEX IF NOT EXISTS grant_fy_year ON grant_fy(fiscal_year);
+
+-- Grant recipients whose name key matches exactly one AusTender supplier that
+-- is not an individual. A match by name only. Rebuilt by derive.
+CREATE TABLE IF NOT EXISTS grant_recipient_supplier (
+  recipient_key  TEXT PRIMARY KEY,
+  supplier_id    INTEGER NOT NULL REFERENCES supplier(id)
+);
+CREATE INDEX IF NOT EXISTS grant_recipient_supplier_id ON grant_recipient_supplier(supplier_id);
 
 -- Project cost estimates ------------------------------------------------------
 

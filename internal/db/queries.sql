@@ -1121,8 +1121,8 @@ DELETE FROM grant_award;
 
 -- name: InsertGrantAward :exec
 INSERT INTO grant_award (ga_id, version_id, activity, agency_name, entity_id, publish_date, category,
-  start_date, end_date, value, go_id, recipient, individual, unnamed, one_off, aggregate, source_document_id)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+  start_date, end_date, value, go_id, recipient, recipient_key, individual, unnamed, one_off, aggregate, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: InsertGrantFY :exec
 INSERT INTO grant_fy (ga_id, fiscal_year, amount) VALUES (?, ?, ?);
@@ -1148,10 +1148,11 @@ LIMIT sqlc.arg(lim);
 -- name: EntityGrantRecipients :many
 -- Rankings leave out recipients whose names read as a person's, and awards
 -- with no named recipient.
-SELECT g.recipient, CAST(COUNT(*) AS INTEGER) AS grants, CAST(SUM(gf.amount) AS INTEGER) AS amount
+SELECT g.recipient_key, CAST(MAX(g.recipient) AS TEXT) AS recipient,
+  CAST(COUNT(*) AS INTEGER) AS grants, CAST(SUM(gf.amount) AS INTEGER) AS amount
 FROM grant_fy gf JOIN grant_award g ON g.ga_id = gf.ga_id
 WHERE gf.fiscal_year = sqlc.arg(fy) AND g.entity_id = sqlc.arg(entity_id) AND g.individual = 0 AND g.unnamed = 0
-GROUP BY g.recipient
+GROUP BY g.recipient_key
 ORDER BY amount DESC
 LIMIT sqlc.arg(lim);
 
@@ -1169,6 +1170,112 @@ SELECT g.entity_id, CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount
 FROM grant_fy gf JOIN grant_award g ON g.ga_id = gf.ga_id
 WHERE gf.fiscal_year = ? AND g.entity_id IS NOT NULL
 GROUP BY g.entity_id;
+
+-- name: RecipientName :one
+-- A recipient's most common spelling.
+SELECT recipient FROM grant_award WHERE recipient_key = ?
+GROUP BY recipient ORDER BY COUNT(*) DESC, recipient LIMIT 1;
+
+-- name: RecipientTotals :one
+-- individual is 1 when any award's recipient name reads as a person's.
+SELECT CAST(COUNT(*) AS INTEGER) AS awards,
+  CAST(COALESCE(SUM(value), 0) AS INTEGER) AS value,
+  CAST(COALESCE(MIN(publish_date), '') AS TEXT) AS first_published,
+  CAST(COALESCE(MAX(publish_date), '') AS TEXT) AS last_published,
+  CAST(COALESCE(MAX(individual), 0) AS INTEGER) AS individual
+FROM grant_award WHERE recipient_key = ?;
+
+-- name: RecipientYear :one
+-- CROSS JOIN makes SQLite start from the recipient's awards rather than every
+-- award active in the year.
+SELECT CAST(COUNT(*) AS INTEGER) AS awards, CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount
+FROM grant_award g CROSS JOIN grant_fy gf ON gf.ga_id = g.ga_id
+WHERE gf.fiscal_year = sqlc.arg(fy) AND g.recipient_key = sqlc.arg(recipient_key);
+
+-- name: RecipientAgencies :many
+SELECT agency_name, CAST(COALESCE(entity_id, 0) AS INTEGER) AS entity_id,
+  CAST(COUNT(*) AS INTEGER) AS awards, CAST(SUM(value) AS INTEGER) AS value
+FROM grant_award WHERE recipient_key = ?
+GROUP BY agency_name, entity_id
+ORDER BY value DESC;
+
+-- name: RecipientAwards :many
+SELECT ga_id, version_id, recipient, activity, agency_name, CAST(COALESCE(entity_id, 0) AS INTEGER) AS entity_id,
+  publish_date, category, start_date, end_date, value, go_id
+FROM grant_award WHERE recipient_key = ?
+ORDER BY value DESC, publish_date DESC
+LIMIT ?;
+
+-- name: RecipientSupplier :one
+-- The AusTender supplier matched to a recipient by name, with its contracts.
+SELECT s.id, s.name, CAST(COUNT(c.cn_id) AS INTEGER) AS contracts, CAST(COALESCE(SUM(c.value), 0) AS INTEGER) AS value
+FROM grant_recipient_supplier m
+JOIN supplier s ON s.id = m.supplier_id
+LEFT JOIN contract c ON c.supplier_id = s.id
+WHERE m.recipient_key = ?
+GROUP BY s.id, s.name;
+
+-- name: SupplierGrants :one
+-- Grants to the recipient matched to a supplier by name.
+SELECT m.recipient_key, CAST(COUNT(*) AS INTEGER) AS awards, CAST(SUM(g.value) AS INTEGER) AS value
+FROM grant_recipient_supplier m JOIN grant_award g ON g.recipient_key = m.recipient_key
+WHERE m.supplier_id = ?
+GROUP BY m.recipient_key;
+
+-- name: ClearGrantRecipientSuppliers :exec
+DELETE FROM grant_recipient_supplier;
+
+-- name: SupplierNames :many
+SELECT s.id, s.name, CAST(EXISTS (SELECT 1 FROM supplier_individual i WHERE i.supplier_id = s.id) AS INTEGER) AS individual
+FROM supplier s;
+
+-- name: GrantRecipientKeys :many
+-- Named recipients that are not individuals, for matching to suppliers.
+SELECT recipient_key FROM grant_award WHERE recipient_key <> ''
+GROUP BY recipient_key HAVING MAX(individual) = 0;
+
+-- name: InsertGrantRecipientSupplier :exec
+INSERT INTO grant_recipient_supplier (recipient_key, supplier_id) VALUES (?, ?);
+
+-- name: RoundTotals :one
+-- One grant opportunity (round). recipients counts named recipients.
+SELECT CAST(COUNT(*) AS INTEGER) AS awards,
+  CAST(COALESCE(SUM(value), 0) AS INTEGER) AS value,
+  CAST(COUNT(DISTINCT CASE WHEN unnamed = 0 THEN recipient_key END) AS INTEGER) AS recipients,
+  CAST(COALESCE(MIN(publish_date), '') AS TEXT) AS first_published,
+  CAST(COALESCE(MAX(publish_date), '') AS TEXT) AS last_published,
+  CAST(COALESCE(SUM(CASE WHEN individual = 1 OR unnamed = 1 THEN value END), 0) AS INTEGER) AS unlisted_value
+FROM grant_award WHERE go_id = ?;
+
+-- name: RoundActivities :many
+-- How a round's awards describe their activity, most common first.
+SELECT activity, CAST(COUNT(*) AS INTEGER) AS awards
+FROM grant_award WHERE go_id = ?
+GROUP BY activity ORDER BY awards DESC, activity LIMIT ?;
+
+-- name: RoundYear :one
+-- CROSS JOIN starts from the round's awards, as in RecipientYear.
+SELECT CAST(COUNT(*) AS INTEGER) AS awards, CAST(COALESCE(SUM(gf.amount), 0) AS INTEGER) AS amount
+FROM grant_award g CROSS JOIN grant_fy gf ON gf.ga_id = g.ga_id
+WHERE gf.fiscal_year = sqlc.arg(fy) AND g.go_id = sqlc.arg(go_id);
+
+-- name: RoundAgencies :many
+SELECT agency_name, CAST(COALESCE(entity_id, 0) AS INTEGER) AS entity_id,
+  CAST(COUNT(*) AS INTEGER) AS awards, CAST(SUM(value) AS INTEGER) AS value
+FROM grant_award WHERE go_id = ?
+GROUP BY agency_name, entity_id
+ORDER BY value DESC;
+
+-- name: RoundRecipients :many
+-- As in the rankings, recipients whose names read as a person's and awards
+-- with no named recipient are left out.
+SELECT recipient_key, CAST(MAX(recipient) AS TEXT) AS recipient,
+  CAST(COUNT(*) AS INTEGER) AS awards, CAST(SUM(value) AS INTEGER) AS value
+FROM grant_award
+WHERE go_id = sqlc.arg(go_id) AND individual = 0 AND unnamed = 0
+GROUP BY recipient_key
+ORDER BY value DESC
+LIMIT sqlc.arg(lim);
 
 -- name: ClearProjects :exec
 DELETE FROM project;
@@ -1280,11 +1387,12 @@ LIMIT sqlc.arg(lim);
 -- Grant recipients whose name contains the fragment, one row per recipient and
 -- granting agency, largest first. As in the rankings, recipients whose names
 -- read as a person's and awards with no named recipient are left out.
-SELECT g.recipient, g.agency_name, CAST(COALESCE(g.entity_id, 0) AS INTEGER) AS entity_id,
+SELECT g.recipient_key, CAST(MAX(g.recipient) AS TEXT) AS recipient, g.agency_name,
+  CAST(COALESCE(g.entity_id, 0) AS INTEGER) AS entity_id,
   CAST(COUNT(*) AS INTEGER) AS grants, CAST(SUM(g.value) AS INTEGER) AS value
 FROM grant_award g
 WHERE g.individual = 0 AND g.unnamed = 0 AND instr(upper(g.recipient), upper(sqlc.arg(fragment))) > 0
-GROUP BY g.recipient, g.agency_name, g.entity_id
+GROUP BY g.recipient_key, g.agency_name, g.entity_id
 ORDER BY value DESC
 LIMIT sqlc.arg(lim);
 
@@ -1447,3 +1555,20 @@ SELECT CAST(COUNT(*) AS INTEGER) AS contracts FROM contract;
 
 -- name: SitemapContracts :many
 SELECT cn_id, release_date FROM contract ORDER BY cn_id LIMIT ? OFFSET ?;
+
+-- name: SitemapRecipientCount :one
+-- Grant recipients, leaving out those who are, or may be, individuals.
+SELECT CAST(COUNT(*) AS INTEGER) AS recipients FROM (
+  SELECT recipient_key FROM grant_award WHERE recipient_key <> ''
+  GROUP BY recipient_key HAVING MAX(individual) = 0);
+
+-- name: SitemapRecipients :many
+SELECT recipient_key, CAST(MAX(publish_date) AS TEXT) AS last_published
+FROM grant_award WHERE recipient_key <> ''
+GROUP BY recipient_key HAVING MAX(individual) = 0
+ORDER BY recipient_key LIMIT ? OFFSET ?;
+
+-- name: SitemapRounds :many
+SELECT go_id, CAST(MAX(publish_date) AS TEXT) AS last_published
+FROM grant_award WHERE go_id <> ''
+GROUP BY go_id ORDER BY go_id;

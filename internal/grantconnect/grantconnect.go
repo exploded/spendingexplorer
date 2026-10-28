@@ -14,7 +14,23 @@ import (
 	"time"
 
 	"github.com/xuri/excelize/v2"
+
+	"spendingexplorer/internal/austender"
 )
+
+// RecipientKey identifies a recipient by name, as GrantConnect publishes no
+// ABN: the supplier name key, so spellings that differ only in case,
+// punctuation or a company suffix are one recipient, and a recipient can be
+// matched to a supplier of the same name.
+func RecipientKey(name string) string {
+	return strings.TrimPrefix(austender.SupplierKey(name, ""), "name:")
+}
+
+// RecipientSlug is a recipient key as a URL path segment. Keys hold only
+// letters, digits and single spaces, so KeyFromSlug reverses it.
+func RecipientSlug(key string) string { return strings.ReplaceAll(key, " ", "-") }
+
+func KeyFromSlug(slug string) string { return strings.ReplaceAll(slug, "-", " ") }
 
 // Award is one grant award as published. Value is the award's current total
 // in whole dollars, over its whole term; the export lists only the latest

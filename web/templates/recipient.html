@@ -1,0 +1,55 @@
+{{define "title"}}{{.Name}}{{end}}
+
+{{define "content"}}
+{{template "crumbs" .Crumbs}}
+<p class="kicker">Grant recipient</p>
+<h1>{{.Name}}</h1>
+{{with .Supplier}}<p>Also an AusTender supplier: <a href="/supplier/{{.ID}}">{{.Name}}</a>, with {{count .Contracts}} contract{{if ne .Contracts 1}}s{{end}} worth {{money .Value}} over their whole life. <a class="badge" href="/methodology#grant-recipients">matched by name</a></p>{{end}}
+<div class="hero">
+  <div class="hero-figure">
+    <span class="hero-number">{{money .Totals.Value}}</span>
+    <span class="hero-caption">whole-of-term value of {{count .Totals.Awards}} grant award{{if ne .Totals.Awards 1}}s{{end}} published {{.Totals.FirstPublished}} to {{.Totals.LastPublished}}</span>
+  </div>
+  {{if .Year.Amount}}<p class="hero-change"><strong>{{money .Year.Amount}}</strong> falls in {{.Period.FY}}, from {{count .Year.Awards}} active award{{if ne .Year.Awards 1}}s{{end}}. <a class="badge badge-estimate" href="/methodology#grants">estimate: annualised</a></p>{{end}}
+</div>
+<p class="note">Award values as published on GrantConnect, each over the grant’s whole term. GrantConnect publishes no ABN, so awards are grouped by name: spellings that differ only in case, punctuation or a company suffix count as one recipient. <a href="/methodology#grant-recipients">How recipients are grouped</a></p>
+
+<h2>By agency</h2>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Granting agency</th><th scope="col" class="num">Awards</th><th scope="col" class="num">Total value</th></tr></thead>
+  <tbody>
+  {{range .Agencies}}
+    <tr>
+      <th scope="row">{{if .EntityID}}<a href="/entity/{{.EntityID}}">{{.AgencyName}}</a>{{else}}{{.AgencyName}}{{end}}</th>
+      <td class="num">{{count .Awards}}</td>
+      <td class="num">{{money .Value}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+
+<h2>Awards</h2>
+<p class="muted">Largest first{{if gt .Totals.Awards (len .Awards)}}, showing {{len .Awards}} of {{count .Totals.Awards}}{{end}}.</p>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">Activity</th><th scope="col">Agency</th><th scope="col">Category</th><th scope="col">Round</th><th scope="col">Published</th><th scope="col">Term</th><th scope="col" class="num">Value</th></tr></thead>
+  <tbody>
+  {{range .Awards}}
+    <tr>
+      <th scope="row">{{trunc .Activity 70}}<br><span class="muted small mono">{{.VersionID}}</span>{{if ne .Recipient $.Name}}<br><span class="muted small">as “{{.Recipient}}”</span>{{end}}</th>
+      <td class="small">{{.AgencyName}}</td>
+      <td class="small">{{.Category}}</td>
+      <td class="small">{{if .GoID}}<a class="mono" href="/grants/round/{{.GoID}}">{{.GoID}}</a>{{else}}<a class="muted" href="/methodology#grants">No open round</a>{{end}}</td>
+      <td class="small">{{.PublishDate}}</td>
+      <td class="small">{{.StartDate}} to {{.EndDate}}</td>
+      <td class="num">{{money .Value}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+
+<p class="muted small">These records are as published by the agencies on <a href="https://www.grants.gov.au/Ga/List">GrantConnect</a>, where each award can be found by its ID. If something here is wrong, the agency that published the award can correct it, and we will pick up the correction at the next load. <a href="https://github.com/exploded/spendingexplorer/issues">Report a problem with this page</a>.</p>
+{{end}}

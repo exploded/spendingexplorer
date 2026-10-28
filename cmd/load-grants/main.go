@@ -119,15 +119,16 @@ func load(ctx context.Context, conn *sql.DB, dir, aliasFile string) error {
 			unmatched[a.Agency] += a.Value
 		}
 		var individual, unnamed int64
-		if a.Aggregate || placeholder[strings.ToLower(a.Recipient)] {
-			unnamed = 1
+		key := grantconnect.RecipientKey(a.Recipient)
+		if a.Aggregate || placeholder[strings.ToLower(a.Recipient)] || key == "" {
+			unnamed, key = 1, ""
 		} else if austender.LooksLikePerson(a.Recipient, given) {
 			individual = 1
 		}
 		if err := q.InsertGrantAward(ctx, db.InsertGrantAwardParams{
 			GaID: a.Base, VersionID: a.ID, Activity: a.Activity, AgencyName: a.Agency,
 			EntityID: sql.NullInt64{Int64: id, Valid: ok}, PublishDate: a.PublishDate, Category: a.Category,
-			StartDate: a.StartDate, EndDate: a.EndDate, Value: a.Value, GoID: a.GOID, Recipient: a.Recipient,
+			StartDate: a.StartDate, EndDate: a.EndDate, Value: a.Value, GoID: a.GOID, Recipient: a.Recipient, RecipientKey: key,
 			Individual: individual, Unnamed: unnamed, OneOff: boolInt(a.OneOff), Aggregate: boolInt(a.Aggregate),
 			SourceDocumentID: docOf[a.ID],
 		}); err != nil {

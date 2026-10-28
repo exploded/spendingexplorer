@@ -77,7 +77,8 @@ type supplierPage struct {
 	Contracts []db.SupplierContractsRow
 	Group     *db.SupplierGroupOfRow
 	Crumbs    []crumb
-	Projects  []projectView // major projects this supplier delivers
+	Projects  []projectView         // major projects this supplier delivers
+	Grants    *db.SupplierGrantsRow // grants to the recipient matched by name, if any
 }
 
 func (h *Handler) supplier(w http.ResponseWriter, r *http.Request) {
@@ -108,6 +109,12 @@ func (h *Handler) supplier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if page.Projects, err = h.linkedProjects(ctx, 0, id); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if g, err := h.q.SupplierGrants(ctx, id); err == nil {
+		page.Grants = &g
+	} else if !errors.Is(err, sql.ErrNoRows) {
 		h.fail(w, err)
 		return
 	}

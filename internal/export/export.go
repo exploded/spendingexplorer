@@ -506,9 +506,9 @@ ORDER BY sd.budget_year, i.fiscal_year, i.is_total, i.item`,
 	},
 	{
 		file:  "grants.csv",
-		about: "GrantConnect grant awards, at their latest version. value_whole_of_term is the award's total over its term.",
+		about: "GrantConnect grant awards, at their latest version. value_whole_of_term is the award's total over its term. recipient_key is the recipient's name normalised (case, punctuation, company suffix), which groups the site's recipient pages; GrantConnect publishes no ABN.",
 		query: `SELECT g.ga_id, g.version_id, g.agency_name AS agency, g.entity_id, e.name AS entity,
-  g.recipient, g.individual AS recipient_may_be_individual, g.unnamed AS recipient_unnamed,
+  g.recipient, g.recipient_key, g.individual AS recipient_may_be_individual, g.unnamed AS recipient_unnamed,
   g.activity, g.category, g.go_id, g.publish_date, g.start_date, g.end_date,
   g.value AS value_whole_of_term, g.one_off, g.aggregate
 FROM grant_award g LEFT JOIN entity e ON e.id = g.entity_id

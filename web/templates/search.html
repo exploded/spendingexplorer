@@ -171,7 +171,7 @@
       <tbody>
       {{range .Grants}}
         <tr>
-          <th scope="row">{{.Recipient}}</th>
+          <th scope="row"><a href="{{recipientURL .RecipientKey}}">{{.Recipient}}</a></th>
           <td>{{if .EntityID}}<a href="/entity/{{.EntityID}}">{{.AgencyName}}</a>{{else}}{{.AgencyName}}{{end}}</td>
           <td class="num">{{.Grants}}</td>
           <td class="num">{{money .Value}}</td>
