@@ -51,6 +51,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// The CSV is the whole set for the year: a description dropped from it
+	// (such as one quoted from another entity's document) must go too.
+	if err := q.DeleteReportedProgramDescriptions(ctx, *year); err != nil {
+		log.Fatal(err)
+	}
 	written, missing := 0, 0
 	for _, r := range rows[1:] {
 		// budget_year, entity, program, objective, source_url, page

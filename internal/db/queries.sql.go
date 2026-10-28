@@ -644,6 +644,16 @@ func (q *Queries) DeleteProgramExpensesForDoc(ctx context.Context, sourceDocumen
 	return err
 }
 
+const deleteReportedProgramDescriptions = `-- name: DeleteReportedProgramDescriptions :exec
+DELETE FROM program_description
+WHERE kind = 'reported' AND program_id IN (SELECT id FROM program WHERE budget_year = ?)
+`
+
+func (q *Queries) DeleteReportedProgramDescriptions(ctx context.Context, budgetYear string) error {
+	_, err := q.db.ExecContext(ctx, deleteReportedProgramDescriptions, budgetYear)
+	return err
+}
+
 const deleteWogExpensesForDoc = `-- name: DeleteWogExpensesForDoc :exec
 DELETE FROM wog_expense WHERE source_document_id = ?
 `

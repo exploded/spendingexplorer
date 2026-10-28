@@ -268,11 +268,15 @@ func extract(ctx context.Context, dbPath, year, docsCSV, outCSV, cache string) e
 		}
 		objectives := pbsdoc.Extract(text)
 		// First pass by heading; the entity matched most often becomes the
-		// document's entity for headings that carry only a number.
+		// document's entity for headings that carry only a number. Those are
+		// never looked up by name: some programs are named just "Program 1.1".
 		resolved := make([][]program, len(objectives))
 		votes := map[string]int{}
 		docEntity := ""
 		for i, o := range objectives {
+			if o.CodeOnly {
+				continue
+			}
 			resolved[i] = ix.lookup(o.Heading)
 			if len(resolved[i]) == 1 {
 				e := resolved[i][0].entity
@@ -284,7 +288,7 @@ func extract(ctx context.Context, dbPath, year, docsCSV, outCSV, cache string) e
 		}
 		for i, o := range objectives {
 			cands := resolved[i]
-			if len(cands) == 0 && o.CodeOnly && docEntity != "" {
+			if o.CodeOnly && docEntity != "" {
 				cands = ix.byCode(docEntity, o.Code)
 			}
 			switch len(cands) {
@@ -303,7 +307,7 @@ func extract(ctx context.Context, dbPath, year, docsCSV, outCSV, cache string) e
 				continue
 			}
 			key := cands[0].entity + "\x00" + cands[0].name
-			if prev, ok := matched[key]; ok && len(prev.o.Text) >= len(o.Text) {
+			if prev, ok := matched[key]; ok && !pbsdoc.Better(o, prev.o) {
 				continue
 			}
 			matched[key] = found{o, cands[0], docURL}

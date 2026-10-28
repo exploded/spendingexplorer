@@ -426,6 +426,10 @@ SELECT p.id FROM program p JOIN entity e ON e.id = p.entity_id
 WHERE p.budget_year = sqlc.arg(budget_year) AND p.name = sqlc.arg(program)
   AND (e.name = sqlc.arg(entity) OR e.id IN (SELECT entity_id FROM entity_alias WHERE alias = sqlc.arg(entity)));
 
+-- name: DeleteReportedProgramDescriptions :exec
+DELETE FROM program_description
+WHERE kind = 'reported' AND program_id IN (SELECT id FROM program WHERE budget_year = ?);
+
 -- name: UpsertProgramDescription :exec
 INSERT INTO program_description (program_id, kind, text, source_url, page, source_document_id)
 VALUES (?, 'reported', ?, ?, ?, ?)
