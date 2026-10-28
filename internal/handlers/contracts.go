@@ -75,6 +75,7 @@ type supplierPage struct {
 	Year      db.SupplierYearRow // value falling in the budget year, as ranked
 	Agencies  []db.SupplierAgenciesRow
 	Contracts []db.SupplierContractsRow
+	Pager     pager
 	Group     *db.SupplierGroupOfRow
 	Crumbs    []crumb
 	Projects  []projectView         // major projects this supplier delivers
@@ -130,7 +131,13 @@ func (h *Handler) supplier(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
-	if page.Contracts, err = h.q.SupplierContracts(ctx, db.SupplierContractsParams{SupplierID: sql.NullInt64{Int64: id, Valid: true}, Limit: 100}); err != nil {
+	var ok bool
+	if page.Pager, ok = newPager(r, contractPageSize, page.Totals.Contracts, "/supplier/"+strconv.FormatInt(id, 10)+"/contracts.csv", "contracts"); !ok {
+		http.NotFound(w, r)
+		return
+	}
+	if page.Contracts, err = h.q.SupplierContracts(ctx, db.SupplierContractsParams{SupplierID: sql.NullInt64{Int64: id, Valid: true},
+		Limit: page.Pager.Lim(), Offset: page.Pager.Off()}); err != nil {
 		h.fail(w, err)
 		return
 	}

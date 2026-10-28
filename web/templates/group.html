@@ -50,8 +50,9 @@
 </table>
 </div>
 
+<section id="contracts">
 <h2>Contracts</h2>
-<p class="muted">Largest first{{if gt .Totals.Contracts 100}}, showing 100 of {{.Totals.Contracts}}{{end}}.</p>
+<p class="muted">Largest first.</p>
 <div class="scroll">
 <table class="data">
   <thead><tr><th scope="col">Contract</th><th scope="col">Supplier</th><th scope="col">Agency</th><th scope="col">Method</th><th scope="col">Term</th><th scope="col" class="num">Value</th></tr></thead>
@@ -69,4 +70,6 @@
   </tbody>
 </table>
 </div>
+{{template "pager" .Pager}}
+</section>
 {{end}}

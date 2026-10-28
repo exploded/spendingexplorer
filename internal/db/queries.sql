@@ -403,8 +403,8 @@ SELECT c.cn_id, c.description, c.method, c.start_date, c.end_date, c.published_d
   c.original_value, c.amendment_count, a.name AS agency
 FROM contract c JOIN agency a ON a.id = c.agency_id
 WHERE c.supplier_id = ?
-ORDER BY c.value DESC
-LIMIT ?;
+ORDER BY c.value DESC, c.cn_id
+LIMIT ? OFFSET ?;
 
 -- name: GetContract :one
 SELECT c.cn_id, c.ocid, c.title, c.description, c.unspsc, c.method, c.method_detail,
@@ -650,8 +650,17 @@ JOIN agency a ON a.id = s.agency_id
 WHERE s.rule_id = sqlc.arg(rule_id) AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
   AND (sqlc.arg(entity_id) = 0 OR a.entity_id = sqlc.arg(entity_id))
   AND (s.supplier_id IS NULL OR s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual))
-ORDER BY s.amount DESC
-LIMIT 100;
+ORDER BY s.amount DESC, s.cn_id
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: RuleContractCount :one
+-- The rows RuleContracts lists, without the limit.
+SELECT CAST(COUNT(*) AS INTEGER) FROM signal s
+JOIN contract c ON c.cn_id = s.cn_id
+JOIN agency a ON a.id = s.agency_id
+WHERE s.rule_id = sqlc.arg(rule_id) AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+  AND (sqlc.arg(entity_id) = 0 OR a.entity_id = sqlc.arg(entity_id))
+  AND (s.supplier_id IS NULL OR s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual));
 
 -- name: RuleExamples :many
 -- The three largest contracts matching each rule, as examples. Grouped rules
@@ -710,8 +719,21 @@ WHERE s.rule_id = sqlc.arg(rule_id) AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg
   AND (sqlc.arg(entity_id) = 0 OR a.entity_id = sqlc.arg(entity_id))
   AND s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual)
 GROUP BY s.rule_id, s.agency_id, s.supplier_id, s.fiscal_year, a.name, a.entity_id, sp.id, sp.name
-ORDER BY contracts DESC, amount DESC
-LIMIT 100;
+ORDER BY contracts DESC, amount DESC, s.agency_id, s.supplier_id, s.fiscal_year
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: RuleSupplierGroupCount :one
+-- The rows RuleSupplierGroups lists, without the limit.
+SELECT CAST(COUNT(*) AS INTEGER) FROM (
+  SELECT 1 FROM signal s
+  JOIN contract c ON c.cn_id = s.cn_id
+  JOIN agency a ON a.id = s.agency_id
+  JOIN supplier sp ON sp.id = s.supplier_id
+  WHERE s.rule_id = sqlc.arg(rule_id) AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+    AND (sqlc.arg(entity_id) = 0 OR a.entity_id = sqlc.arg(entity_id))
+    AND s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual)
+  GROUP BY s.agency_id, s.supplier_id, s.fiscal_year
+);
 
 -- name: RuleBatches :many
 -- Late-publication batches: one row per agency and publication day.
@@ -724,8 +746,19 @@ JOIN agency a ON a.id = s.agency_id
 WHERE s.rule_id = 'late-batch' AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
   AND (sqlc.arg(entity_id) = 0 OR a.entity_id = sqlc.arg(entity_id))
 GROUP BY a.name, a.entity_id, c.published_date
-ORDER BY notices DESC, amount DESC
-LIMIT 100;
+ORDER BY notices DESC, amount DESC, a.name, c.published_date
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: RuleBatchCount :one
+-- The rows RuleBatches lists, without the limit.
+SELECT CAST(COUNT(*) AS INTEGER) FROM (
+  SELECT 1 FROM signal s
+  JOIN contract c ON c.cn_id = s.cn_id
+  JOIN agency a ON a.id = s.agency_id
+  WHERE s.rule_id = 'late-batch' AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+    AND (sqlc.arg(entity_id) = 0 OR a.entity_id = sqlc.arg(entity_id))
+  GROUP BY a.name, a.entity_id, c.published_date
+);
 
 -- name: RuleReasons :many
 -- The limited-tender reasons agencies gave for a rule's contracts.
@@ -893,8 +926,18 @@ JOIN supplier s ON s.id = c.supplier_id
 WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id IS NOT NULL
   AND s.id NOT IN (SELECT supplier_id FROM supplier_individual)
 GROUP BY s.id, s.name
-ORDER BY amount DESC
-LIMIT sqlc.arg(lim);
+ORDER BY amount DESC, s.id
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: TopSupplierCount :one
+-- The rows TopSuppliers lists, without the limit.
+SELECT CAST(COUNT(DISTINCT s.id) AS INTEGER)
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN supplier s ON s.id = c.supplier_id
+WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id IS NOT NULL
+  AND s.id NOT IN (SELECT supplier_id FROM supplier_individual);
 
 -- name: TopSupplierGroups :many
 -- As TopSuppliers, with the members of each corporate group combined into
@@ -920,8 +963,19 @@ LEFT JOIN supplier_group g ON g.id = m.group_id
 WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id IS NOT NULL
   AND s.id NOT IN (SELECT supplier_id FROM supplier_individual)
 GROUP BY COALESCE(m.group_id, -s.id)
-ORDER BY amount DESC
-LIMIT sqlc.arg(lim);
+ORDER BY amount DESC, COALESCE(m.group_id, -s.id)
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: TopSupplierGroupCount :one
+-- The rows TopSupplierGroups lists, without the limit.
+SELECT CAST(COUNT(DISTINCT COALESCE(m.group_id, -s.id)) AS INTEGER)
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN supplier s ON s.id = c.supplier_id
+LEFT JOIN supplier_group_member m ON m.supplier_id = s.id
+WHERE cf.fiscal_year = sqlc.arg(fy) AND a.entity_id IS NOT NULL
+  AND s.id NOT IN (SELECT supplier_id FROM supplier_individual);
 
 -- name: SupplierGroupStats :one
 SELECT CAST(COUNT(*) AS INTEGER) AS group_count,
@@ -1009,8 +1063,8 @@ FROM contract c
 JOIN agency a ON a.id = c.agency_id
 JOIN supplier s ON s.id = c.supplier_id
 WHERE c.supplier_id IN (SELECT supplier_id FROM supplier_group_member WHERE group_id = sqlc.arg(group_id))
-ORDER BY c.value DESC
-LIMIT sqlc.arg(lim);
+ORDER BY c.value DESC, c.cn_id
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- Transparency Portal -------------------------------------------------------------
 
@@ -1203,8 +1257,8 @@ ORDER BY value DESC;
 SELECT ga_id, version_id, recipient, activity, agency_name, CAST(COALESCE(entity_id, 0) AS INTEGER) AS entity_id,
   publish_date, category, start_date, end_date, value, go_id
 FROM grant_award WHERE recipient_key = ?
-ORDER BY value DESC, publish_date DESC
-LIMIT ?;
+ORDER BY value DESC, publish_date DESC, ga_id
+LIMIT ? OFFSET ?;
 
 -- name: RecipientSupplier :one
 -- The AusTender supplier matched to a recipient by name, with its contracts.
@@ -1238,10 +1292,12 @@ GROUP BY recipient_key HAVING MAX(individual) = 0;
 INSERT INTO grant_recipient_supplier (recipient_key, supplier_id) VALUES (?, ?);
 
 -- name: RoundTotals :one
--- One grant opportunity (round). recipients counts named recipients.
+-- One grant opportunity (round). recipients counts named recipients;
+-- listed_recipients leaves out individuals, as RoundRecipients does.
 SELECT CAST(COUNT(*) AS INTEGER) AS awards,
   CAST(COALESCE(SUM(value), 0) AS INTEGER) AS value,
   CAST(COUNT(DISTINCT CASE WHEN unnamed = 0 THEN recipient_key END) AS INTEGER) AS recipients,
+  CAST(COUNT(DISTINCT CASE WHEN unnamed = 0 AND individual = 0 THEN recipient_key END) AS INTEGER) AS listed_recipients,
   CAST(COALESCE(MIN(publish_date), '') AS TEXT) AS first_published,
   CAST(COALESCE(MAX(publish_date), '') AS TEXT) AS last_published,
   CAST(COALESCE(SUM(CASE WHEN individual = 1 OR unnamed = 1 THEN value END), 0) AS INTEGER) AS unlisted_value
@@ -1274,8 +1330,8 @@ SELECT recipient_key, CAST(MAX(recipient) AS TEXT) AS recipient,
 FROM grant_award
 WHERE go_id = sqlc.arg(go_id) AND individual = 0 AND unnamed = 0
 GROUP BY recipient_key
-ORDER BY value DESC
-LIMIT sqlc.arg(lim);
+ORDER BY value DESC, recipient_key
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
 
 -- name: ClearProjects :exec
 DELETE FROM project;

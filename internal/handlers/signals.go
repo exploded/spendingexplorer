@@ -117,7 +117,13 @@ type rulePage struct {
 	Contracts []db.RuleContractsRow      // per-contract rules, or grouped rules filtered to one entity
 	Entity    string                     // name when filtered to one entity
 	EntityID  int64
+
+	GroupsPager    pager // Groups or Batches
+	ContractsPager pager
 }
+
+// signalPageSize is how many rows a page of a signal's lists shows.
+const signalPageSize = 100
 
 func (h *Handler) signalRule(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -143,11 +149,34 @@ func (h *Handler) signalRule(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	base := "/signals/" + rule.ID + "/"
+	contractsParam := "page"
+	var total int64
 	switch rule.Group {
 	case signals.GroupSupplier:
-		page.Groups, err = h.q.RuleSupplierGroups(ctx, db.RuleSupplierGroupsParams{RuleID: rule.ID, Fy: p.FY, PrevFy: p.Prev, EntityID: page.EntityID})
+		if total, err = h.q.RuleSupplierGroupCount(ctx, db.RuleSupplierGroupCountParams{RuleID: rule.ID, Fy: p.FY, PrevFy: p.Prev, EntityID: page.EntityID}); err != nil {
+			h.fail(w, err)
+			return
+		}
+		if page.GroupsPager, ok = newPager(r, signalPageSize, total, csvURL(r, base+"groups.csv"), "groups"); !ok {
+			http.NotFound(w, r)
+			return
+		}
+		page.Groups, err = h.q.RuleSupplierGroups(ctx, db.RuleSupplierGroupsParams{RuleID: rule.ID, Fy: p.FY, PrevFy: p.Prev, EntityID: page.EntityID,
+			Lim: page.GroupsPager.Lim(), Off: page.GroupsPager.Off()})
+		contractsParam = "cpage"
 	case signals.GroupBatch:
-		page.Batches, err = h.q.RuleBatches(ctx, db.RuleBatchesParams{Fy: p.FY, PrevFy: p.Prev, EntityID: page.EntityID})
+		if total, err = h.q.RuleBatchCount(ctx, db.RuleBatchCountParams{Fy: p.FY, PrevFy: p.Prev, EntityID: page.EntityID}); err != nil {
+			h.fail(w, err)
+			return
+		}
+		if page.GroupsPager, ok = newPager(r, signalPageSize, total, csvURL(r, base+"batches.csv"), "batches"); !ok {
+			http.NotFound(w, r)
+			return
+		}
+		page.Batches, err = h.q.RuleBatches(ctx, db.RuleBatchesParams{Fy: p.FY, PrevFy: p.Prev, EntityID: page.EntityID,
+			Lim: page.GroupsPager.Lim(), Off: page.GroupsPager.Off()})
+		contractsParam = "cpage"
 	}
 	if err != nil {
 		h.fail(w, err)
@@ -162,7 +191,16 @@ func (h *Handler) signalRule(w http.ResponseWriter, r *http.Request) {
 	// Grouped rules list contracts only for one entity; across all agencies the
 	// groups are the unit, and one batch or supplier would fill the list.
 	if rule.Group == "" || page.EntityID != 0 {
-		if page.Contracts, err = h.q.RuleContracts(ctx, db.RuleContractsParams{RuleID: rule.ID, Fy: p.FY, PrevFy: p.Prev, EntityID: page.EntityID}); err != nil {
+		if total, err = h.q.RuleContractCount(ctx, db.RuleContractCountParams{RuleID: rule.ID, Fy: p.FY, PrevFy: p.Prev, EntityID: page.EntityID}); err != nil {
+			h.fail(w, err)
+			return
+		}
+		if page.ContractsPager, ok = newPagerAt(r, contractsParam, signalPageSize, total, csvURL(r, base+"contracts.csv"), "contracts"); !ok {
+			http.NotFound(w, r)
+			return
+		}
+		if page.Contracts, err = h.q.RuleContracts(ctx, db.RuleContractsParams{RuleID: rule.ID, Fy: p.FY, PrevFy: p.Prev, EntityID: page.EntityID,
+			Lim: page.ContractsPager.Lim(), Off: page.ContractsPager.Off()}); err != nil {
 			h.fail(w, err)
 			return
 		}

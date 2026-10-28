@@ -16,7 +16,7 @@
 </form>
 {{template "search-results" .}}
 
-<section aria-labelledby="ranking-h">
+<section id="ranking" aria-labelledby="ranking-h">
   <h2 id="ranking-h">Largest suppliers in {{.Period.FY}}</h2>
   <div class="sorts" role="group" aria-label="View">
     <a href="/suppliers" class="{{if .Grouped}}active{{end}}">Corporate groups</a>
@@ -32,7 +32,7 @@
     <tbody>
     {{range $i, $r := .Rows}}
       <tr>
-        <td class="muted small">{{add $i 1}}</td>
+        <td class="muted small">{{count ($.Pager.Rank $i)}}</td>
         <th scope="row">{{if .IsGroup}}<a href="/group/{{.ID}}">{{.Name}}</a> <span class="muted small">{{.Suppliers}} compan{{if eq .Suppliers 1}}y{{else}}ies{{end}}</span>{{else}}<a href="/supplier/{{.ID}}">{{.Name}}</a>{{template "fms-tag" .Name}}{{end}}</th>
         <td class="num">{{money .Amount}}</td>
         <td class="num">{{f1 .Share}}%</td>
@@ -44,6 +44,7 @@
     </tbody>
   </table>
   </div>
+  {{template "pager" .Pager}}
 </section>
 {{end}}
 

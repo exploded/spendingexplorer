@@ -64,6 +64,21 @@
 {{end}}
 {{end}}
 
+{{define "pagelink"}}<a href="{{.URL}}" rel="{{.Rel}}" hx-get="{{.URL}}" hx-target="#{{.Target}}" hx-select="#{{.Target}}" hx-swap="outerHTML show:#{{.Target}}:top" hx-push-url="true">{{.Label}}</a>{{end}}
+
+{{/* pager follows a list that a pager splits into pages: where this page
+   sits in the list, links to its neighbours, and the whole list as CSV. */}}
+{{define "pager"}}{{if .Total}}
+<p class="pager small">
+  {{if gt .Pages 1}}<span class="muted">Showing {{count .First}}–{{count .Last}} of {{count .Total}}.</span>
+  {{if .HasPrev}}{{template "pagelink" (dict "URL" .Prev "Rel" "prev" "Target" .Target "Label" "← Previous")}}{{end}}
+  <span class="muted">Page {{.Page}} of {{.Pages}}</span>
+  {{if .HasNext}}{{template "pagelink" (dict "URL" .Next "Rel" "next" "Target" .Target "Label" "Next →")}}{{end}}
+  {{end}}
+  <a class="pager-csv" href="{{.CSV}}" download>Download {{if gt .Pages 1}}all {{count .Total}}{{else}}this list{{end}} as CSV</a>
+</p>
+{{end}}{{end}}
+
 {{define "sortlink"}}<a href="?sort={{.Key}}" class="{{if eq .Key .Cur}}active{{end}}" hx-get="?sort={{.Key}}" hx-target="#breakdown" hx-select="#breakdown" hx-swap="outerHTML" hx-push-url="true">{{.Label}}</a>{{end}}
 
 {{define "table"}}

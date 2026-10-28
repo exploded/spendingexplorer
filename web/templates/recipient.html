@@ -30,8 +30,9 @@
 </table>
 </div>
 
+<section id="awards">
 <h2>Awards</h2>
-<p class="muted">Largest first{{if gt .Totals.Awards (len .Awards)}}, showing {{len .Awards}} of {{count .Totals.Awards}}{{end}}.</p>
+<p class="muted">Largest first.</p>
 <div class="scroll">
 <table class="data">
   <thead><tr><th scope="col">Activity</th><th scope="col">Agency</th><th scope="col">Category</th><th scope="col">Round</th><th scope="col">Published</th><th scope="col">Term</th><th scope="col" class="num">Value</th></tr></thead>
@@ -50,6 +51,8 @@
   </tbody>
 </table>
 </div>
+{{template "pager" .Pager}}
+</section>
 
 <p class="muted small">These records are as published by the agencies on <a href="https://www.grants.gov.au/Ga/List">GrantConnect</a>, where each award can be found by its ID. If something here is wrong, the agency that published the award can correct it, and we will pick up the correction at the next load. <a href="https://github.com/exploded/spendingexplorer/issues">Report a problem with this page</a>.</p>
 {{end}}

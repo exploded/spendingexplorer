@@ -34,8 +34,9 @@
 </table>
 </div>
 
+<section id="contracts">
 <h2>Contracts</h2>
-<p class="muted">Largest first{{if gt .Totals.Contracts 100}}, showing 100 of {{.Totals.Contracts}}{{end}}.</p>
+<p class="muted">Largest first.</p>
 <div class="scroll">
 <table class="data">
   <thead><tr><th scope="col">Contract</th><th scope="col">Agency</th><th scope="col">Method</th><th scope="col">Published</th><th scope="col">Term</th><th scope="col" class="num">Value</th></tr></thead>
@@ -53,6 +54,8 @@
   </tbody>
 </table>
 </div>
+{{template "pager" .Pager}}
+</section>
 
 <p class="muted small" id="corrections">These records are as published by the agencies on AusTender. If something here is wrong, the agency that published the notice can correct it, and we will pick up the correction at the next load. <a href="https://github.com/exploded/spendingexplorer/issues">Report a problem with this page</a>.</p>
 {{end}}

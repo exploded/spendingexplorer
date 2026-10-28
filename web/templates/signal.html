@@ -50,8 +50,9 @@
 {{end}}
 
 {{if eq .Rule.Group "supplier"}}
+<section id="groups">
 <h2>By supplier and year</h2>
-<p class="muted">Each row is one agency’s contracts with one supplier in one financial year, most contracts first{{if eq (len .Groups) 100}}; showing the first 100{{end}}. Suppliers who are individuals are counted in the totals but not listed (<a href="/methodology#individuals">why</a>).</p>
+<p class="muted">Each row is one agency’s contracts with one supplier in one financial year, most contracts first. Suppliers who are individuals are counted in the totals but not listed (<a href="/methodology#individuals">why</a>).</p>
 <div class="scroll">
 <table class="data">
   <thead><tr><th scope="col">Supplier</th><th scope="col">Agency</th><th scope="col">Year</th><th scope="col" class="num">Contracts</th>{{if .Rule.Reasons}}<th scope="col">Most common reason</th>{{end}}<th scope="col" class="num">Amount involved</th></tr></thead>
@@ -71,11 +72,14 @@
   </tbody>
 </table>
 </div>
+{{template "pager" .GroupsPager}}
+</section>
 {{end}}
 
 {{if eq .Rule.Group "batch"}}
+<section id="batches">
 <h2>Batches</h2>
-<p class="muted">Each row is one day on which an agency published ten or more late notices, most notices first{{if eq (len .Batches) 100}}; showing the first 100{{end}}.</p>
+<p class="muted">Each row is one day on which an agency published ten or more late notices, most notices first.</p>
 <div class="scroll">
 <table class="data">
   <thead><tr><th scope="col">Agency</th><th scope="col">Published</th><th scope="col" class="num">Notices</th><th scope="col">Earliest start</th><th scope="col" class="num">Value</th></tr></thead>
@@ -94,11 +98,14 @@
   </tbody>
 </table>
 </div>
+{{template "pager" .GroupsPager}}
+</section>
 {{end}}
 
 {{if or (not .Rule.Group) .Entity}}
+<section id="contracts">
 <h2>Contracts</h2>
-<p class="muted">Contracts published in {{.Period.Prev}} and {{.Period.FY}} to date, largest amount first{{if eq (len .Contracts) 100}}; showing the first 100{{end}}. Contracts with suppliers who are individuals are counted in the totals but not listed (<a href="/methodology#individuals">why</a>).</p>
+<p class="muted">Contracts published in {{.Period.Prev}} and {{.Period.FY}} to date, largest amount first. Contracts with suppliers who are individuals are counted in the totals but not listed (<a href="/methodology#individuals">why</a>).</p>
 <div class="scroll">
 <table class="data">
   <thead><tr><th scope="col">Contract</th><th scope="col">Agency</th><th scope="col">Published</th><th scope="col">Detail</th><th scope="col" class="num">Amount involved</th></tr></thead>
@@ -117,5 +124,7 @@
   </tbody>
 </table>
 </div>
+{{template "pager" .ContractsPager}}
+</section>
 {{end}}
 {{end}}

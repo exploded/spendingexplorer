@@ -51,8 +51,11 @@ func recipientURL(key string) string {
 	return "/recipient/" + url.PathEscape(grantconnect.RecipientSlug(key))
 }
 
-// recipientAwardLimit is how many awards a recipient page lists.
+// recipientAwardLimit is how many awards a page of a recipient's awards lists.
 const recipientAwardLimit = 100
+
+// roundPageSize is how many recipients a page of a grant round lists.
+const roundPageSize = 50
 
 type recipientPage struct {
 	Period   period
@@ -62,6 +65,7 @@ type recipientPage struct {
 	Year     db.RecipientYearRow
 	Agencies []db.RecipientAgenciesRow
 	Awards   []db.RecipientAwardsRow
+	Pager    pager
 	Supplier *db.RecipientSupplierRow // matched by name, if any
 }
 
@@ -98,7 +102,13 @@ func (h *Handler) recipient(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
-	if page.Awards, err = h.q.RecipientAwards(ctx, db.RecipientAwardsParams{RecipientKey: key, Limit: recipientAwardLimit}); err != nil {
+	var ok bool
+	if page.Pager, ok = newPager(r, recipientAwardLimit, page.Totals.Awards, recipientURL(key)+"/awards.csv", "awards"); !ok {
+		http.NotFound(w, r)
+		return
+	}
+	if page.Awards, err = h.q.RecipientAwards(ctx, db.RecipientAwardsParams{RecipientKey: key,
+		Limit: page.Pager.Lim(), Offset: page.Pager.Off()}); err != nil {
 		h.fail(w, err)
 		return
 	}
@@ -123,6 +133,7 @@ type roundPage struct {
 	Activities []db.RoundActivitiesRow // most common first
 	Agencies   []db.RoundAgenciesRow
 	Recipients []db.RoundRecipientsRow
+	Pager      pager
 }
 
 func (h *Handler) round(w http.ResponseWriter, r *http.Request) {
@@ -158,7 +169,12 @@ func (h *Handler) round(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
-	if page.Recipients, err = h.q.RoundRecipients(ctx, db.RoundRecipientsParams{GoID: goID, Lim: 50}); err != nil {
+	var ok bool
+	if page.Pager, ok = newPager(r, roundPageSize, page.Totals.ListedRecipients, "/grants/round/"+goID+"/recipients.csv", "recipients"); !ok {
+		http.NotFound(w, r)
+		return
+	}
+	if page.Recipients, err = h.q.RoundRecipients(ctx, db.RoundRecipientsParams{GoID: goID, Lim: page.Pager.Lim(), Off: page.Pager.Off()}); err != nil {
 		h.fail(w, err)
 		return
 	}

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -12,8 +13,12 @@ import (
 	"spendingexplorer/internal/explore"
 )
 
-// rankLimit is how many rows the supplier ranking lists.
+// rankLimit is how many rows a page of the supplier ranking lists.
 const rankLimit = 100
+
+// contractPageSize is how many contracts a page of a supplier's or group's
+// contracts lists.
+const contractPageSize = 100
 
 // rankRow is one row of the supplier ranking: a supplier, or a corporate
 // group when IsGroup is set.
@@ -36,6 +41,7 @@ type suppliersPage struct {
 	Total    db.ContractCoverageTotalRow
 	Groups   db.SupplierGroupStatsRow
 	Rows     []rankRow
+	Pager    pager
 	Query    string
 	Searched bool
 	Results  []db.SearchSuppliersRow
@@ -72,31 +78,48 @@ func (h *Handler) suppliers(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	var ranked int64
 	if page.Grouped {
-		rows, err := h.q.TopSupplierGroups(ctx, db.TopSupplierGroupsParams{Fy: p.FY, Lim: rankLimit})
-		if err != nil {
-			h.fail(w, err)
-			return
-		}
-		for _, s := range rows {
-			page.Rows = append(page.Rows, rankRow{ID: s.ID, IsGroup: s.IsGroup == 1, Name: s.Name, NameBasis: s.NameBasis, Suppliers: s.Suppliers,
-				Contracts: s.Contracts, Amount: s.Amount, LimitedAmount: s.LimitedAmount, Entities: s.Entities})
-		}
+		ranked, err = h.q.TopSupplierGroupCount(ctx, p.FY)
 	} else {
-		rows, err := h.q.TopSuppliers(ctx, db.TopSuppliersParams{Fy: p.FY, Lim: rankLimit})
-		if err != nil {
-			h.fail(w, err)
-			return
-		}
-		for _, s := range rows {
-			page.Rows = append(page.Rows, rankRow{ID: s.ID, Name: s.Name, Suppliers: 1,
-				Contracts: s.Contracts, Amount: s.Amount, LimitedAmount: s.LimitedAmount, Entities: s.Entities})
-		}
+		ranked, err = h.q.TopSupplierCount(ctx, p.FY)
+	}
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	var ok bool
+	if page.Pager, ok = newPager(r, rankLimit, ranked, csvURL(r, "/suppliers.csv"), "ranking"); !ok {
+		http.NotFound(w, r)
+		return
+	}
+	if page.Rows, err = h.ranking(ctx, p.FY, page.Grouped, page.Pager.Lim(), page.Pager.Off()); err != nil {
+		h.fail(w, err)
+		return
 	}
 	for i := range page.Rows {
 		page.Rows[i].Share = explore.Share(page.Rows[i].Amount, page.Total.Amount)
 	}
 	h.render(w, "suppliers.html", page)
+}
+
+// ranking is the supplier ranking for a year, by corporate group or by ABN.
+func (h *Handler) ranking(ctx context.Context, fy string, grouped bool, lim, off int64) ([]rankRow, error) {
+	var out []rankRow
+	if grouped {
+		rows, err := h.q.TopSupplierGroups(ctx, db.TopSupplierGroupsParams{Fy: fy, Lim: lim, Off: off})
+		for _, s := range rows {
+			out = append(out, rankRow{ID: s.ID, IsGroup: s.IsGroup == 1, Name: s.Name, NameBasis: s.NameBasis, Suppliers: s.Suppliers,
+				Contracts: s.Contracts, Amount: s.Amount, LimitedAmount: s.LimitedAmount, Entities: s.Entities})
+		}
+		return out, err
+	}
+	rows, err := h.q.TopSuppliers(ctx, db.TopSuppliersParams{Fy: fy, Lim: lim, Off: off})
+	for _, s := range rows {
+		out = append(out, rankRow{ID: s.ID, Name: s.Name, Suppliers: 1,
+			Contracts: s.Contracts, Amount: s.Amount, LimitedAmount: s.LimitedAmount, Entities: s.Entities})
+	}
+	return out, err
 }
 
 // searchSuppliers matches a name fragment, or an ABN typed with or without
@@ -118,6 +141,7 @@ type groupPage struct {
 	Year      db.GroupYearRow // value falling in the budget year, as ranked
 	Agencies  []db.GroupAgenciesRow
 	Contracts []db.GroupContractsRow
+	Pager     pager
 	Crumbs    []crumb
 }
 
@@ -163,7 +187,12 @@ func (h *Handler) supplierGroup(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
-	if page.Contracts, err = h.q.GroupContracts(ctx, db.GroupContractsParams{GroupID: id, Lim: 100}); err != nil {
+	var ok bool
+	if page.Pager, ok = newPager(r, contractPageSize, page.Totals.Contracts, "/group/"+strconv.FormatInt(id, 10)+"/contracts.csv", "contracts"); !ok {
+		http.NotFound(w, r)
+		return
+	}
+	if page.Contracts, err = h.q.GroupContracts(ctx, db.GroupContractsParams{GroupID: id, Lim: page.Pager.Lim(), Off: page.Pager.Off()}); err != nil {
 		h.fail(w, err)
 		return
 	}

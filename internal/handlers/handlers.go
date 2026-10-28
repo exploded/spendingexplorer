@@ -127,13 +127,21 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /entity/{id}", h.entity)
 	mux.HandleFunc("GET /program/{id}", h.program)
 	mux.HandleFunc("GET /suppliers", h.suppliers)
+	mux.HandleFunc("GET /suppliers.csv", h.suppliersCSV)
 	mux.HandleFunc("GET /supplier/{id}", h.supplier)
+	mux.HandleFunc("GET /supplier/{id}/contracts.csv", h.supplierContractsCSV)
 	mux.HandleFunc("GET /group/{id}", h.supplierGroup)
+	mux.HandleFunc("GET /group/{id}/contracts.csv", h.groupContractsCSV)
 	mux.HandleFunc("GET /contract/{cn}", h.contract)
 	mux.HandleFunc("GET /recipient/{key}", h.recipient)
+	mux.HandleFunc("GET /recipient/{key}/awards.csv", h.recipientAwardsCSV)
 	mux.HandleFunc("GET /grants/round/{go}", h.round)
+	mux.HandleFunc("GET /grants/round/{go}/recipients.csv", h.roundRecipientsCSV)
 	mux.HandleFunc("GET /signals", h.signalsIndex)
 	mux.HandleFunc("GET /signals/{rule}", h.signalRule)
+	mux.HandleFunc("GET /signals/{rule}/contracts.csv", h.signalContractsCSV)
+	mux.HandleFunc("GET /signals/{rule}/groups.csv", h.signalGroupsCSV)
+	mux.HandleFunc("GET /signals/{rule}/batches.csv", h.signalBatchesCSV)
 	mux.HandleFunc("GET /investments", h.investments)
 	mux.HandleFunc("GET /projects", h.projectsIndex)
 	mux.HandleFunc("GET /projects/{key}", h.project)
@@ -153,7 +161,8 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 
 // robotsTxt welcomes crawlers but keeps them off search results and the
 // re-sorted copies of each breakdown, which add requests and no new pages,
-// and off the large downloads, which the /data page describes.
+// and off the downloads: the large ones the /data page describes, and each
+// list's CSV.
 // The rate limit in front of the app is what actually protects it.
 const robotsTxt = `# Crawlers are welcome. Each client may make about 4 requests a second;
 # faster than that gets 429 Too Many Requests with Retry-After.
@@ -163,6 +172,7 @@ Crawl-delay: 1
 Disallow: /search
 Disallow: /*?sort=
 Disallow: /data/
+Disallow: /*.csv
 `
 
 // period is the publication and years every page reports on.

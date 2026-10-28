@@ -2248,12 +2248,13 @@ FROM contract c
 JOIN agency a ON a.id = c.agency_id
 JOIN supplier s ON s.id = c.supplier_id
 WHERE c.supplier_id IN (SELECT supplier_id FROM supplier_group_member WHERE group_id = ?1)
-ORDER BY c.value DESC
-LIMIT ?2
+ORDER BY c.value DESC, c.cn_id
+LIMIT ?3 OFFSET ?2
 `
 
 type GroupContractsParams struct {
 	GroupID int64
+	Off     int64
 	Lim     int64
 }
 
@@ -2273,7 +2274,7 @@ type GroupContractsRow struct {
 }
 
 func (q *Queries) GroupContracts(ctx context.Context, arg GroupContractsParams) ([]GroupContractsRow, error) {
-	rows, err := q.db.QueryContext(ctx, groupContracts, arg.GroupID, arg.Lim)
+	rows, err := q.db.QueryContext(ctx, groupContracts, arg.GroupID, arg.Off, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
@@ -4238,13 +4239,14 @@ const recipientAwards = `-- name: RecipientAwards :many
 SELECT ga_id, version_id, recipient, activity, agency_name, CAST(COALESCE(entity_id, 0) AS INTEGER) AS entity_id,
   publish_date, category, start_date, end_date, value, go_id
 FROM grant_award WHERE recipient_key = ?
-ORDER BY value DESC, publish_date DESC
-LIMIT ?
+ORDER BY value DESC, publish_date DESC, ga_id
+LIMIT ? OFFSET ?
 `
 
 type RecipientAwardsParams struct {
 	RecipientKey string
 	Limit        int64
+	Offset       int64
 }
 
 type RecipientAwardsRow struct {
@@ -4263,7 +4265,7 @@ type RecipientAwardsRow struct {
 }
 
 func (q *Queries) RecipientAwards(ctx context.Context, arg RecipientAwardsParams) ([]RecipientAwardsRow, error) {
-	rows, err := q.db.QueryContext(ctx, recipientAwards, arg.RecipientKey, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, recipientAwards, arg.RecipientKey, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -4495,12 +4497,13 @@ SELECT recipient_key, CAST(MAX(recipient) AS TEXT) AS recipient,
 FROM grant_award
 WHERE go_id = ?1 AND individual = 0 AND unnamed = 0
 GROUP BY recipient_key
-ORDER BY value DESC
-LIMIT ?2
+ORDER BY value DESC, recipient_key
+LIMIT ?3 OFFSET ?2
 `
 
 type RoundRecipientsParams struct {
 	GoID string
+	Off  int64
 	Lim  int64
 }
 
@@ -4514,7 +4517,7 @@ type RoundRecipientsRow struct {
 // As in the rankings, recipients whose names read as a person's and awards
 // with no named recipient are left out.
 func (q *Queries) RoundRecipients(ctx context.Context, arg RoundRecipientsParams) ([]RoundRecipientsRow, error) {
-	rows, err := q.db.QueryContext(ctx, roundRecipients, arg.GoID, arg.Lim)
+	rows, err := q.db.QueryContext(ctx, roundRecipients, arg.GoID, arg.Off, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
@@ -4545,6 +4548,7 @@ const roundTotals = `-- name: RoundTotals :one
 SELECT CAST(COUNT(*) AS INTEGER) AS awards,
   CAST(COALESCE(SUM(value), 0) AS INTEGER) AS value,
   CAST(COUNT(DISTINCT CASE WHEN unnamed = 0 THEN recipient_key END) AS INTEGER) AS recipients,
+  CAST(COUNT(DISTINCT CASE WHEN unnamed = 0 AND individual = 0 THEN recipient_key END) AS INTEGER) AS listed_recipients,
   CAST(COALESCE(MIN(publish_date), '') AS TEXT) AS first_published,
   CAST(COALESCE(MAX(publish_date), '') AS TEXT) AS last_published,
   CAST(COALESCE(SUM(CASE WHEN individual = 1 OR unnamed = 1 THEN value END), 0) AS INTEGER) AS unlisted_value
@@ -4552,15 +4556,17 @@ FROM grant_award WHERE go_id = ?
 `
 
 type RoundTotalsRow struct {
-	Awards         int64
-	Value          int64
-	Recipients     int64
-	FirstPublished string
-	LastPublished  string
-	UnlistedValue  int64
+	Awards           int64
+	Value            int64
+	Recipients       int64
+	ListedRecipients int64
+	FirstPublished   string
+	LastPublished    string
+	UnlistedValue    int64
 }
 
-// One grant opportunity (round). recipients counts named recipients.
+// One grant opportunity (round). recipients counts named recipients;
+// listed_recipients leaves out individuals, as RoundRecipients does.
 func (q *Queries) RoundTotals(ctx context.Context, goID string) (RoundTotalsRow, error) {
 	row := q.db.QueryRowContext(ctx, roundTotals, goID)
 	var i RoundTotalsRow
@@ -4568,6 +4574,7 @@ func (q *Queries) RoundTotals(ctx context.Context, goID string) (RoundTotalsRow,
 		&i.Awards,
 		&i.Value,
 		&i.Recipients,
+		&i.ListedRecipients,
 		&i.FirstPublished,
 		&i.LastPublished,
 		&i.UnlistedValue,
@@ -4599,6 +4606,31 @@ func (q *Queries) RoundYear(ctx context.Context, arg RoundYearParams) (RoundYear
 	return i, err
 }
 
+const ruleBatchCount = `-- name: RuleBatchCount :one
+SELECT CAST(COUNT(*) AS INTEGER) FROM (
+  SELECT 1 FROM signal s
+  JOIN contract c ON c.cn_id = s.cn_id
+  JOIN agency a ON a.id = s.agency_id
+  WHERE s.rule_id = 'late-batch' AND s.fiscal_year IN (?1, ?2)
+    AND (?3 = 0 OR a.entity_id = ?3)
+  GROUP BY a.name, a.entity_id, c.published_date
+)
+`
+
+type RuleBatchCountParams struct {
+	Fy       string
+	PrevFy   string
+	EntityID interface{}
+}
+
+// The rows RuleBatches lists, without the limit.
+func (q *Queries) RuleBatchCount(ctx context.Context, arg RuleBatchCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, ruleBatchCount, arg.Fy, arg.PrevFy, arg.EntityID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const ruleBatches = `-- name: RuleBatches :many
 SELECT a.name AS agency, a.entity_id, c.published_date,
   CAST(COUNT(*) AS INTEGER) AS notices, CAST(SUM(s.amount) AS INTEGER) AS amount,
@@ -4609,14 +4641,16 @@ JOIN agency a ON a.id = s.agency_id
 WHERE s.rule_id = 'late-batch' AND s.fiscal_year IN (?1, ?2)
   AND (?3 = 0 OR a.entity_id = ?3)
 GROUP BY a.name, a.entity_id, c.published_date
-ORDER BY notices DESC, amount DESC
-LIMIT 100
+ORDER BY notices DESC, amount DESC, a.name, c.published_date
+LIMIT ?5 OFFSET ?4
 `
 
 type RuleBatchesParams struct {
 	Fy       string
 	PrevFy   string
 	EntityID interface{}
+	Off      int64
+	Lim      int64
 }
 
 type RuleBatchesRow struct {
@@ -4630,7 +4664,13 @@ type RuleBatchesRow struct {
 
 // Late-publication batches: one row per agency and publication day.
 func (q *Queries) RuleBatches(ctx context.Context, arg RuleBatchesParams) ([]RuleBatchesRow, error) {
-	rows, err := q.db.QueryContext(ctx, ruleBatches, arg.Fy, arg.PrevFy, arg.EntityID)
+	rows, err := q.db.QueryContext(ctx, ruleBatches,
+		arg.Fy,
+		arg.PrevFy,
+		arg.EntityID,
+		arg.Off,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -4659,6 +4699,35 @@ func (q *Queries) RuleBatches(ctx context.Context, arg RuleBatchesParams) ([]Rul
 	return items, nil
 }
 
+const ruleContractCount = `-- name: RuleContractCount :one
+SELECT CAST(COUNT(*) AS INTEGER) FROM signal s
+JOIN contract c ON c.cn_id = s.cn_id
+JOIN agency a ON a.id = s.agency_id
+WHERE s.rule_id = ?1 AND s.fiscal_year IN (?2, ?3)
+  AND (?4 = 0 OR a.entity_id = ?4)
+  AND (s.supplier_id IS NULL OR s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual))
+`
+
+type RuleContractCountParams struct {
+	RuleID   string
+	Fy       string
+	PrevFy   string
+	EntityID interface{}
+}
+
+// The rows RuleContracts lists, without the limit.
+func (q *Queries) RuleContractCount(ctx context.Context, arg RuleContractCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, ruleContractCount,
+		arg.RuleID,
+		arg.Fy,
+		arg.PrevFy,
+		arg.EntityID,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const ruleContracts = `-- name: RuleContracts :many
 SELECT s.cn_id, s.amount, s.measure, s.fiscal_year, c.description, c.value, c.original_value,
   c.published_date, c.start_date, a.name AS agency, a.entity_id
@@ -4668,8 +4737,8 @@ JOIN agency a ON a.id = s.agency_id
 WHERE s.rule_id = ?1 AND s.fiscal_year IN (?2, ?3)
   AND (?4 = 0 OR a.entity_id = ?4)
   AND (s.supplier_id IS NULL OR s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual))
-ORDER BY s.amount DESC
-LIMIT 100
+ORDER BY s.amount DESC, s.cn_id
+LIMIT ?6 OFFSET ?5
 `
 
 type RuleContractsParams struct {
@@ -4677,6 +4746,8 @@ type RuleContractsParams struct {
 	Fy       string
 	PrevFy   string
 	EntityID interface{}
+	Off      int64
+	Lim      int64
 }
 
 type RuleContractsRow struct {
@@ -4701,6 +4772,8 @@ func (q *Queries) RuleContracts(ctx context.Context, arg RuleContractsParams) ([
 		arg.Fy,
 		arg.PrevFy,
 		arg.EntityID,
+		arg.Off,
+		arg.Lim,
 	)
 	if err != nil {
 		return nil, err
@@ -4907,6 +4980,39 @@ func (q *Queries) RuleReasons(ctx context.Context, arg RuleReasonsParams) ([]Rul
 	return items, nil
 }
 
+const ruleSupplierGroupCount = `-- name: RuleSupplierGroupCount :one
+SELECT CAST(COUNT(*) AS INTEGER) FROM (
+  SELECT 1 FROM signal s
+  JOIN contract c ON c.cn_id = s.cn_id
+  JOIN agency a ON a.id = s.agency_id
+  JOIN supplier sp ON sp.id = s.supplier_id
+  WHERE s.rule_id = ?1 AND s.fiscal_year IN (?2, ?3)
+    AND (?4 = 0 OR a.entity_id = ?4)
+    AND s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual)
+  GROUP BY s.agency_id, s.supplier_id, s.fiscal_year
+)
+`
+
+type RuleSupplierGroupCountParams struct {
+	RuleID   string
+	Fy       string
+	PrevFy   string
+	EntityID interface{}
+}
+
+// The rows RuleSupplierGroups lists, without the limit.
+func (q *Queries) RuleSupplierGroupCount(ctx context.Context, arg RuleSupplierGroupCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, ruleSupplierGroupCount,
+		arg.RuleID,
+		arg.Fy,
+		arg.PrevFy,
+		arg.EntityID,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const ruleSupplierGroups = `-- name: RuleSupplierGroups :many
 SELECT a.name AS agency, a.entity_id, sp.id AS supplier_id, sp.name AS supplier, s.fiscal_year,
   CAST(COUNT(*) AS INTEGER) AS contracts, CAST(SUM(s.amount) AS INTEGER) AS amount,
@@ -4923,8 +5029,8 @@ WHERE s.rule_id = ?1 AND s.fiscal_year IN (?2, ?3)
   AND (?4 = 0 OR a.entity_id = ?4)
   AND s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual)
 GROUP BY s.rule_id, s.agency_id, s.supplier_id, s.fiscal_year, a.name, a.entity_id, sp.id, sp.name
-ORDER BY contracts DESC, amount DESC
-LIMIT 100
+ORDER BY contracts DESC, amount DESC, s.agency_id, s.supplier_id, s.fiscal_year
+LIMIT ?6 OFFSET ?5
 `
 
 type RuleSupplierGroupsParams struct {
@@ -4932,6 +5038,8 @@ type RuleSupplierGroupsParams struct {
 	Fy       string
 	PrevFy   string
 	EntityID interface{}
+	Off      int64
+	Lim      int64
 }
 
 type RuleSupplierGroupsRow struct {
@@ -4955,6 +5063,8 @@ func (q *Queries) RuleSupplierGroups(ctx context.Context, arg RuleSupplierGroups
 		arg.Fy,
 		arg.PrevFy,
 		arg.EntityID,
+		arg.Off,
+		arg.Lim,
 	)
 	if err != nil {
 		return nil, err
@@ -6163,13 +6273,14 @@ SELECT c.cn_id, c.description, c.method, c.start_date, c.end_date, c.published_d
   c.original_value, c.amendment_count, a.name AS agency
 FROM contract c JOIN agency a ON a.id = c.agency_id
 WHERE c.supplier_id = ?
-ORDER BY c.value DESC
-LIMIT ?
+ORDER BY c.value DESC, c.cn_id
+LIMIT ? OFFSET ?
 `
 
 type SupplierContractsParams struct {
 	SupplierID sql.NullInt64
 	Limit      int64
+	Offset     int64
 }
 
 type SupplierContractsRow struct {
@@ -6186,7 +6297,7 @@ type SupplierContractsRow struct {
 }
 
 func (q *Queries) SupplierContracts(ctx context.Context, arg SupplierContractsParams) ([]SupplierContractsRow, error) {
-	rows, err := q.db.QueryContext(ctx, supplierContracts, arg.SupplierID, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, supplierContracts, arg.SupplierID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -6619,6 +6730,43 @@ func (q *Queries) SuppliersWithoutABR(ctx context.Context) ([]SuppliersWithoutAB
 	return items, nil
 }
 
+const topSupplierCount = `-- name: TopSupplierCount :one
+SELECT CAST(COUNT(DISTINCT s.id) AS INTEGER)
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN supplier s ON s.id = c.supplier_id
+WHERE cf.fiscal_year = ?1 AND a.entity_id IS NOT NULL
+  AND s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+`
+
+// The rows TopSuppliers lists, without the limit.
+func (q *Queries) TopSupplierCount(ctx context.Context, fy string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, topSupplierCount, fy)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const topSupplierGroupCount = `-- name: TopSupplierGroupCount :one
+SELECT CAST(COUNT(DISTINCT COALESCE(m.group_id, -s.id)) AS INTEGER)
+FROM contract_fy cf
+JOIN contract c ON c.cn_id = cf.cn_id
+JOIN agency a ON a.id = c.agency_id
+JOIN supplier s ON s.id = c.supplier_id
+LEFT JOIN supplier_group_member m ON m.supplier_id = s.id
+WHERE cf.fiscal_year = ?1 AND a.entity_id IS NOT NULL
+  AND s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+`
+
+// The rows TopSupplierGroups lists, without the limit.
+func (q *Queries) TopSupplierGroupCount(ctx context.Context, fy string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, topSupplierGroupCount, fy)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const topSupplierGroups = `-- name: TopSupplierGroups :many
 SELECT CAST(COALESCE(m.group_id, s.id) AS INTEGER) AS id,
   CAST(m.group_id IS NOT NULL AS INTEGER) AS is_group,
@@ -6639,12 +6787,13 @@ LEFT JOIN supplier_group g ON g.id = m.group_id
 WHERE cf.fiscal_year = ?1 AND a.entity_id IS NOT NULL
   AND s.id NOT IN (SELECT supplier_id FROM supplier_individual)
 GROUP BY COALESCE(m.group_id, -s.id)
-ORDER BY amount DESC
-LIMIT ?2
+ORDER BY amount DESC, COALESCE(m.group_id, -s.id)
+LIMIT ?3 OFFSET ?2
 `
 
 type TopSupplierGroupsParams struct {
 	Fy  string
+	Off int64
 	Lim int64
 }
 
@@ -6665,7 +6814,7 @@ type TopSupplierGroupsRow struct {
 // counts every member of the group, as its page lists them, not only those
 // with contract value in the year.
 func (q *Queries) TopSupplierGroups(ctx context.Context, arg TopSupplierGroupsParams) ([]TopSupplierGroupsRow, error) {
-	rows, err := q.db.QueryContext(ctx, topSupplierGroups, arg.Fy, arg.Lim)
+	rows, err := q.db.QueryContext(ctx, topSupplierGroups, arg.Fy, arg.Off, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
@@ -6711,12 +6860,13 @@ JOIN supplier s ON s.id = c.supplier_id
 WHERE cf.fiscal_year = ?1 AND a.entity_id IS NOT NULL
   AND s.id NOT IN (SELECT supplier_id FROM supplier_individual)
 GROUP BY s.id, s.name
-ORDER BY amount DESC
-LIMIT ?2
+ORDER BY amount DESC, s.id
+LIMIT ?3 OFFSET ?2
 `
 
 type TopSuppliersParams struct {
 	Fy  string
+	Off int64
 	Lim int64
 }
 
@@ -6734,7 +6884,7 @@ type TopSuppliersRow struct {
 // for agencies matched to an entity. Rankings leave out suppliers who are, or
 // may be, individuals.
 func (q *Queries) TopSuppliers(ctx context.Context, arg TopSuppliersParams) ([]TopSuppliersRow, error) {
-	rows, err := q.db.QueryContext(ctx, topSuppliers, arg.Fy, arg.Lim)
+	rows, err := q.db.QueryContext(ctx, topSuppliers, arg.Fy, arg.Off, arg.Lim)
 	if err != nil {
 		return nil, err
 	}

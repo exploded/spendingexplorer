@@ -200,6 +200,8 @@ figcaption { font-size: 13px; }
 .sorts a { color: var(--ink-2); text-decoration: none; padding: 2px 0; border-bottom: 2px solid transparent; }
 .sorts a.active { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
 .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.pager { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.pager-csv { margin-left: auto; }
 /* Links in tables and lists stay plain until hovered. */
 table.data a, .strip a, .closer-list a { text-decoration: none; }
 table.data a:hover, .closer-list a:hover { text-decoration: underline; }

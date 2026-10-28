@@ -33,8 +33,9 @@
 </div>
 
 {{if .Recipients}}
-<h2>Largest recipients</h2>
-<p class="muted small">{{if .Totals.UnlistedValue}}{{money .Totals.UnlistedValue}} went to recipients who are individuals, or to awards that name no single recipient. It is counted above but not listed. {{else}}Recipients who are individuals, and awards that name no single recipient, are counted above but not listed. {{end}}<a href="/methodology#individuals">Why</a></p>
+<section id="recipients">
+<h2>Recipients, largest first</h2>
+<p class="muted small">{{if .Totals.UnlistedValue}}{{money .Totals.UnlistedValue}} went to recipients who are individuals, or to awards that name no single recipient. It is counted above but not listed, here or in the CSV. {{else}}Recipients who are individuals, and awards that name no single recipient, are counted above but not listed, here or in the CSV. {{end}}<a href="/methodology#individuals">Why</a> The <a href="/data">bulk download</a> has every award, with individuals flagged.</p>
 <div class="scroll">
 <table class="data">
   <thead><tr><th scope="col">Recipient</th><th scope="col" class="num">Awards</th><th scope="col" class="num">Total value</th></tr></thead>
@@ -45,6 +46,7 @@
   </tbody>
 </table>
 </div>
-{{if gt .Totals.Recipients (len .Recipients)}}<p class="muted small">The {{len .Recipients}} largest of {{count .Totals.Recipients}} named recipients.</p>{{end}}
+{{template "pager" .Pager}}
+</section>
 {{end}}
 {{end}}
