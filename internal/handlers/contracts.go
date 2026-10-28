@@ -27,6 +27,8 @@ type coverage struct {
 	// Bar segments, scaled so together they never pass 100%.
 	ContractShare, GrantShare float64
 	Note                      string // shown instead of the meter when coverage does not apply
+	NoNotices                 bool   // entity page: the entity publishes no AusTender notices
+	Corporate                 bool   // entity page: a corporate Commonwealth entity
 }
 
 func (h *Handler) coverageFor(ctx context.Context, contracts, grants, total int64) coverage {

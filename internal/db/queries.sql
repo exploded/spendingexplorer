@@ -1360,3 +1360,47 @@ JOIN source_document sd ON sd.id = w.source_document_id
 WHERE sd.budget_year = sqlc.arg(budget_year)
 GROUP BY w.source_document_id, w.function_name, w.parent, w.name
 ORDER BY cur DESC;
+
+-- Corporate funding and who pays it -----------------------------------------
+
+-- name: EntityFundingLines :many
+-- Funding a corporate entity receives from other Commonwealth entities in a
+-- year. It is counted where it is paid from, not at the entity.
+SELECT pe.line_item, p.portfolio, CAST(pe.amount AS INTEGER) AS amount
+FROM program_expense pe
+JOIN program p ON p.id = pe.program_id
+WHERE pe.source_document_id = sqlc.arg(doc_id) AND p.entity_id = sqlc.arg(entity_id)
+  AND pe.fiscal_year = sqlc.arg(fy) AND pe.treatment_rule = 'corporate-commonwealth-funded'
+  AND pe.amount > 0
+ORDER BY pe.amount DESC;
+
+-- name: PortfolioPayerLines :many
+-- Administered expense lines of the other entities in a portfolio, as
+-- candidates for the line that pays a corporate entity's funding.
+SELECT p.id AS program_id, p.name AS program_name, e.name AS entity_name, pe.line_item,
+  CAST(pe.amount AS INTEGER) AS amount
+FROM program_expense pe
+JOIN program p ON p.id = pe.program_id
+JOIN entity e ON e.id = p.entity_id
+WHERE pe.source_document_id = sqlc.arg(doc_id) AND p.portfolio = sqlc.arg(portfolio)
+  AND pe.fiscal_year = sqlc.arg(fy) AND p.entity_id <> sqlc.arg(entity_id)
+  AND pe.expense_kind = 'administered' AND pe.treatment = 'expense' AND pe.amount > 0;
+
+-- name: EntityCountedLines :many
+-- An entity's counted expense lines in a year, combined by line item and
+-- largest first, to say what most of its counted total is.
+SELECT pe.line_item, CAST(SUM(pe.amount) AS INTEGER) AS amount
+FROM program_expense pe
+JOIN program p ON p.id = pe.program_id
+WHERE pe.source_document_id = sqlc.arg(doc_id) AND p.entity_id = sqlc.arg(entity_id)
+  AND pe.fiscal_year = sqlc.arg(fy) AND pe.treatment = 'expense'
+GROUP BY pe.line_item
+ORDER BY amount DESC
+LIMIT 1;
+
+-- name: EntityContractNotices :one
+-- Contract notices an entity has published on AusTender, in any year loaded.
+SELECT CAST(COUNT(*) AS INTEGER) AS notices
+FROM contract c
+JOIN agency a ON a.id = c.agency_id
+WHERE a.entity_id = ?;

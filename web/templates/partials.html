@@ -25,6 +25,7 @@
   <div class="meter meter-split" aria-hidden="true"><span style="width:{{pctCSS .ContractShare}}"></span><span class="seg-grants" style="width:{{pctCSS .GrantShare}}"></span></div>
   <p><strong>{{money .Amount}}</strong> falls in {{$.Period.FY}}, equal to {{f1 .Share}}% of this total: <i class="sw sw-contracts"></i>{{money .Contracts}} in contracts and <i class="sw sw-grants"></i>{{money .Grants}} in grants. <a class="badge badge-estimate" href="/methodology#annualised">estimate: annualised</a></p>
   <p class="muted small">From AusTender contract notices and GrantConnect grant awards published since {{.Since}}. Each contract’s or grant’s value is spread evenly from its start to end date. These values are commitments, not payments, and records published before {{.Since}} are not included yet.</p>
+  {{if .NoNotices}}<p class="note">This entity has published no contract notices on AusTender since {{.Since}}, so none of its purchasing is itemised here.{{if .Corporate}} Corporate entities publish there only if the Commonwealth Procurement Rules apply to them.{{end}}</p>{{end}}
   {{else}}
   <div class="meter" aria-hidden="true"><span style="width:0%"></span></div>
   <p class="muted">Not yet loaded. Contract (AusTender) and grant (GrantConnect) records will show here, with the share of this total they account for.</p>

@@ -82,3 +82,37 @@ func TestEstimateType(t *testing.T) {
 		}
 	}
 }
+
+func TestMatchPayers(t *testing.T) {
+	health := []PayerLine{
+		{"Ordinary annual services", 40_096_100_000},
+		{"Payments to corporate entities", 2_251_100_000},
+		{"Special appropriations", 5_000_000},
+	}
+	cases := []struct {
+		name    string
+		entity  string
+		funding []int64
+		lines   []PayerLine
+		want    []int
+	}{
+		// NDIA 2026-27: the $40bn unnamed line matches by size, $2.25bn by "corporate".
+		{"large and corporate", "National Disability Insurance Agency", []int64{40_095_300_000, 2_251_100_000}, health, []int{0, 1}},
+		// NDIA 2025-26 PBS: the two figures differ by $3.7m in rounding.
+		{"rounding", "National Disability Insurance Agency", []int64{36_742_500_000}, []PayerLine{{"Ordinary annual services", 36_746_200_000}}, []int{0}},
+		{"named", "Australian Human Rights Commission", []int64{27_900_000}, []PayerLine{{"Australian Human Rights Commission", 27_900_000}}, []int{0}},
+		{"small unnamed line is a coincidence", "Clean Energy Finance Corporation", []int64{5_000_000}, []PayerLine{{"Antarctic Science Collaboration Initiative", 5_000_000}}, []int{-1}},
+		{"two candidates", "Comcare", []int64{6_300_000}, []PayerLine{{"Payments to corporate entities", 6_300_000}, {"Payments to corporate entities", 6_300_000}}, []int{-1}},
+		{"each line pays once", "Australian National Maritime Museum", []int64{26_500_000, 26_500_000}, []PayerLine{{"Payments to corporate entities", 26_500_000}}, []int{0, -1}},
+		{"outside tolerance", "Tourism Australia", []int64{140_800_000}, []PayerLine{{"Payments to corporate entities", 141_000_000}}, []int{-1}},
+	}
+	for _, c := range cases {
+		got := MatchPayers(c.entity, c.funding, c.lines)
+		for i := range c.want {
+			if got[i] != c.want[i] {
+				t.Errorf("%s: MatchPayers = %v, want %v", c.name, got, c.want)
+				break
+			}
+		}
+	}
+}

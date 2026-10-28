@@ -7,6 +7,10 @@
 {{with .OtherNames}}<p class="muted small">Also appears in the PBS or AusTender as {{range $i, $n := .}}{{if $i}}; {{end}}“{{$n}}”{{end}}. <a href="/methodology#names">How names are matched</a>.</p>{{end}}
 {{template "hero" .}}
 
+{{with .Funding}}
+<p class="note">In all, this entity expects to spend {{money .Gross}} in {{$.Period.FY}}. Of that, {{money .Funded}} is paid to it by other Commonwealth entities and is counted where it is paid from{{if .Payers}}: {{range $i, $p := .Payers}}{{if $i}}; {{end}}{{money .Amount}} under <a href="{{.URL}}">{{.Name}}</a>{{end}}{{end}}.{{if .Unmatched}} {{if .Payers}}The other {{money .Unmatched}}{{else}}It{{end}} could not be traced to the line that pays it; look in the <a href="{{.PortfolioURL}}">{{.Portfolio}}</a> portfolio.{{end}}{{if gt .Counted 0}} The {{money .Counted}} counted here {{with .Largest}}is mostly “{{.}}” ({{money $.Funding.LargestAmt}}){{else}}comes from other sources{{end}}.{{end}} <a href="/methodology#payer">How the payer is found</a>.</p>
+{{end}}
+
 {{if and (not .Recon) .Total.Excluded}}
 <p class="note">A further {{money .Total.Excluded}} appears in this {{lower .Level}}’s tables but is not counted here: it is counted where the money is paid from, or it is not an expense. <a href="/methodology#removed">Why</a>.</p>
 {{end}}

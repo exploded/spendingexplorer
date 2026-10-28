@@ -889,6 +889,21 @@ func (q *Queries) EntityCategoryTotals(ctx context.Context, arg EntityCategoryTo
 	return items, nil
 }
 
+const entityContractNotices = `-- name: EntityContractNotices :one
+SELECT CAST(COUNT(*) AS INTEGER) AS notices
+FROM contract c
+JOIN agency a ON a.id = c.agency_id
+WHERE a.entity_id = ?
+`
+
+// Contract notices an entity has published on AusTender, in any year loaded.
+func (q *Queries) EntityContractNotices(ctx context.Context, entityID sql.NullInt64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, entityContractNotices, entityID)
+	var notices int64
+	err := row.Scan(&notices)
+	return notices, err
+}
+
 const entityContractStats = `-- name: EntityContractStats :one
 SELECT CAST(COUNT(*) AS INTEGER) AS contracts,
   CAST(COALESCE(SUM(cf.amount), 0) AS INTEGER) AS amount,
@@ -972,6 +987,53 @@ func (q *Queries) EntityContractTotals(ctx context.Context, fiscalYear string) (
 	return items, nil
 }
 
+const entityCountedLines = `-- name: EntityCountedLines :many
+SELECT pe.line_item, CAST(SUM(pe.amount) AS INTEGER) AS amount
+FROM program_expense pe
+JOIN program p ON p.id = pe.program_id
+WHERE pe.source_document_id = ?1 AND p.entity_id = ?2
+  AND pe.fiscal_year = ?3 AND pe.treatment = 'expense'
+GROUP BY pe.line_item
+ORDER BY amount DESC
+LIMIT 1
+`
+
+type EntityCountedLinesParams struct {
+	DocID    int64
+	EntityID int64
+	Fy       string
+}
+
+type EntityCountedLinesRow struct {
+	LineItem string
+	Amount   int64
+}
+
+// An entity's counted expense lines in a year, combined by line item and
+// largest first, to say what most of its counted total is.
+func (q *Queries) EntityCountedLines(ctx context.Context, arg EntityCountedLinesParams) ([]EntityCountedLinesRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityCountedLines, arg.DocID, arg.EntityID, arg.Fy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityCountedLinesRow
+	for rows.Next() {
+		var i EntityCountedLinesRow
+		if err := rows.Scan(&i.LineItem, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const entityExpenseCeilings = `-- name: EntityExpenseCeilings :many
 SELECT y.entity_id, CAST(MAX(y.amount) AS INTEGER) AS expenses
 FROM (SELECT p.entity_id, pe.source_document_id, pe.fiscal_year, SUM(pe.amount) AS amount
@@ -997,6 +1059,55 @@ func (q *Queries) EntityExpenseCeilings(ctx context.Context) ([]EntityExpenseCei
 	for rows.Next() {
 		var i EntityExpenseCeilingsRow
 		if err := rows.Scan(&i.EntityID, &i.Expenses); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const entityFundingLines = `-- name: EntityFundingLines :many
+
+SELECT pe.line_item, p.portfolio, CAST(pe.amount AS INTEGER) AS amount
+FROM program_expense pe
+JOIN program p ON p.id = pe.program_id
+WHERE pe.source_document_id = ?1 AND p.entity_id = ?2
+  AND pe.fiscal_year = ?3 AND pe.treatment_rule = 'corporate-commonwealth-funded'
+  AND pe.amount > 0
+ORDER BY pe.amount DESC
+`
+
+type EntityFundingLinesParams struct {
+	DocID    int64
+	EntityID int64
+	Fy       string
+}
+
+type EntityFundingLinesRow struct {
+	LineItem  string
+	Portfolio string
+	Amount    int64
+}
+
+// Corporate funding and who pays it -----------------------------------------
+// Funding a corporate entity receives from other Commonwealth entities in a
+// year. It is counted where it is paid from, not at the entity.
+func (q *Queries) EntityFundingLines(ctx context.Context, arg EntityFundingLinesParams) ([]EntityFundingLinesRow, error) {
+	rows, err := q.db.QueryContext(ctx, entityFundingLines, arg.DocID, arg.EntityID, arg.Fy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EntityFundingLinesRow
+	for rows.Next() {
+		var i EntityFundingLinesRow
+		if err := rows.Scan(&i.LineItem, &i.Portfolio, &i.Amount); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3692,6 +3803,68 @@ func (q *Queries) PortfolioGrantTotals(ctx context.Context, arg PortfolioGrantTo
 	for rows.Next() {
 		var i PortfolioGrantTotalsRow
 		if err := rows.Scan(&i.Portfolio, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const portfolioPayerLines = `-- name: PortfolioPayerLines :many
+SELECT p.id AS program_id, p.name AS program_name, e.name AS entity_name, pe.line_item,
+  CAST(pe.amount AS INTEGER) AS amount
+FROM program_expense pe
+JOIN program p ON p.id = pe.program_id
+JOIN entity e ON e.id = p.entity_id
+WHERE pe.source_document_id = ?1 AND p.portfolio = ?2
+  AND pe.fiscal_year = ?3 AND p.entity_id <> ?4
+  AND pe.expense_kind = 'administered' AND pe.treatment = 'expense' AND pe.amount > 0
+`
+
+type PortfolioPayerLinesParams struct {
+	DocID     int64
+	Portfolio string
+	Fy        string
+	EntityID  int64
+}
+
+type PortfolioPayerLinesRow struct {
+	ProgramID   int64
+	ProgramName string
+	EntityName  string
+	LineItem    string
+	Amount      int64
+}
+
+// Administered expense lines of the other entities in a portfolio, as
+// candidates for the line that pays a corporate entity's funding.
+func (q *Queries) PortfolioPayerLines(ctx context.Context, arg PortfolioPayerLinesParams) ([]PortfolioPayerLinesRow, error) {
+	rows, err := q.db.QueryContext(ctx, portfolioPayerLines,
+		arg.DocID,
+		arg.Portfolio,
+		arg.Fy,
+		arg.EntityID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PortfolioPayerLinesRow
+	for rows.Next() {
+		var i PortfolioPayerLinesRow
+		if err := rows.Scan(
+			&i.ProgramID,
+			&i.ProgramName,
+			&i.EntityName,
+			&i.LineItem,
+			&i.Amount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -185,6 +185,7 @@ type nodePage struct {
 	Categories *categorySection  // entity only: AI-classified professional services
 	Grants     *grantsSection    // entity only: GrantConnect awards
 	Projects   []projectView     // home: every major project; entity: projects linked to it
+	Funding    *fundingNote      // corporate entity only: funding counted where it is paid from
 }
 
 // recon reconciles program line items to the Budget Paper 1 total.
@@ -455,8 +456,18 @@ func (h *Handler) entity(w http.ResponseWriter, r *http.Request) {
 	}
 	page.ChildLabel = "Program"
 	page.Crumbs = []crumb{{"Whole of government", "/"}, {ent.Portfolio, "/portfolio/" + url.PathEscape(ent.Portfolio)}}
+	corporate := false
 	for _, k := range kinds {
 		page.Kinds = append(page.Kinds, row{Node: explore.Node{Name: kindLabel[k.ExpenseKind], Cur: k.Cur}, Share: explore.Share(k.Cur, total.Cur)})
+		corporate = corporate || k.ExpenseKind == "corporate"
+	}
+	if page.Funding, err = h.entityFunding(ctx, p, id, ent.Name, total.Cur); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if page.Funding != nil {
+		// The funding note accounts for this part; the general note covers the rest.
+		page.Total.Excluded -= page.Funding.Funded
 	}
 	if page.Contracts, err = h.entityContracts(ctx, id, p.FY); err != nil {
 		h.fail(w, err)
@@ -490,6 +501,13 @@ func (h *Handler) entity(w http.ResponseWriter, r *http.Request) {
 		grants = page.Grants.Stats.Amount
 	}
 	page.Coverage = h.coverageFor(ctx, contracts, grants, total.Cur)
+	notices, err := h.q.EntityContractNotices(ctx, sql.NullInt64{Int64: id, Valid: true})
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	page.Coverage.NoNotices = page.Coverage.Available && notices == 0
+	page.Coverage.Corporate = corporate
 	h.render(w, "node.html", page)
 }
 
