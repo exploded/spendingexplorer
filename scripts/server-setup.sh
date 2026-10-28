@@ -120,7 +120,9 @@ cat << 'CADDY'
 spending.mchugh.au {
     import access_log
     encode zstd gzip
-    reverse_proxy 127.0.0.1:8995
+    reverse_proxy 127.0.0.1:8995 {
+        import go_proxy
+    }
 }
 
 CADDY
