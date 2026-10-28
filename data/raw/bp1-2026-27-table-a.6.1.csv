@@ -1,0 +1,65 @@
+function,parent,subfunction,2024-25 actual,2025-26,2026-27,2027-28,2028-29,2029-30
+General public services,,Legislative and executive affairs,2406,2105,1978,2119,1769,1777
+General public services,,Financial and fiscal affairs,10764,10270,10437,9740,10188,9766
+General public services,,Foreign affairs and economic aid,7488,10168,8326,9187,8947,8650
+General public services,,General research,4346,4557,4470,4326,4385,4139
+General public services,,General services,1748,1915,1379,1387,1448,1490
+General public services,,Government superannuation benefits,6136,5944,5909,6038,6174,6331
+Public order and safety,,Courts and legal services,1944,2156,2228,2050,2033,2072
+Public order and safety,,Other public order and safety,6573,7444,7481,6355,6319,6291
+Education,,Higher education,11399,12040,12657,13108,13616,14198
+Education,,Vocational and other education,2325,2749,2902,2830,2459,2121
+Education,,Schools,31071,33009,34408,35872,37471,39277
+Education,Schools,Non-government schools,19372,20568,21437,22411,23449,24544
+Education,Schools,Government schools,11699,12440,12970,13461,14023,14733
+Education,,School education - specific funding,905,945,936,867,802,740
+Education,,Student assistance,4848,15880,6095,6530,6889,7263
+Education,,General administration,354,352,351,327,315,318
+Health,,Medical services and benefits,41957,44768,47199,48101,49186,50578
+Health,,Pharmaceutical benefits and services,21414,23318,24636,24885,25310,24840
+Health,,Assistance to the states for public hospitals,30217,33925,37498,40508,43743,47205
+Health,,Hospital services,1092,1220,1559,1323,1221,1235
+Health,,Health services,31259,16796,19106,19216,18926,18701
+Health,,General administration,4946,5691,5490,5054,4977,5037
+Health,,Aboriginal and Torres Strait Islander health,1363,1297,1431,1343,1285,1320
+Social security and welfare,,Assistance to the aged,101767,109975,115601,119668,125355,130325
+Social security and welfare,,Assistance to veterans and dependants,22016,13431,11366,12374,14093,14405
+Social security and welfare,,Assistance to people with disabilities,86338,93358,98143,98768,100942,103356
+Social security and welfare,,Assistance to families with children,48193,51750,53863,55186,56979,58794
+Social security and welfare,,Assistance to the unemployed and the sick,16728,17641,18304,17864,17662,18069
+Social security and welfare,,Other welfare programs,1703,1801,1853,2198,2197,2205
+Social security and welfare,,Assistance for Indigenous Australians nec,3031,3938,3540,3446,3169,3121
+Social security and welfare,,General administration,5704,5912,6067,5655,4805,4722
+Housing and community amenities,,Housing,3297,4374,7213,5401,5176,5867
+Housing and community amenities,,Urban and regional development,2821,2056,1614,912,1193,686
+Housing and community amenities,,Environment protection,2211,2401,2627,1888,1359,1277
+Recreation and culture,,Broadcasting,1792,1857,1897,1909,1940,1971
+Recreation and culture,,Arts and cultural heritage,2531,2329,2344,2325,2278,2309
+Recreation and culture,,Sport and recreation,809,939,1229,1402,1396,1490
+Recreation and culture,,National estate and parks,834,859,821,839,845,838
+"Agriculture, forestry and fishing",,Wool industry,46,56,73,79,84,84
+"Agriculture, forestry and fishing",,Grains industry,269,329,387,394,421,423
+"Agriculture, forestry and fishing",,Dairy industry,60,59,58,57,57,57
+"Agriculture, forestry and fishing",,"Cattle, sheep and pig industry",261,314,326,311,301,289
+"Agriculture, forestry and fishing",,"Fishing, horticulture and other agriculture",521,613,551,487,401,403
+"Agriculture, forestry and fishing",,General assistance not allocated to specific industries,46,53,65,50,51,52
+"Agriculture, forestry and fishing",,Rural assistance,299,443,434,427,358,278
+"Agriculture, forestry and fishing",,Natural resources development,849,1299,1336,742,446,338
+"Agriculture, forestry and fishing",,General administration,1449,1550,1518,1485,1496,1517
+Transport and communication,,Communication,1723,1223,1268,1042,967,949
+Transport and communication,,Rail transport,4245,5031,2708,2536,2922,3922
+Transport and communication,,Air transport,412,534,426,325,350,292
+Transport and communication,,Road transport,8957,9138,9935,10525,10004,7246
+Transport and communication,,Sea transport,499,646,654,589,593,548
+Transport and communication,,Other transport and communication,407,357,348,304,282,260
+Other economic affairs,,Tourism and area promotion,196,198,189,182,179,183
+Other economic affairs,,Vocational and industry training,2113,2476,1873,1653,1681,1674
+Other economic affairs,,Labour market assistance to job seekers and industry,2268,2559,2817,2688,2720,2698
+Other economic affairs,,Industrial relations,1044,1088,1077,1065,1047,1053
+Other economic affairs,,Immigration,3758,4536,3993,3313,3246,3300
+Other economic affairs,,Other economic affairs nec,3516,3811,3825,3647,3437,3438
+Other purposes,,Public debt interest,23868,27629,31886,36921,41865,46873
+Other purposes,,Nominal superannuation interest,14250,14803,15884,16336,16708,17092
+Other purposes,,General purpose inter-government transactions,99937,107887,111062,118998,124964,130674
+Other purposes,,Natural disaster relief,7071,2936,865,631,178,129
+Other purposes,,Contingency reserve,0,-4045,3925,10552,13640,22434

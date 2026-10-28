@@ -388,3 +388,17 @@ type WogExpense struct {
 	Category         string
 	Amount           int64
 }
+
+type WogSubfunction struct {
+	ID               int64
+	SourceDocumentID int64
+	SourceTable      string
+	FiscalYear       string
+	EstimateType     string
+	FunctionName     string
+	Parent           string
+	Name             string
+	Position         int64
+	Amount           int64
+	Note             string
+}

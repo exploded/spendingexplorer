@@ -16,7 +16,8 @@ type signalRow struct {
 	Contracts int64
 	Amount    int64
 	Agencies  int64
-	Groups    int64 // grouped rules only
+	Groups    int64                // grouped rules only
+	Examples  []db.RuleExamplesRow // signals index only
 }
 
 // measureLabel states a signal's rule-specific measure in words.
@@ -89,10 +90,19 @@ func (h *Handler) signalsIndex(w http.ResponseWriter, r *http.Request) {
 	for _, g := range groups {
 		groupsBy[g.RuleID] = g.GroupCount
 	}
+	examples, err := h.q.RuleExamples(r.Context(), db.RuleExamplesParams{Fy: p.FY, PrevFy: p.Prev})
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	examplesBy := map[string][]db.RuleExamplesRow{}
+	for _, e := range examples {
+		examplesBy[e.RuleID] = append(examplesBy[e.RuleID], e)
+	}
 	page := signalsPage{Period: p}
 	for _, rule := range signals.Rules {
 		t := by[rule.ID]
-		page.Rows = append(page.Rows, signalRow{Rule: rule, Contracts: t.Contracts, Amount: t.Amount, Agencies: t.Agencies, Groups: groupsBy[rule.ID]})
+		page.Rows = append(page.Rows, signalRow{Rule: rule, Contracts: t.Contracts, Amount: t.Amount, Agencies: t.Agencies, Groups: groupsBy[rule.ID], Examples: examplesBy[rule.ID]})
 	}
 	h.render(w, "signals.html", page)
 }

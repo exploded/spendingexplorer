@@ -53,7 +53,7 @@ func (h *Handler) suppliers(w http.ResponseWriter, r *http.Request) {
 		Crumbs: []crumb{{"Whole of government", "/"}}}
 	if len([]rune(page.Query)) >= 2 {
 		page.Searched = true
-		if page.Results, err = h.searchSuppliers(r, page.Query); err != nil {
+		if page.Results, err = h.searchSuppliers(r, page.Query, 50); err != nil {
 			h.fail(w, err)
 			return
 		}
@@ -101,12 +101,12 @@ func (h *Handler) suppliers(w http.ResponseWriter, r *http.Request) {
 
 // searchSuppliers matches a name fragment, or an ABN typed with or without
 // spaces.
-func (h *Handler) searchSuppliers(r *http.Request, query string) ([]db.SearchSuppliersRow, error) {
+func (h *Handler) searchSuppliers(r *http.Request, query string, limit int64) ([]db.SearchSuppliersRow, error) {
 	abn := strings.Join(strings.Fields(query), "")
 	if _, err := strconv.ParseUint(abn, 10, 64); err != nil || len(abn) != 11 {
 		abn = ""
 	}
-	return h.q.SearchSuppliers(r.Context(), db.SearchSuppliersParams{Fragment: query, Abn: abn, Lim: 50})
+	return h.q.SearchSuppliers(r.Context(), db.SearchSuppliersParams{Fragment: query, Abn: abn, Lim: limit})
 }
 
 type groupPage struct {

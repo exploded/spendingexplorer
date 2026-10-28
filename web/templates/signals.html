@@ -24,6 +24,24 @@
     <div><dt>Why it matters</dt><dd>{{.Rule.Context}}</dd></div>
     <div><dt>Common explanations</dt><dd>{{range $i, $e := .Rule.Innocent}}{{if $i}} {{end}}{{$e}}{{end}}</dd></div>
   </dl>
+  {{if .Examples}}{{$rule := .Rule.ID}}
+  <h3>Largest matches</h3>
+  <div class="scroll">
+  <table class="data">
+    <thead><tr><th scope="col">Contract</th><th scope="col">Detail</th><th scope="col" class="num">Amount involved</th></tr></thead>
+    <tbody>
+    {{range .Examples}}
+      <tr>
+        <th scope="row"><a href="/contract/{{.CnID}}">{{trunc .Description 70}}</a><span class="row-note">{{if .Supplier}}{{.Supplier}}{{template "fms-tag" .Supplier}} · {{end}}{{.Agency}}</span></th>
+        <td class="small">{{measure $rule .Measure}}</td>
+        <td class="num">{{money .Amount}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+  <p class="small"><a href="/signals/{{.Rule.ID}}">See every match</a></p>
+  {{end}}
 </section>
 {{end}}
 {{end}}

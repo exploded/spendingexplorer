@@ -93,7 +93,7 @@ ORDER BY total DESC;
 SELECT w.amount, w.estimate_type, sd.title
 FROM wog_expense w
 JOIN source_document sd ON sd.id = w.source_document_id
-WHERE sd.budget_year = ? AND w.fiscal_year = ? AND w.lens = 'function' AND w.category = 'Total expenses';
+WHERE sd.doc_type = 'bp1_function' AND sd.budget_year = ? AND w.fiscal_year = ? AND w.lens = 'function' AND w.category = 'Total expenses';
 
 -- name: LargestTransfers :many
 SELECT e.name AS entity, pe.line_item, pe.treatment_rule, pe.amount
@@ -638,6 +638,31 @@ WHERE s.rule_id = sqlc.arg(rule_id) AND s.fiscal_year IN (sqlc.arg(fy), sqlc.arg
 ORDER BY s.amount DESC
 LIMIT 100;
 
+-- name: RuleExamples :many
+-- The three largest contracts matching each rule, as examples. Grouped rules
+-- take at most one contract per group, so one batch or supplier cannot fill
+-- the list. Suppliers who are, or may be, individuals are not listed.
+SELECT rule_id, cn_id, amount, measure, description, agency, supplier FROM (
+  SELECT rule_id, cn_id, amount, measure, description, agency, supplier,
+    ROW_NUMBER() OVER (PARTITION BY rule_id ORDER BY amount DESC, cn_id) AS rule_rank
+  FROM (
+    SELECT s.rule_id, s.cn_id, s.amount, s.measure, c.description, a.name AS agency,
+      CAST(COALESCE(sp.name, '') AS TEXT) AS supplier,
+      ROW_NUMBER() OVER (PARTITION BY s.rule_id, CASE
+          WHEN s.rule_id IN ('repeat-limited', 'threshold-cluster') THEN s.agency_id || '|' || s.supplier_id || '|' || s.fiscal_year
+          WHEN s.rule_id = 'late-batch' THEN s.agency_id || '|' || c.published_date
+          ELSE s.cn_id END
+        ORDER BY s.amount DESC, s.cn_id) AS group_rank
+    FROM signal s
+    JOIN contract c ON c.cn_id = s.cn_id
+    JOIN agency a ON a.id = s.agency_id
+    LEFT JOIN supplier sp ON sp.id = s.supplier_id
+    WHERE s.fiscal_year IN (sqlc.arg(fy), sqlc.arg(prev_fy))
+      AND (s.supplier_id IS NULL OR s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual))
+  ) WHERE group_rank = 1
+) WHERE rule_rank <= 3
+ORDER BY rule_id, rule_rank;
+
 -- name: RuleGroupCounts :many
 -- Groups per grouped rule: agency, supplier and year for repeat-limited and
 -- threshold-cluster; agency and publication day for late-batch.
@@ -1158,3 +1183,153 @@ FROM project_link l
 LEFT JOIN entity e ON e.id = l.entity_id
 LEFT JOIN supplier s ON s.id = l.supplier_id
 ORDER BY l.project_key, e.name, s.name;
+
+-- Site-wide search ---------------------------------------------------------
+
+-- name: SearchEntities :many
+-- Entities in the publication whose name, a former name or an AusTender agency
+-- name contains the fragment, largest first. matched_name is the other name
+-- that matched, or '' when the entity's own name did.
+SELECT e.id, e.name, CAST(MIN(p.portfolio) AS TEXT) AS portfolio,
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(fy) AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur,
+  CAST(CASE WHEN instr(upper(e.name), upper(sqlc.arg(fragment))) > 0 THEN '' ELSE COALESCE(
+    (SELECT ea.alias FROM entity_alias ea WHERE ea.entity_id = e.id AND instr(upper(ea.alias), upper(sqlc.arg(fragment))) > 0 LIMIT 1),
+    (SELECT a.name FROM agency a WHERE a.entity_id = e.id AND instr(upper(a.name), upper(sqlc.arg(fragment))) > 0 LIMIT 1), '') END AS TEXT) AS matched_name
+FROM program_expense pe
+JOIN program p ON p.id = pe.program_id
+JOIN entity e ON e.id = p.entity_id
+WHERE pe.source_document_id = sqlc.arg(doc_id) AND e.id IN (
+  SELECT x.id FROM entity x WHERE instr(upper(x.name), upper(sqlc.arg(fragment))) > 0
+  UNION SELECT ea.entity_id FROM entity_alias ea WHERE instr(upper(ea.alias), upper(sqlc.arg(fragment))) > 0
+  UNION SELECT a.entity_id FROM agency a WHERE a.entity_id IS NOT NULL AND instr(upper(a.name), upper(sqlc.arg(fragment))) > 0)
+GROUP BY e.id, e.name
+ORDER BY cur DESC
+LIMIT sqlc.arg(lim);
+
+-- name: SearchPortfolios :many
+SELECT DISTINCT portfolio FROM program
+WHERE budget_year = sqlc.arg(budget_year) AND instr(upper(portfolio), upper(sqlc.arg(fragment))) > 0
+ORDER BY portfolio;
+
+-- name: SearchPrograms :many
+-- Programs in the publication whose name contains the fragment, largest first.
+SELECT p.id, p.name, e.id AS entity_id, e.name AS entity_name,
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(fy) AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur
+FROM program_expense pe
+JOIN program p ON p.id = pe.program_id
+JOIN entity e ON e.id = p.entity_id
+WHERE pe.source_document_id = sqlc.arg(doc_id) AND instr(upper(p.name), upper(sqlc.arg(fragment))) > 0
+GROUP BY p.id, p.name, e.id, e.name
+ORDER BY cur DESC
+LIMIT sqlc.arg(lim);
+
+-- name: SearchSupplierGroups :many
+-- Corporate groups whose name contains the fragment, by the whole-of-life
+-- value of their members' contracts.
+SELECT g.id, g.name, CAST(COUNT(DISTINCT m.supplier_id) AS INTEGER) AS members,
+  CAST(COALESCE(SUM(c.value), 0) AS INTEGER) AS value
+FROM supplier_group g
+JOIN supplier_group_member m ON m.group_id = g.id
+LEFT JOIN contract c ON c.supplier_id = m.supplier_id
+WHERE instr(upper(g.name), upper(sqlc.arg(fragment))) > 0
+GROUP BY g.id, g.name
+ORDER BY value DESC
+LIMIT sqlc.arg(lim);
+
+-- name: SearchContracts :many
+-- The contract with this notice ID, or contracts whose description contains the
+-- fragment, largest first. matches counts every match before the limit.
+SELECT c.cn_id, c.description, c.value, c.published_date, a.name AS agency, a.entity_id,
+  CAST(COALESCE(s.id, 0) AS INTEGER) AS supplier_id, CAST(COALESCE(s.name, '') AS TEXT) AS supplier,
+  CAST(COUNT(*) OVER () AS INTEGER) AS matches
+FROM contract c
+JOIN agency a ON a.id = c.agency_id
+LEFT JOIN supplier s ON s.id = c.supplier_id
+WHERE c.cn_id = sqlc.arg(cn_id) OR instr(upper(c.description), upper(sqlc.arg(fragment))) > 0
+ORDER BY c.value DESC
+LIMIT sqlc.arg(lim);
+
+-- name: SearchGrantRecipients :many
+-- Grant recipients whose name contains the fragment, one row per recipient and
+-- granting agency, largest first. As in the rankings, recipients whose names
+-- read as a person's and awards with no named recipient are left out.
+SELECT g.recipient, g.agency_name, CAST(COALESCE(g.entity_id, 0) AS INTEGER) AS entity_id,
+  CAST(COUNT(*) AS INTEGER) AS grants, CAST(SUM(g.value) AS INTEGER) AS value
+FROM grant_award g
+WHERE g.individual = 0 AND g.unnamed = 0 AND instr(upper(g.recipient), upper(sqlc.arg(fragment))) > 0
+GROUP BY g.recipient, g.agency_name, g.entity_id
+ORDER BY value DESC
+LIMIT sqlc.arg(lim);
+
+-- Budget against outcome -------------------------------------------------------
+
+-- name: LatestOutcomeYear :one
+-- The latest fiscal year with whole-of-government actuals (Final Budget Outcome).
+SELECT CAST(COALESCE(MAX(fiscal_year), '') AS TEXT) AS fiscal_year
+FROM wog_expense WHERE estimate_type = 'actual' AND lens = 'function';
+
+-- name: FunctionOutcomes :many
+-- Expenses by function for one fiscal year in each series: the year's own
+-- Budget, the revised estimate in the next Budget, and the Final Budget Outcome.
+-- has_* tell a missing series apart from a zero amount.
+SELECT w.category,
+  CAST(COALESCE(SUM(CASE WHEN w.estimate_type = 'budget' THEN w.amount END), 0) AS INTEGER) AS budget,
+  CAST(COALESCE(SUM(CASE WHEN w.estimate_type = 'estimated_actual' THEN w.amount END), 0) AS INTEGER) AS revised,
+  CAST(COALESCE(SUM(CASE WHEN w.estimate_type = 'actual' THEN w.amount END), 0) AS INTEGER) AS actual,
+  CAST(COUNT(CASE WHEN w.estimate_type = 'budget' THEN 1 END) AS INTEGER) AS has_budget,
+  CAST(COUNT(CASE WHEN w.estimate_type = 'estimated_actual' THEN 1 END) AS INTEGER) AS has_revised,
+  CAST(COUNT(CASE WHEN w.estimate_type = 'actual' THEN 1 END) AS INTEGER) AS has_actual
+FROM wog_expense w
+JOIN source_document sd ON sd.id = w.source_document_id
+WHERE w.fiscal_year = sqlc.arg(fy) AND w.lens = 'function' AND sd.doc_type IN ('bp1_function', 'fbo_function')
+GROUP BY w.category
+ORDER BY actual DESC;
+
+-- name: OutcomeDocuments :many
+-- The publications behind FunctionOutcomes, one per series.
+SELECT DISTINCT w.estimate_type, sd.title, sd.url
+FROM wog_expense w
+JOIN source_document sd ON sd.id = w.source_document_id
+WHERE w.fiscal_year = sqlc.arg(fy) AND w.lens = 'function' AND sd.doc_type IN ('bp1_function', 'fbo_function');
+
+-- Budget sub-functions ----------------------------------------------------------
+
+-- name: DeleteWogSubfunctionsForDocType :exec
+-- Clears earlier versions of the same document too, since a corrected file
+-- registers as a new source_document.
+DELETE FROM wog_subfunction WHERE source_document_id IN (
+  SELECT id FROM source_document WHERE doc_type = ? AND budget_year = ?);
+
+-- name: InsertWogSubfunction :exec
+INSERT INTO wog_subfunction (source_document_id, source_table, fiscal_year, estimate_type,
+  function_name, parent, name, position, amount, note)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: FunctionAmounts :many
+-- BP1 expenses by function from the expenses-by-function table of a budget
+-- year, for checking that sub-functions add up.
+SELECT w.fiscal_year, w.category, w.amount
+FROM wog_expense w
+JOIN source_document sd ON sd.id = w.source_document_id
+WHERE sd.budget_year = ? AND sd.doc_type = 'bp1_function' AND w.lens = 'function';
+
+-- name: SubfunctionAmounts :many
+-- Every sub-function row loaded for a budget year, for checking that a row's
+-- parent exists and that its children add up.
+SELECT w.source_document_id, w.fiscal_year, w.function_name, w.parent, w.name, w.amount
+FROM wog_subfunction w
+JOIN source_document sd ON sd.id = w.source_document_id
+WHERE sd.budget_year = ?;
+
+-- name: SubfunctionTotals :many
+-- Sub-functions and their itemised rows for the current and previous fiscal
+-- year, with the document each comes from.
+SELECT w.function_name, w.parent, w.name, w.note, w.source_table,
+  sd.title AS source_title, sd.url AS source_url,
+  CAST(COALESCE(SUM(CASE WHEN w.fiscal_year = sqlc.arg(fy) THEN w.amount END), 0) AS INTEGER) AS cur,
+  CAST(COALESCE(SUM(CASE WHEN w.fiscal_year = sqlc.arg(prev_fy) THEN w.amount END), 0) AS INTEGER) AS prev
+FROM wog_subfunction w
+JOIN source_document sd ON sd.id = w.source_document_id
+WHERE sd.budget_year = sqlc.arg(budget_year)
+GROUP BY w.source_document_id, w.function_name, w.parent, w.name
+ORDER BY cur DESC;

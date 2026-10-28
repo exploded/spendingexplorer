@@ -653,6 +653,25 @@ func (q *Queries) DeleteWogExpensesForDoc(ctx context.Context, sourceDocumentID 
 	return err
 }
 
+const deleteWogSubfunctionsForDocType = `-- name: DeleteWogSubfunctionsForDocType :exec
+
+DELETE FROM wog_subfunction WHERE source_document_id IN (
+  SELECT id FROM source_document WHERE doc_type = ? AND budget_year = ?)
+`
+
+type DeleteWogSubfunctionsForDocTypeParams struct {
+	DocType    string
+	BudgetYear string
+}
+
+// Budget sub-functions ----------------------------------------------------------
+// Clears earlier versions of the same document too, since a corrected file
+// registers as a new source_document.
+func (q *Queries) DeleteWogSubfunctionsForDocType(ctx context.Context, arg DeleteWogSubfunctionsForDocTypeParams) error {
+	_, err := q.db.ExecContext(ctx, deleteWogSubfunctionsForDocType, arg.DocType, arg.BudgetYear)
+	return err
+}
+
 const deriveABRIndividuals = `-- name: DeriveABRIndividuals :exec
 INSERT INTO supplier_individual (supplier_id, basis)
 SELECT s.id, 'abr' FROM supplier s JOIN abr_entity a ON a.abn = s.abn
@@ -1585,6 +1604,103 @@ func (q *Queries) FindProgram(ctx context.Context, arg FindProgramParams) (int64
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const functionAmounts = `-- name: FunctionAmounts :many
+SELECT w.fiscal_year, w.category, w.amount
+FROM wog_expense w
+JOIN source_document sd ON sd.id = w.source_document_id
+WHERE sd.budget_year = ? AND sd.doc_type = 'bp1_function' AND w.lens = 'function'
+`
+
+type FunctionAmountsRow struct {
+	FiscalYear string
+	Category   string
+	Amount     int64
+}
+
+// BP1 expenses by function from the expenses-by-function table of a budget
+// year, for checking that sub-functions add up.
+func (q *Queries) FunctionAmounts(ctx context.Context, budgetYear string) ([]FunctionAmountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, functionAmounts, budgetYear)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FunctionAmountsRow
+	for rows.Next() {
+		var i FunctionAmountsRow
+		if err := rows.Scan(&i.FiscalYear, &i.Category, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const functionOutcomes = `-- name: FunctionOutcomes :many
+SELECT w.category,
+  CAST(COALESCE(SUM(CASE WHEN w.estimate_type = 'budget' THEN w.amount END), 0) AS INTEGER) AS budget,
+  CAST(COALESCE(SUM(CASE WHEN w.estimate_type = 'estimated_actual' THEN w.amount END), 0) AS INTEGER) AS revised,
+  CAST(COALESCE(SUM(CASE WHEN w.estimate_type = 'actual' THEN w.amount END), 0) AS INTEGER) AS actual,
+  CAST(COUNT(CASE WHEN w.estimate_type = 'budget' THEN 1 END) AS INTEGER) AS has_budget,
+  CAST(COUNT(CASE WHEN w.estimate_type = 'estimated_actual' THEN 1 END) AS INTEGER) AS has_revised,
+  CAST(COUNT(CASE WHEN w.estimate_type = 'actual' THEN 1 END) AS INTEGER) AS has_actual
+FROM wog_expense w
+JOIN source_document sd ON sd.id = w.source_document_id
+WHERE w.fiscal_year = ?1 AND w.lens = 'function' AND sd.doc_type IN ('bp1_function', 'fbo_function')
+GROUP BY w.category
+ORDER BY actual DESC
+`
+
+type FunctionOutcomesRow struct {
+	Category   string
+	Budget     int64
+	Revised    int64
+	Actual     int64
+	HasBudget  int64
+	HasRevised int64
+	HasActual  int64
+}
+
+// Expenses by function for one fiscal year in each series: the year's own
+// Budget, the revised estimate in the next Budget, and the Final Budget Outcome.
+// has_* tell a missing series apart from a zero amount.
+func (q *Queries) FunctionOutcomes(ctx context.Context, fy string) ([]FunctionOutcomesRow, error) {
+	rows, err := q.db.QueryContext(ctx, functionOutcomes, fy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FunctionOutcomesRow
+	for rows.Next() {
+		var i FunctionOutcomesRow
+		if err := rows.Scan(
+			&i.Category,
+			&i.Budget,
+			&i.Revised,
+			&i.Actual,
+			&i.HasBudget,
+			&i.HasRevised,
+			&i.HasActual,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const functionTotals = `-- name: FunctionTotals :many
@@ -2648,6 +2764,41 @@ func (q *Queries) InsertWogExpense(ctx context.Context, arg InsertWogExpensePara
 	return err
 }
 
+const insertWogSubfunction = `-- name: InsertWogSubfunction :exec
+INSERT INTO wog_subfunction (source_document_id, source_table, fiscal_year, estimate_type,
+  function_name, parent, name, position, amount, note)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type InsertWogSubfunctionParams struct {
+	SourceDocumentID int64
+	SourceTable      string
+	FiscalYear       string
+	EstimateType     string
+	FunctionName     string
+	Parent           string
+	Name             string
+	Position         int64
+	Amount           int64
+	Note             string
+}
+
+func (q *Queries) InsertWogSubfunction(ctx context.Context, arg InsertWogSubfunctionParams) error {
+	_, err := q.db.ExecContext(ctx, insertWogSubfunction,
+		arg.SourceDocumentID,
+		arg.SourceTable,
+		arg.FiscalYear,
+		arg.EstimateType,
+		arg.FunctionName,
+		arg.Parent,
+		arg.Name,
+		arg.Position,
+		arg.Amount,
+		arg.Note,
+	)
+	return err
+}
+
 const investmentDocument = `-- name: InvestmentDocument :one
 SELECT id, title, url FROM source_document
 WHERE doc_type = ? AND budget_year = ?
@@ -2859,6 +3010,21 @@ func (q *Queries) LargestTransfers(ctx context.Context, arg LargestTransfersPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const latestOutcomeYear = `-- name: LatestOutcomeYear :one
+
+SELECT CAST(COALESCE(MAX(fiscal_year), '') AS TEXT) AS fiscal_year
+FROM wog_expense WHERE estimate_type = 'actual' AND lens = 'function'
+`
+
+// Budget against outcome -------------------------------------------------------
+// The latest fiscal year with whole-of-government actuals (Final Budget Outcome).
+func (q *Queries) LatestOutcomeYear(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, latestOutcomeYear)
+	var fiscal_year string
+	err := row.Scan(&fiscal_year)
+	return fiscal_year, err
 }
 
 const latestPBSDocument = `-- name: LatestPBSDocument :one
@@ -3292,6 +3458,43 @@ func (q *Queries) OpenLLMBatches(ctx context.Context, task string) ([]OpenLLMBat
 			&i.PromptVersion,
 			&i.Model,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const outcomeDocuments = `-- name: OutcomeDocuments :many
+SELECT DISTINCT w.estimate_type, sd.title, sd.url
+FROM wog_expense w
+JOIN source_document sd ON sd.id = w.source_document_id
+WHERE w.fiscal_year = ?1 AND w.lens = 'function' AND sd.doc_type IN ('bp1_function', 'fbo_function')
+`
+
+type OutcomeDocumentsRow struct {
+	EstimateType string
+	Title        string
+	Url          string
+}
+
+// The publications behind FunctionOutcomes, one per series.
+func (q *Queries) OutcomeDocuments(ctx context.Context, fy string) ([]OutcomeDocumentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, outcomeDocuments, fy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OutcomeDocumentsRow
+	for rows.Next() {
+		var i OutcomeDocumentsRow
+		if err := rows.Scan(&i.EstimateType, &i.Title, &i.Url); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3846,6 +4049,78 @@ func (q *Queries) RuleContracts(ctx context.Context, arg RuleContractsParams) ([
 	return items, nil
 }
 
+const ruleExamples = `-- name: RuleExamples :many
+SELECT rule_id, cn_id, amount, measure, description, agency, supplier FROM (
+  SELECT rule_id, cn_id, amount, measure, description, agency, supplier,
+    ROW_NUMBER() OVER (PARTITION BY rule_id ORDER BY amount DESC, cn_id) AS rule_rank
+  FROM (
+    SELECT s.rule_id, s.cn_id, s.amount, s.measure, c.description, a.name AS agency,
+      CAST(COALESCE(sp.name, '') AS TEXT) AS supplier,
+      ROW_NUMBER() OVER (PARTITION BY s.rule_id, CASE
+          WHEN s.rule_id IN ('repeat-limited', 'threshold-cluster') THEN s.agency_id || '|' || s.supplier_id || '|' || s.fiscal_year
+          WHEN s.rule_id = 'late-batch' THEN s.agency_id || '|' || c.published_date
+          ELSE s.cn_id END
+        ORDER BY s.amount DESC, s.cn_id) AS group_rank
+    FROM signal s
+    JOIN contract c ON c.cn_id = s.cn_id
+    JOIN agency a ON a.id = s.agency_id
+    LEFT JOIN supplier sp ON sp.id = s.supplier_id
+    WHERE s.fiscal_year IN (?1, ?2)
+      AND (s.supplier_id IS NULL OR s.supplier_id NOT IN (SELECT supplier_id FROM supplier_individual))
+  ) WHERE group_rank = 1
+) WHERE rule_rank <= 3
+ORDER BY rule_id, rule_rank
+`
+
+type RuleExamplesParams struct {
+	Fy     string
+	PrevFy string
+}
+
+type RuleExamplesRow struct {
+	RuleID      string
+	CnID        string
+	Amount      int64
+	Measure     float64
+	Description string
+	Agency      string
+	Supplier    string
+}
+
+// The three largest contracts matching each rule, as examples. Grouped rules
+// take at most one contract per group, so one batch or supplier cannot fill
+// the list. Suppliers who are, or may be, individuals are not listed.
+func (q *Queries) RuleExamples(ctx context.Context, arg RuleExamplesParams) ([]RuleExamplesRow, error) {
+	rows, err := q.db.QueryContext(ctx, ruleExamples, arg.Fy, arg.PrevFy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RuleExamplesRow
+	for rows.Next() {
+		var i RuleExamplesRow
+		if err := rows.Scan(
+			&i.RuleID,
+			&i.CnID,
+			&i.Amount,
+			&i.Measure,
+			&i.Description,
+			&i.Agency,
+			&i.Supplier,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const ruleGroupCounts = `-- name: RuleGroupCounts :many
 SELECT rule_id, CAST(COUNT(*) AS INTEGER) AS group_count FROM (
   SELECT s.rule_id FROM signal s
@@ -4123,6 +4398,348 @@ func (q *Queries) RuleTotals(ctx context.Context, arg RuleTotalsParams) ([]RuleT
 	return items, nil
 }
 
+const searchContracts = `-- name: SearchContracts :many
+SELECT c.cn_id, c.description, c.value, c.published_date, a.name AS agency, a.entity_id,
+  CAST(COALESCE(s.id, 0) AS INTEGER) AS supplier_id, CAST(COALESCE(s.name, '') AS TEXT) AS supplier,
+  CAST(COUNT(*) OVER () AS INTEGER) AS matches
+FROM contract c
+JOIN agency a ON a.id = c.agency_id
+LEFT JOIN supplier s ON s.id = c.supplier_id
+WHERE c.cn_id = ?1 OR instr(upper(c.description), upper(?2)) > 0
+ORDER BY c.value DESC
+LIMIT ?3
+`
+
+type SearchContractsParams struct {
+	CnID     string
+	Fragment string
+	Lim      int64
+}
+
+type SearchContractsRow struct {
+	CnID          string
+	Description   string
+	Value         int64
+	PublishedDate string
+	Agency        string
+	EntityID      sql.NullInt64
+	SupplierID    int64
+	Supplier      string
+	Matches       int64
+}
+
+// The contract with this notice ID, or contracts whose description contains the
+// fragment, largest first. matches counts every match before the limit.
+func (q *Queries) SearchContracts(ctx context.Context, arg SearchContractsParams) ([]SearchContractsRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchContracts, arg.CnID, arg.Fragment, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchContractsRow
+	for rows.Next() {
+		var i SearchContractsRow
+		if err := rows.Scan(
+			&i.CnID,
+			&i.Description,
+			&i.Value,
+			&i.PublishedDate,
+			&i.Agency,
+			&i.EntityID,
+			&i.SupplierID,
+			&i.Supplier,
+			&i.Matches,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchEntities = `-- name: SearchEntities :many
+
+SELECT e.id, e.name, CAST(MIN(p.portfolio) AS TEXT) AS portfolio,
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur,
+  CAST(CASE WHEN instr(upper(e.name), upper(?2)) > 0 THEN '' ELSE COALESCE(
+    (SELECT ea.alias FROM entity_alias ea WHERE ea.entity_id = e.id AND instr(upper(ea.alias), upper(?2)) > 0 LIMIT 1),
+    (SELECT a.name FROM agency a WHERE a.entity_id = e.id AND instr(upper(a.name), upper(?2)) > 0 LIMIT 1), '') END AS TEXT) AS matched_name
+FROM program_expense pe
+JOIN program p ON p.id = pe.program_id
+JOIN entity e ON e.id = p.entity_id
+WHERE pe.source_document_id = ?3 AND e.id IN (
+  SELECT x.id FROM entity x WHERE instr(upper(x.name), upper(?2)) > 0
+  UNION SELECT ea.entity_id FROM entity_alias ea WHERE instr(upper(ea.alias), upper(?2)) > 0
+  UNION SELECT a.entity_id FROM agency a WHERE a.entity_id IS NOT NULL AND instr(upper(a.name), upper(?2)) > 0)
+GROUP BY e.id, e.name
+ORDER BY cur DESC
+LIMIT ?4
+`
+
+type SearchEntitiesParams struct {
+	Fy       string
+	Fragment string
+	DocID    int64
+	Lim      int64
+}
+
+type SearchEntitiesRow struct {
+	ID          int64
+	Name        string
+	Portfolio   string
+	Cur         int64
+	MatchedName string
+}
+
+// Site-wide search ---------------------------------------------------------
+// Entities in the publication whose name, a former name or an AusTender agency
+// name contains the fragment, largest first. matched_name is the other name
+// that matched, or ” when the entity's own name did.
+func (q *Queries) SearchEntities(ctx context.Context, arg SearchEntitiesParams) ([]SearchEntitiesRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchEntities,
+		arg.Fy,
+		arg.Fragment,
+		arg.DocID,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchEntitiesRow
+	for rows.Next() {
+		var i SearchEntitiesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Portfolio,
+			&i.Cur,
+			&i.MatchedName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchGrantRecipients = `-- name: SearchGrantRecipients :many
+SELECT g.recipient, g.agency_name, CAST(COALESCE(g.entity_id, 0) AS INTEGER) AS entity_id,
+  CAST(COUNT(*) AS INTEGER) AS grants, CAST(SUM(g.value) AS INTEGER) AS value
+FROM grant_award g
+WHERE g.individual = 0 AND g.unnamed = 0 AND instr(upper(g.recipient), upper(?1)) > 0
+GROUP BY g.recipient, g.agency_name, g.entity_id
+ORDER BY value DESC
+LIMIT ?2
+`
+
+type SearchGrantRecipientsParams struct {
+	Fragment string
+	Lim      int64
+}
+
+type SearchGrantRecipientsRow struct {
+	Recipient  string
+	AgencyName string
+	EntityID   int64
+	Grants     int64
+	Value      int64
+}
+
+// Grant recipients whose name contains the fragment, one row per recipient and
+// granting agency, largest first. As in the rankings, recipients whose names
+// read as a person's and awards with no named recipient are left out.
+func (q *Queries) SearchGrantRecipients(ctx context.Context, arg SearchGrantRecipientsParams) ([]SearchGrantRecipientsRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchGrantRecipients, arg.Fragment, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchGrantRecipientsRow
+	for rows.Next() {
+		var i SearchGrantRecipientsRow
+		if err := rows.Scan(
+			&i.Recipient,
+			&i.AgencyName,
+			&i.EntityID,
+			&i.Grants,
+			&i.Value,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchPortfolios = `-- name: SearchPortfolios :many
+SELECT DISTINCT portfolio FROM program
+WHERE budget_year = ?1 AND instr(upper(portfolio), upper(?2)) > 0
+ORDER BY portfolio
+`
+
+type SearchPortfoliosParams struct {
+	BudgetYear string
+	Fragment   string
+}
+
+func (q *Queries) SearchPortfolios(ctx context.Context, arg SearchPortfoliosParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, searchPortfolios, arg.BudgetYear, arg.Fragment)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var portfolio string
+		if err := rows.Scan(&portfolio); err != nil {
+			return nil, err
+		}
+		items = append(items, portfolio)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchPrograms = `-- name: SearchPrograms :many
+SELECT p.id, p.name, e.id AS entity_id, e.name AS entity_name,
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur
+FROM program_expense pe
+JOIN program p ON p.id = pe.program_id
+JOIN entity e ON e.id = p.entity_id
+WHERE pe.source_document_id = ?2 AND instr(upper(p.name), upper(?3)) > 0
+GROUP BY p.id, p.name, e.id, e.name
+ORDER BY cur DESC
+LIMIT ?4
+`
+
+type SearchProgramsParams struct {
+	Fy       string
+	DocID    int64
+	Fragment string
+	Lim      int64
+}
+
+type SearchProgramsRow struct {
+	ID         int64
+	Name       string
+	EntityID   int64
+	EntityName string
+	Cur        int64
+}
+
+// Programs in the publication whose name contains the fragment, largest first.
+func (q *Queries) SearchPrograms(ctx context.Context, arg SearchProgramsParams) ([]SearchProgramsRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchPrograms,
+		arg.Fy,
+		arg.DocID,
+		arg.Fragment,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchProgramsRow
+	for rows.Next() {
+		var i SearchProgramsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.EntityID,
+			&i.EntityName,
+			&i.Cur,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchSupplierGroups = `-- name: SearchSupplierGroups :many
+SELECT g.id, g.name, CAST(COUNT(DISTINCT m.supplier_id) AS INTEGER) AS members,
+  CAST(COALESCE(SUM(c.value), 0) AS INTEGER) AS value
+FROM supplier_group g
+JOIN supplier_group_member m ON m.group_id = g.id
+LEFT JOIN contract c ON c.supplier_id = m.supplier_id
+WHERE instr(upper(g.name), upper(?1)) > 0
+GROUP BY g.id, g.name
+ORDER BY value DESC
+LIMIT ?2
+`
+
+type SearchSupplierGroupsParams struct {
+	Fragment string
+	Lim      int64
+}
+
+type SearchSupplierGroupsRow struct {
+	ID      int64
+	Name    string
+	Members int64
+	Value   int64
+}
+
+// Corporate groups whose name contains the fragment, by the whole-of-life
+// value of their members' contracts.
+func (q *Queries) SearchSupplierGroups(ctx context.Context, arg SearchSupplierGroupsParams) ([]SearchSupplierGroupsRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchSupplierGroups, arg.Fragment, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchSupplierGroupsRow
+	for rows.Next() {
+		var i SearchSupplierGroupsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Members,
+			&i.Value,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchSuppliers = `-- name: SearchSuppliers :many
 SELECT s.id, s.name, s.abn,
   CAST(COUNT(*) AS INTEGER) AS contracts,
@@ -4238,6 +4855,119 @@ func (q *Queries) SignalCounts(ctx context.Context) ([]SignalCountsRow, error) {
 	for rows.Next() {
 		var i SignalCountsRow
 		if err := rows.Scan(&i.RuleID, &i.Contracts, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const subfunctionAmounts = `-- name: SubfunctionAmounts :many
+SELECT w.source_document_id, w.fiscal_year, w.function_name, w.parent, w.name, w.amount
+FROM wog_subfunction w
+JOIN source_document sd ON sd.id = w.source_document_id
+WHERE sd.budget_year = ?
+`
+
+type SubfunctionAmountsRow struct {
+	SourceDocumentID int64
+	FiscalYear       string
+	FunctionName     string
+	Parent           string
+	Name             string
+	Amount           int64
+}
+
+// Every sub-function row loaded for a budget year, for checking that a row's
+// parent exists and that its children add up.
+func (q *Queries) SubfunctionAmounts(ctx context.Context, budgetYear string) ([]SubfunctionAmountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, subfunctionAmounts, budgetYear)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SubfunctionAmountsRow
+	for rows.Next() {
+		var i SubfunctionAmountsRow
+		if err := rows.Scan(
+			&i.SourceDocumentID,
+			&i.FiscalYear,
+			&i.FunctionName,
+			&i.Parent,
+			&i.Name,
+			&i.Amount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const subfunctionTotals = `-- name: SubfunctionTotals :many
+SELECT w.function_name, w.parent, w.name, w.note, w.source_table,
+  sd.title AS source_title, sd.url AS source_url,
+  CAST(COALESCE(SUM(CASE WHEN w.fiscal_year = ?1 THEN w.amount END), 0) AS INTEGER) AS cur,
+  CAST(COALESCE(SUM(CASE WHEN w.fiscal_year = ?2 THEN w.amount END), 0) AS INTEGER) AS prev
+FROM wog_subfunction w
+JOIN source_document sd ON sd.id = w.source_document_id
+WHERE sd.budget_year = ?3
+GROUP BY w.source_document_id, w.function_name, w.parent, w.name
+ORDER BY cur DESC
+`
+
+type SubfunctionTotalsParams struct {
+	Fy         string
+	PrevFy     string
+	BudgetYear string
+}
+
+type SubfunctionTotalsRow struct {
+	FunctionName string
+	Parent       string
+	Name         string
+	Note         string
+	SourceTable  string
+	SourceTitle  string
+	SourceUrl    string
+	Cur          int64
+	Prev         int64
+}
+
+// Sub-functions and their itemised rows for the current and previous fiscal
+// year, with the document each comes from.
+func (q *Queries) SubfunctionTotals(ctx context.Context, arg SubfunctionTotalsParams) ([]SubfunctionTotalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, subfunctionTotals, arg.Fy, arg.PrevFy, arg.BudgetYear)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SubfunctionTotalsRow
+	for rows.Next() {
+		var i SubfunctionTotalsRow
+		if err := rows.Scan(
+			&i.FunctionName,
+			&i.Parent,
+			&i.Name,
+			&i.Note,
+			&i.SourceTable,
+			&i.SourceTitle,
+			&i.SourceUrl,
+			&i.Cur,
+			&i.Prev,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -5452,7 +6182,7 @@ const wogTotalForYear = `-- name: WogTotalForYear :one
 SELECT w.amount, w.estimate_type, sd.title
 FROM wog_expense w
 JOIN source_document sd ON sd.id = w.source_document_id
-WHERE sd.budget_year = ? AND w.fiscal_year = ? AND w.lens = 'function' AND w.category = 'Total expenses'
+WHERE sd.doc_type = 'bp1_function' AND sd.budget_year = ? AND w.fiscal_year = ? AND w.lens = 'function' AND w.category = 'Total expenses'
 `
 
 type WogTotalForYearParams struct {

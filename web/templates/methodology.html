@@ -1,7 +1,7 @@
 {{define "title"}}Methodology{{end}}
 
 {{define "content"}}
-<p class="kicker">Methodology</p>
+<p class="kicker"><a href="/about">About</a> · Methodology</p>
 <h1>How we prepare the data</h1>
 <div class="prose">
 <p>Every figure on this site comes from a published government document. Where we combine, remove or adjust anything, the figure is labelled and the rule is described here. Source files and every data load are listed on <a href="/sources">Sources and changes</a>.</p>
@@ -29,6 +29,16 @@
   <li>Amounts held in special accounts and paid out by other agencies.</li>
 </ul>
 <p>We will reduce this figure as specific causes are confirmed, and record each change on <a href="/sources">Sources and changes</a>.</p>
+
+<h2 id="outcome">Budget against actual</h2>
+<p>Each year has three published figures for total expenses. The year’s own Budget gives an estimate before the year starts. The next Budget, delivered before the year ends, gives a revised estimate. The Final Budget Outcome, published about three months after the year ends, gives the actual. The <a href="/#outcome">whole-of-government page</a> shows all three by function for the latest year with an outcome. The difference is the actual less the original Budget estimate.</p>
+<p>The figures are as Treasury publishes them in Budget Paper No. 1 and in Table A.1 of the Final Budget Outcome, in millions of dollars. Both use the same functions, so they compare directly. Functions sum to the total within rounding.</p>
+<p>Budget estimates include the contingency reserve, under other purposes. It is an allowance for decisions taken but not yet announced and for spending that tends to come in below estimate. The outcome has no contingency reserve, because spending is recorded under the function where it happened. Part of any difference in other purposes is this allowance.</p>
+<p>The Final Budget Outcome reports actuals for the whole of government only, by function and by type of expense. It does not report actuals by portfolio or entity, so those pages show Budget estimates and estimated actuals from the Portfolio Budget Statements. Each entity’s actual expenses appear in its annual report.</p>
+
+<h2 id="subfunctions">Sub-functions</h2>
+<p>Appendix A of Budget Paper No. 1, Statement 6, splits each function into sub-functions. Functions with no sub-functions, such as defence, appear there as a single line. The site checks on load that each function’s sub-functions add up to its total, within rounding.</p>
+<p>Budget Paper No. 1 doesn’t split general purpose inter-government transactions, under other purposes. Budget Paper No. 3 does: the states’ GST entitlement, HFE transition payments and other general revenue assistance (Table 3.1), plus the Financial Assistance Grant program to local councils. Those amounts don’t quite add up to the Budget Paper No. 1 figure, and Budget Paper No. 3 gives no reason. The difference is shown as its own row, marked <span class="badge badge-recon">reconciliation</span>, rather than spread across the other rows.</p>
 
 <h2 id="annualised">Contracts and annualised estimates</h2>
 <p>Contract notices come from AusTender, where agencies must report contracts worth $10,000 or more. A notice gives the contract’s total value over its whole life and its start and end dates, not when payments are made. To compare contracts with a year’s spending, we spread each contract’s current value evenly by day from start to end date. Every figure produced this way is labelled <span class="badge badge-estimate">estimate: annualised</span>.</p>

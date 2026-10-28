@@ -87,7 +87,7 @@ func New(q *db.Queries, templates, static fs.FS) (*Handler, error) {
 		},
 	}
 	h := &Handler{q: q, pages: map[string]*template.Template{}}
-	for _, page := range []string{"node.html", "program.html", "methodology.html", "sources.html", "supplier.html", "suppliers.html", "group.html", "contract.html", "signals.html", "signal.html", "investments.html", "projects.html", "project.html"} {
+	for _, page := range []string{"node.html", "program.html", "about.html", "methodology.html", "sources.html", "supplier.html", "suppliers.html", "group.html", "contract.html", "signals.html", "signal.html", "investments.html", "projects.html", "project.html", "search.html"} {
 		t, err := template.New("").Funcs(funcs).ParseFS(templates, "layout.html", "partials.html", "projectparts.html", page)
 		if err != nil {
 			return nil, err
@@ -130,6 +130,8 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /investments", h.investments)
 	mux.HandleFunc("GET /projects", h.projectsIndex)
 	mux.HandleFunc("GET /projects/{key}", h.project)
+	mux.HandleFunc("GET /search", h.search)
+	mux.HandleFunc("GET /about", h.about)
 	mux.HandleFunc("GET /methodology", h.methodology)
 	mux.HandleFunc("GET /sources", h.sources)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
@@ -168,10 +170,11 @@ type nodePage struct {
 	Tiles      []explore.Tile
 	Rows       []row
 	Sort       string
-	Recon      *recon         // home only
-	Functions  []row          // home only
-	Kinds      []row          // entity only
-	Omitted    []explore.Node // children left out of the treemap (zero or negative)
+	Recon      *recon          // home only
+	Functions  []functionRow   // home only
+	Outcome    *outcomeSection // home only: last year's Budget against its outcome
+	Kinds      []row           // entity only
+	Omitted    []explore.Node  // children left out of the treemap (zero or negative)
 	Coverage   coverage
 	Itemised   bool              // rows carry contract coverage
 	Contracts  *contractsSection // entity only
@@ -241,7 +244,14 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
-	page.Functions = funcs
+	if page.Functions, err = h.functionRows(ctx, p, funcs); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if page.Outcome, err = h.outcome(ctx); err != nil {
+		h.fail(w, err)
+		return
+	}
 	byPortfolio, err := h.q.PortfolioContractTotals(ctx, db.PortfolioContractTotalsParams{BudgetYear: p.FY, Fy: p.FY})
 	if err != nil {
 		h.fail(w, err)
@@ -604,6 +614,15 @@ func (h *Handler) program(w http.ResponseWriter, r *http.Request) {
 	page.Coverage = h.coverageFor(ctx, 0, 0, page.Total.Cur)
 	page.Coverage.Note = "AusTender and GrantConnect record the agency, not the program, so contracts and grants are shown on the entity page."
 	h.render(w, "program.html", page)
+}
+
+func (h *Handler) about(w http.ResponseWriter, r *http.Request) {
+	p, err := h.period(r.Context())
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	h.render(w, "about.html", struct{ Period period }{p})
 }
 
 type methodologyPage struct {

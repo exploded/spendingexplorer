@@ -51,9 +51,19 @@
   var section = {
     supplier: "suppliers", group: "suppliers", contract: "suppliers",
     signals: "signals", projects: "projects", investments: "investments",
-    methodology: "methodology", sources: "sources", suppliers: "suppliers"
+    about: "about", methodology: "about", sources: "about", suppliers: "suppliers", search: "search"
   }[location.pathname.split("/")[1]];
   if (!section) return;
   var link = document.querySelector('.masthead nav a[href="/' + section + '"]');
   if (link) link.setAttribute("aria-current", "page");
 })();
+
+// "/" goes to the search box, as on many sites, unless the reader is typing.
+document.addEventListener("keydown", function (e) {
+  if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+  var t = e.target;
+  if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+  e.preventDefault();
+  var box = document.getElementById("site-q");
+  if (box) box.focus(); else location.href = "/search";
+});

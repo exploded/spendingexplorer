@@ -1,0 +1,188 @@
+{{define "title"}}{{if .Query}}“{{.Query}}” · {{end}}Search{{end}}
+
+{{define "content"}}
+{{template "crumbs" .Crumbs}}
+<p class="kicker">Search</p>
+<h1>Search the explorer</h1>
+
+<form class="search" action="/search" method="get" role="search">
+  <label for="site-q">Departments, portfolios, programs, major projects, suppliers, contracts and grant recipients</label>
+  <div class="search-row">
+    <input id="site-q" name="q" type="search" value="{{.Query}}" autocomplete="off" spellcheck="false" autofocus
+           hx-get="/search" hx-trigger="input changed delay:300ms, search" hx-target="#site-results" hx-swap="outerHTML" hx-replace-url="true">
+    <button type="submit">Search</button>
+  </div>
+</form>
+{{template "site-results" .}}
+{{end}}
+
+{{define "site-results"}}
+<div id="site-results" class="site-results" aria-live="polite">
+{{if .TooShort}}
+  <p class="muted">Type at least two characters.</p>
+{{else if not .Searched}}
+  <p class="muted">Search by name, ABN (for example 51 824 753 556) or contract notice ID (for example CN4012345). Contracts are found by words in their description.</p>
+{{else if not .Matches}}
+  <p>Nothing matches “{{.Query}}”.</p>
+  <p class="muted small">Try part of a name, such as “Defence” or “Deloitte”. Suppliers who are individuals are found by name, but grant recipients who are individuals are not. <a href="/methodology#individuals">Why</a></p>
+{{else}}
+  <p class="muted small">Results for “{{.Query}}”. Each kind lists up to 20 matches, largest first.</p>
+
+  {{if .Entities}}
+  <section aria-labelledby="r-entities">
+    <h2 id="r-entities">Departments and agencies</h2>
+    <div class="scroll">
+    <table class="data">
+      <thead><tr><th scope="col">Entity</th><th scope="col">Portfolio</th><th scope="col" class="num">{{.Period.FY}}<br><span class="th-sub">Budget estimate</span></th></tr></thead>
+      <tbody>
+      {{range .Entities}}
+        <tr>
+          <th scope="row"><a href="/entity/{{.ID}}">{{.Name}}</a>{{if .MatchedName}}<span class="row-note">Also published as {{.MatchedName}}</span>{{end}}</th>
+          <td><a href="/portfolio/{{pathEscape .Portfolio}}">{{.Portfolio}}</a></td>
+          <td class="num">{{money .Cur}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {{end}}
+
+  {{if .Portfolios}}
+  <section aria-labelledby="r-portfolios">
+    <h2 id="r-portfolios">Portfolios</h2>
+    <ul class="result-list">
+      {{range .Portfolios}}<li><a href="/portfolio/{{pathEscape .}}">{{.}}</a></li>{{end}}
+    </ul>
+  </section>
+  {{end}}
+
+  {{if .Programs}}
+  <section aria-labelledby="r-programs">
+    <h2 id="r-programs">Programs</h2>
+    <div class="scroll">
+    <table class="data">
+      <thead><tr><th scope="col">Program</th><th scope="col">Entity</th><th scope="col" class="num">{{.Period.FY}}<br><span class="th-sub">Budget estimate</span></th></tr></thead>
+      <tbody>
+      {{range .Programs}}
+        <tr>
+          <th scope="row"><a href="/program/{{.ID}}">{{display .Name}}</a></th>
+          <td><a href="/entity/{{.EntityID}}">{{.EntityName}}</a></td>
+          <td class="num">{{money .Cur}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {{end}}
+
+  {{if .Projects}}
+  <section aria-labelledby="r-projects">
+    <h2 id="r-projects">Major projects</h2>
+    <div class="scroll">
+    <table class="data">
+      <thead><tr><th scope="col">Project</th><th scope="col">Delivered by</th><th scope="col" class="num">Latest cost estimate</th></tr></thead>
+      <tbody>
+      {{range .Projects}}
+        <tr>
+          <th scope="row"><a href="/projects/{{.Key}}">{{.Name}}</a></th>
+          <td>{{.Owner}}</td>
+          <td class="num">{{.Latest.Amount}} <span class="muted small">{{.Latest.Date}}</span></td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {{end}}
+
+  {{if .Groups}}
+  <section aria-labelledby="r-groups">
+    <h2 id="r-groups">Corporate groups</h2>
+    <div class="scroll">
+    <table class="data">
+      <thead><tr><th scope="col">Group</th><th scope="col" class="num">Companies</th><th scope="col" class="num">Total value</th></tr></thead>
+      <tbody>
+      {{range .Groups}}
+        <tr>
+          <th scope="row"><a href="/group/{{.ID}}">{{.Name}}</a></th>
+          <td class="num">{{.Members}}</td>
+          <td class="num">{{money .Value}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+    <p class="muted small">Whole-of-life value of every contract loaded for the group’s members, as published on AusTender. <a href="/methodology#groups">How groups are formed</a></p>
+  </section>
+  {{end}}
+
+  {{if .Suppliers}}
+  <section aria-labelledby="r-suppliers">
+    <h2 id="r-suppliers">Suppliers</h2>
+    <div class="scroll">
+    <table class="data">
+      <thead><tr><th scope="col">Supplier</th><th scope="col">ABN</th><th scope="col" class="num">Contracts</th><th scope="col" class="num">Total value</th></tr></thead>
+      <tbody>
+      {{range .Suppliers}}
+        <tr>
+          <th scope="row"><a href="/supplier/{{.ID}}">{{.Name}}</a>{{template "fms-tag" .Name}}{{if .GroupID}}<span class="row-note">Part of <a href="/group/{{.GroupID}}">{{.GroupName}}</a></span>{{end}}</th>
+          <td class="small">{{template "abn" .Abn}}</td>
+          <td class="num">{{.Contracts}}</td>
+          <td class="num">{{money .Value}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+    <p class="muted small">Whole-of-life value of every contract loaded, as published on AusTender, including suppliers who are individuals.</p>
+  </section>
+  {{end}}
+
+  {{if .Contracts}}
+  <section aria-labelledby="r-contracts">
+    <h2 id="r-contracts">Contracts</h2>
+    <div class="scroll">
+    <table class="data">
+      <thead><tr><th scope="col">Contract</th><th scope="col">Agency</th><th scope="col">Supplier</th><th scope="col" class="num">Value</th></tr></thead>
+      <tbody>
+      {{range .Contracts}}
+        <tr>
+          <th scope="row"><a href="/contract/{{.CnID}}">{{trunc .Description 110}}</a><span class="row-note"><span class="mono">{{.CnID}}</span> · published {{.PublishedDate}}</span></th>
+          <td>{{if .EntityID.Valid}}<a href="/entity/{{.EntityID.Int64}}">{{.Agency}}</a>{{else}}{{.Agency}}{{end}}</td>
+          <td>{{if .SupplierID}}<a href="/supplier/{{.SupplierID}}">{{.Supplier}}</a>{{template "fms-tag" .Supplier}}{{else}}–{{end}}</td>
+          <td class="num">{{money .Value}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+    <p class="muted small">{{if gt .ContractMatches (len .Contracts)}}The {{len .Contracts}} largest of {{.ContractMatches}} contracts whose description matches. {{end}}Whole-of-life values at publication, not annual spending.</p>
+  </section>
+  {{end}}
+
+  {{if .Grants}}
+  <section aria-labelledby="r-grants">
+    <h2 id="r-grants">Grant recipients</h2>
+    <div class="scroll">
+    <table class="data">
+      <thead><tr><th scope="col">Recipient</th><th scope="col">Granting agency</th><th scope="col" class="num">Grants</th><th scope="col" class="num">Total value</th></tr></thead>
+      <tbody>
+      {{range .Grants}}
+        <tr>
+          <th scope="row">{{.Recipient}}</th>
+          <td>{{if .EntityID}}<a href="/entity/{{.EntityID}}">{{.AgencyName}}</a>{{else}}{{.AgencyName}}{{end}}</td>
+          <td class="num">{{.Grants}}</td>
+          <td class="num">{{money .Value}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+    <p class="muted small">Each award’s value over its whole term, as published on GrantConnect, one row per recipient and agency. Recipients whose names read as a person’s are not listed. <a href="/methodology#individuals">Why</a></p>
+  </section>
+  {{end}}
+{{end}}
+</div>
+{{end}}

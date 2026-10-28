@@ -497,3 +497,23 @@ CREATE TABLE IF NOT EXISTS project_link (
   supplier_id  INTEGER REFERENCES supplier(id),
   CHECK ((entity_id IS NULL) <> (supplier_id IS NULL))
 );
+
+-- Budget sub-functions --------------------------------------------------------
+-- Budget Paper No. 1 Appendix A splits each function into sub-functions, and
+-- Budget Paper No. 3 itemises the general revenue assistance inside one of
+-- them. parent is '' for a sub-function, or the name of the row (possibly from
+-- another document of the same budget year) that this row sits inside.
+CREATE TABLE IF NOT EXISTS wog_subfunction (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_document_id  INTEGER NOT NULL REFERENCES source_document(id),
+  source_table        TEXT NOT NULL,     -- e.g. 'Table A.6.1'
+  fiscal_year         TEXT NOT NULL,
+  estimate_type       TEXT NOT NULL,
+  function_name       TEXT NOT NULL,     -- wog_expense.category with lens 'function'
+  parent              TEXT NOT NULL DEFAULT '',
+  name                TEXT NOT NULL,
+  position            INTEGER NOT NULL,  -- row order in the source table
+  amount              INTEGER NOT NULL,  -- whole dollars
+  note                TEXT NOT NULL DEFAULT '',
+  UNIQUE (source_document_id, fiscal_year, function_name, name)
+);

@@ -1,0 +1,34 @@
+{{define "title"}}About{{end}}
+
+{{define "content"}}
+<p class="kicker">About</p>
+<h1>About this site</h1>
+<div class="prose">
+<p>The Federal Spending Explorer shows where Australian Government spending goes, from the whole-of-government total down to individual contracts and grants. Every figure sits inside a published total, and every total shows how much of it can be traced to named suppliers and recipients.</p>
+
+<h2 id="data">Where the data comes from</h2>
+<p>All figures come from documents the government publishes:</p>
+<ul>
+  <li><strong>Budget Paper No. 1 and the Final Budget Outcome</strong> (Treasury): total expenses by function and by type.</li>
+  <li><strong><a href="https://budget.gov.au/content/pbs/index.htm">Portfolio Budget Statements</a></strong> (each portfolio, via data.gov.au): spending by portfolio, entity, outcome and program.</li>
+  <li><strong><a href="https://api.tenders.gov.au/ocds">AusTender</a></strong> (Department of Finance): contract notices.</li>
+  <li><strong><a href="https://www.grants.gov.au/Ga/List">GrantConnect</a></strong> (Department of Finance): grant awards.</li>
+  <li><strong><a href="https://www.transparency.gov.au/">Transparency Portal</a></strong> (Department of Finance): what each entity reported in its annual report.</li>
+  <li><strong><a href="https://data.gov.au/data/dataset/abn-bulk-extract">Australian Business Register</a></strong> and the <strong><a href="https://www.gleif.org/en/lei-data/gleif-golden-copy/download-the-golden-copy">global LEI register</a></strong>: who suppliers are, and which corporate groups they belong to.</li>
+</ul>
+<p><a href="/sources">Sources and changes</a> lists every file we use, with its SHA-256 fingerprint, and every data load.</p>
+
+<h2 id="methodology">How we prepare the data</h2>
+<p>Where we combine, remove or adjust a figure, it is labelled on the page, and the rule is set out in the <a href="/methodology">methodology</a>. This includes amounts removed as double counting, the whole-of-government adjustments that reconcile programs to the Budget total, annualised contract values, and contracts classified by an AI model.</p>
+
+<h2 id="code">Source code</h2>
+<p>The code that loads the data and runs this site is open source, on <a href="https://github.com/exploded/spendingexplorer">GitHub</a>.</p>
+
+<h2 id="corrections">Corrections and suggestions</h2>
+<p>If a figure looks wrong, a name is matched to the wrong entity, or a source is missing, <a href="https://github.com/exploded/spendingexplorer/issues/new">open an issue on GitHub</a>. Include the page address and, if you can, the source document that shows the correct figure. Code changes are welcome as pull requests.</p>
+<p>No GitHub account? Use the contact details on <a href="https://localithelp.com.au/">Local IT Help</a>.</p>
+
+<h2 id="who">Who built it</h2>
+<p>Built by James McHugh at <a href="https://localithelp.com.au/">Local IT Help</a>, Donvale, Victoria. The site is independent and is not affiliated with the Australian Government.</p>
+</div>
+{{end}}

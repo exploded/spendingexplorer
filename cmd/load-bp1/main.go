@@ -1,5 +1,8 @@
 // Command load-bp1 loads Budget Paper No. 1 "Estimates of expenses by function"
 // (Table 5.3 in 2025-26, Table 6.3 in 2026-27) into wog_expense. Amounts are $m.
+//
+// With -outcome it loads the Final Budget Outcome's expenses by function
+// (Table A.1 function totals) instead, as actuals for the budget year.
 package main
 
 import (
@@ -27,12 +30,21 @@ func main() {
 	budget := flag.String("budget", "", "budget year of the publication, e.g. 2025-26")
 	url := flag.String("url", "", "where the file was downloaded from")
 	title := flag.String("title", "", "source document title")
+	outcome := flag.Bool("outcome", false, "the file is a Final Budget Outcome table of actuals")
 	flag.Parse()
 	if *file == "" || *budget == "" || *url == "" {
-		log.Fatal("usage: load-bp1 -file F -budget YYYY-YY -url URL [-title T] [-db spending.db]")
+		log.Fatal("usage: load-bp1 -file F -budget YYYY-YY -url URL [-outcome] [-title T] [-db spending.db]")
+	}
+	docType, publisher := "bp1_function", "Commonwealth Treasury via data.gov.au"
+	defaultTitle := *budget + " Budget Paper No. 1 – Estimates of expenses by function"
+	estimateType := func(fy string) string { return pbs.EstimateType(*budget, fy) }
+	if *outcome {
+		docType, publisher = "fbo_function", "Commonwealth Treasury"
+		defaultTitle = "Final Budget Outcome " + *budget + " – Table A.1, expenses by function"
+		estimateType = func(string) string { return "actual" }
 	}
 	if *title == "" {
-		*title = *budget + " Budget Paper No. 1 – Estimates of expenses by function"
+		*title = defaultTitle
 	}
 
 	years, rows, err := readTable(*file)
@@ -53,7 +65,7 @@ func main() {
 	defer tx.Rollback()
 	q := db.New(tx)
 
-	docID, err := source.Register(ctx, q, *file, *title, "Commonwealth Treasury via data.gov.au", *url, "bp1_function", *budget)
+	docID, err := source.Register(ctx, q, *file, *title, publisher, *url, docType, *budget)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -66,7 +78,7 @@ func main() {
 			if err := q.InsertWogExpense(ctx, db.InsertWogExpenseParams{
 				SourceDocumentID: docID,
 				FiscalYear:       years[i],
-				EstimateType:     pbs.EstimateType(*budget, years[i]),
+				EstimateType:     estimateType(years[i]),
 				Lens:             "function",
 				Category:         r.category,
 				Amount:           v,

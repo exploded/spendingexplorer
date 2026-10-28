@@ -29,6 +29,9 @@ go run ./cmd/load-pbs -budget 2025-26 -file data/raw/pbs-2025-26.csv -url <csv u
 go run ./cmd/load-pbs -budget 2026-27 -file data/raw/pbs-2026-27.xlsx -url <xlsx url>
 go run ./cmd/load-bp1 -budget 2025-26 -file data/raw/bp1-2025-26-table-5.3.csv -url <bp1 zip url>
 go run ./cmd/load-bp1 -budget 2026-27 -file data/raw/bp1-2026-27-table-6.3.csv -url <bp1 zip url>
+go run ./cmd/load-bp1 -outcome -budget 2025-26 -file data/raw/fbo-2025-26-table-a.1.csv -url <fbo pdf url>
+go run ./cmd/load-subfunctions -budget 2026-27 -file data/raw/bp1-2026-27-table-a.6.1.csv -table "Table A.6.1" -title T -url <bp1 statement 6 url>
+go run ./cmd/load-subfunctions -budget 2026-27 -file data/raw/bp3-2026-27-general-revenue.csv -table "Table 3.1" -doc-type bp3_general_revenue -title T -url <bp3 pdf url>
 go run ./cmd/reconcile
 ```
 
@@ -37,6 +40,15 @@ budget years: `data/entity_names.csv` maps renamed, misspelt or shortened PBS na
 `load-pbs` merges any entity row an earlier load created under such a name. `reconcile` prints, per publication and year: line items by treatment rule, the itemised
 total, the BP1 total expenses, and the difference ("whole-of-government adjustments").
 Treatment rules are in `internal/pbs/treatment.go`.
+
+Sub-functions come from Appendix A of BP1 Statement 6, which is published only as Word and
+PDF, not in the data.gov.au tables zip. `data/raw/bp1-2026-27-table-a.6.1.csv` was extracted
+from the Word file's table rows, with wrapped labels joined. `data/raw/bp3-2026-27-general-revenue.csv`
+is typed in from BP3 Table 3.1 and the Financial Assistance Grant table, because the PDF
+text misaligns Table 3.1's columns. `load-subfunctions` stops if sub-functions don't add up
+to the BP1 function totals; it prints, without stopping, any gap between a BP1 sub-function
+and the BP3 rows that itemise it. Descriptions shown under each row are in
+`data/subfunction_notes.csv`.
 
 ## AusTender contracts
 

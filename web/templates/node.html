@@ -211,12 +211,73 @@
 {{if .Functions}}
 <section class="functions" aria-labelledby="fn-h">
   <h2 id="fn-h">By function</h2>
-  <p class="muted">Budget Paper No. 1 also splits the total by purpose. These figures sum to the published total and are not broken down further.</p>
+  <p class="muted">Budget Paper No. 1 also splits the total by purpose. These figures sum to the published total. Open a function to see its sub-functions, which sum to it in turn.</p>
   {{range .Functions}}
+  {{if .Subs}}
+  <details class="fn"{{if .Open}} open{{end}}>
+    <summary class="kind" data-tip="{{.Name}}|{{money .Cur}} · {{f1 .Share}}% of total|{{signedMoney .Change}} ({{changePct .Node}}) on {{$.Period.Prev}}">
+      <span class="kind-name">{{.Name}}</span><span class="meter"><span style="width:{{pctCSS .Share}}"></span></span><span class="num">{{money .Cur}} <span class="muted">{{changePct .Node}}</span></span>
+    </summary>
+    {{template "subfns" .Subs}}
+  </details>
+  {{else}}
   <div class="kind" data-tip="{{.Name}}|{{money .Cur}} · {{f1 .Share}}% of total|{{signedMoney .Change}} ({{changePct .Node}}) on {{$.Period.Prev}}">
     <span class="kind-name">{{.Name}}</span><span class="meter"><span style="width:{{pctCSS .Share}}"></span></span><span class="num">{{money .Cur}} <span class="muted">{{changePct .Node}}</span></span>
   </div>
   {{end}}
+  {{end}}
+  {{with $.Recon}}<p class="muted small">Sub-functions: <a href="https://budget.gov.au/content/bp1/download/bp1_bs-6.docx">Budget Paper No. 1, Statement 6, Appendix A</a>. Where a sub-function is itemised from Budget Paper No. 3, any part it doesn’t cover is shown as its own row.</p>{{end}}
 </section>
 {{end}}
+
+{{with .Outcome}}
+<section class="outcome" id="outcome" aria-labelledby="outcome-h">
+  <h2 id="outcome-h">{{.FY}}: budgeted and spent</h2>
+  <p>Total expenses in {{.FY}} were {{money .Total.Cur}}, against {{money .Total.Prev}} estimated in the {{.FY}} Budget: a difference of {{signedMoney .Total.Change}} ({{changePct .Total.Node}}).{{if .Total.HasRevised}} By the next Budget, the estimate for the year was {{money .Total.Revised}}.{{end}}</p>
+  <div class="scroll">
+  <table class="data">
+    <thead><tr>
+      <th scope="col">Function</th>
+      <th scope="col" class="num">Budget<br><span class="th-sub">{{.FY}} Budget</span></th>
+      {{if .Revised}}<th scope="col" class="num">Revised<br><span class="th-sub">next Budget</span></th>{{end}}
+      <th scope="col" class="num">Actual<br><span class="th-sub">Final Budget Outcome</span></th>
+      <th scope="col" class="num">Difference<br><span class="th-sub">actual less Budget</span></th>
+    </tr></thead>
+    <tbody>
+    {{range .Rows}}
+      <tr>
+        <th scope="row">{{.Name}}</th>
+        <td class="num">{{money .Prev}}</td>
+        {{if $.Outcome.Revised}}<td class="num">{{if .HasRevised}}{{money .Revised}}{{else}}<span class="muted">–</span>{{end}}</td>{{end}}
+        <td class="num">{{money .Cur}}</td>
+        <td class="num"><span>{{signedMoney .Change}}</span> <span class="muted">{{changePct .Node}}</span></td>
+      </tr>
+    {{end}}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th scope="row">Total expenses</th>
+        <td class="num">{{money .Total.Prev}}</td>
+        {{if .Revised}}<td class="num">{{if .Total.HasRevised}}{{money .Total.Revised}}{{end}}</td>{{end}}
+        <td class="num">{{money .Total.Cur}}</td>
+        <td class="num"><span>{{signedMoney .Total.Change}}</span> <span class="muted">{{changePct .Total.Node}}</span></td>
+      </tr>
+    </tfoot>
+  </table>
+  </div>
+  <p class="muted small">Budget estimates of other purposes include the contingency reserve, an allowance for decisions not yet announced and for spending that tends to come in under estimate. Outcomes have no such allowance, because spending is recorded under the function where it happened. The Final Budget Outcome reports actuals for the whole of government only, so portfolio and entity pages show estimates. Sources: <a href="{{.Budget.Url}}">{{.Budget.Title}}</a>{{with .Revised}}; <a href="{{.Url}}">{{.Title}}</a>{{end}}; <a href="{{.Actual.Url}}">{{.Actual.Title}}</a>. <a href="/methodology#outcome">How these compare</a>.</p>
+</section>
+{{end}}
+{{end}}
+
+{{/* subfns lists one level of sub-functions inside .Of. */}}
+{{define "subfns"}}
+<div class="subs">
+  {{range .Rows}}
+  <div class="kind sub{{if .Gap}} gap{{end}}" data-tip="{{.Name}}|{{money .Cur}} · {{f1 .Share}}% of {{$.Of}}|{{if not .Gap}}{{signedMoney .Change}}{{with changePct .Node}} ({{.}}){{end}} on {{$.Prev}}{{end}}">
+    <span class="kind-name">{{.Name}}{{if .Gap}} <a class="badge badge-recon" href="/methodology#subfunctions">reconciliation</a>{{else if .Source}} <a class="badge badge-reported" href="{{.SourceURL}}" title="{{.Source}}, {{.Table}}">{{.Source}}</a>{{end}}{{with .Note}}<span class="row-note">{{.}}</span>{{end}}</span><span class="meter"><span style="width:{{pctCSS .Meter}}"></span></span><span class="num">{{money .Cur}} <span class="muted">{{if not .Gap}}{{changePct .Node}}{{end}}</span></span>
+  </div>
+  {{with .Children}}{{template "subfns" .}}{{end}}
+  {{end}}
+</div>
 {{end}}

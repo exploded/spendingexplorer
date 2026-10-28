@@ -81,12 +81,14 @@ a:hover { text-decoration-color: currentColor; }
 .masthead nav a { color: var(--ink-2); text-decoration: none; white-space: nowrap; padding: 17px 0 15px; border-bottom: 2px solid transparent; }
 .masthead nav a:hover { color: var(--ink); }
 .masthead nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+.masthead nav .nav-search { display: inline-flex; align-items: center; gap: 6px; }
 
 main.wrap { padding-top: 36px; padding-bottom: 48px; }
 h1 { font: 600 clamp(30px, 4.2vw, 46px)/1.08 var(--serif); margin: 6px 0 14px; letter-spacing: -0.02em; }
 h2 { font: 600 23px/1.25 var(--serif); margin: 40px 0 8px; letter-spacing: -0.01em; }
 .kicker { font: 600 11.5px/1.4 var(--sans); text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-3); margin: 0; }
 h2.kicker { margin: 0 0 12px; }
+.kicker a { color: inherit; }
 .muted { color: var(--ink-3); }
 .small { font-size: 13px; }
 .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
@@ -150,6 +152,18 @@ ol.notes { margin: 12px 0 0; padding-left: 20px; color: var(--ink-2); }
 
 .kind { display: grid; grid-template-columns: minmax(0, 2fr) minmax(80px, 3fr) auto; gap: 12px; align-items: center; padding: 6px 0; font-size: 14px; }
 .kind .num { min-width: 120px; }
+/* A function opens to its sub-functions, indented beneath it. */
+details.fn > summary { cursor: pointer; list-style: none; }
+details.fn > summary::-webkit-details-marker { display: none; }
+details.fn > summary .kind-name::before { content: "▸"; display: inline-block; width: 1.1em; color: var(--ink-3); }
+details.fn[open] > summary .kind-name::before { content: "▾"; }
+details.fn > summary:hover .kind-name { color: var(--link); }
+.subs { padding-left: 1.1em; border-left: 1px solid var(--rule); margin: 0 0 8px 4px; }
+.subs .subs { margin-top: 0; }
+.kind.sub { font-size: 13.5px; padding: 4px 0 4px 10px; align-items: start; }
+.kind.sub .meter { height: 6px; margin-top: 8px; }
+.kind.sub .meter > span { background: var(--meter-2); }
+.kind.gap .meter > span { background: repeating-linear-gradient(45deg, var(--ink-3) 0 3px, transparent 3px 6px); }
 
 /* Treemap: a light tint of the change colour, with the full colour as a top edge. */
 .treemap-figure { margin: 0 0 32px; }
@@ -258,6 +272,8 @@ tr.current th, tr.current td { font-weight: 700; }
   font: inherit; padding: 8px 14px; color: var(--ink); background: var(--badge-bg);
   border: 1px solid var(--rule); border-radius: 6px; cursor: pointer;
 }
+.site-results section h2 { margin-top: 32px; }
+.result-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 24px; }
 
 .site-footer { border-top: 1px solid var(--rule); padding-top: 16px; padding-bottom: 32px; font-size: 13px; color: var(--ink-3); }
 
@@ -276,7 +292,7 @@ tr.current th, tr.current td { font-weight: 700; }
     mask-image: linear-gradient(to right, #000 85%, transparent);
   }
   .masthead nav a { padding: 10px 0 9px; }
-  .hero-number { font-size: 60px; }
+  .masthead nav .nav-search { order: -1; }  .hero-number { font-size: 60px; }
   .tile-name, .tile-change { display: none; }
   .tile.labelled { padding: 4px; font-size: 11px; }
   .kind { grid-template-columns: 1fr auto; }
