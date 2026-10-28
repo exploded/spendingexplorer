@@ -45,3 +45,15 @@
   });
   document.addEventListener("focusout", function () { current = null; tip.hidden = true; });
 })();
+
+// Mark the masthead link for the section this page belongs to.
+(function () {
+  var section = {
+    supplier: "suppliers", group: "suppliers", contract: "suppliers",
+    signals: "signals", projects: "projects", investments: "investments",
+    methodology: "methodology", sources: "sources", suppliers: "suppliers"
+  }[location.pathname.split("/")[1]];
+  if (!section) return;
+  var link = document.querySelector('.masthead nav a[href="/' + section + '"]');
+  if (link) link.setAttribute("aria-current", "page");
+})();
