@@ -220,6 +220,50 @@ type LoadRun struct {
 	FinishedAt       time.Time
 }
 
+type MinisterTitle struct {
+	Title     string
+	Portfolio string
+}
+
+type Ministry struct {
+	ID        int64
+	Name      string
+	StartDate string
+	EndDate   string
+}
+
+type OfficeHolding struct {
+	PersonID         int64
+	Role             string
+	Title            string
+	StartDate        string
+	EndDate          string
+	Ministry         string
+	SourceDocumentID int64
+}
+
+type Person struct {
+	ID               int64
+	AphID            sql.NullString
+	Name             string
+	Party            string
+	Chamber          string
+	Electorate       string
+	State            string
+	InParliament     int64
+	ServiceStart     string
+	ServiceEnd       string
+	WikidataID       string
+	WikipediaUrl     string
+	Photo            []byte
+	PhotoType        string
+	PhotoCredit      string
+	PhotoLicence     string
+	PhotoLicenceUrl  string
+	PhotoPageUrl     string
+	SourceDocumentID int64
+}
+
 type PolicyInvestment struct {
 	SourceDocumentID int64
 	Item             string

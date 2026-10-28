@@ -528,3 +528,60 @@ CREATE TABLE IF NOT EXISTS wog_subfunction (
   note                TEXT NOT NULL DEFAULT '',
   UNIQUE (source_document_id, fiscal_year, function_name, name)
 );
+
+-- Ministers -------------------------------------------------------------------
+-- People and their appointments come from the Parliamentary Handbook
+-- (Parliamentary Library). Wikidata, matched on the Handbook ID, adds the
+-- Wikipedia article and a Wikimedia Commons photo, kept with its licence and
+-- credit. aph_id is NULL for people who are not parliamentarians.
+CREATE TABLE IF NOT EXISTS person (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  aph_id              TEXT UNIQUE,           -- Parliamentary Handbook ID, e.g. HWK
+  name                TEXT NOT NULL,         -- e.g. Mark Butler
+  party               TEXT NOT NULL DEFAULT '',
+  chamber             TEXT NOT NULL DEFAULT '', -- Member | Senator
+  electorate          TEXT NOT NULL DEFAULT '', -- a Member's division
+  state               TEXT NOT NULL DEFAULT '',
+  in_parliament       INTEGER NOT NULL DEFAULT 0,
+  service_start       TEXT NOT NULL DEFAULT '', -- first entered Parliament
+  service_end         TEXT NOT NULL DEFAULT '',
+  wikidata_id         TEXT NOT NULL DEFAULT '',
+  wikipedia_url       TEXT NOT NULL DEFAULT '',
+  photo               BLOB,
+  photo_type          TEXT NOT NULL DEFAULT '',
+  photo_credit        TEXT NOT NULL DEFAULT '',
+  photo_licence       TEXT NOT NULL DEFAULT '',
+  photo_licence_url   TEXT NOT NULL DEFAULT '',
+  photo_page_url      TEXT NOT NULL DEFAULT '',
+  source_document_id  INTEGER NOT NULL REFERENCES source_document(id)
+);
+
+-- Ministries loaded from the Handbook, by its ministry number.
+CREATE TABLE IF NOT EXISTS ministry (
+  id          INTEGER PRIMARY KEY,           -- e.g. 75
+  name        TEXT NOT NULL,                 -- e.g. Albanese Ministry (2nd)
+  start_date  TEXT NOT NULL,
+  end_date    TEXT NOT NULL DEFAULT ''       -- '' for the current ministry
+);
+
+-- One continuous appointment to a title, as the Handbook records it. Cabinet
+-- membership is a holding too, with role and title 'Cabinet Minister'.
+CREATE TABLE IF NOT EXISTS office_holding (
+  person_id           INTEGER NOT NULL REFERENCES person(id),
+  role                TEXT NOT NULL,         -- Minister | Assistant Minister | Cabinet Minister | Treasurer ...
+  title               TEXT NOT NULL,         -- e.g. Minister for Health and Ageing
+  start_date          TEXT NOT NULL,
+  end_date            TEXT NOT NULL DEFAULT '', -- '' while in office
+  ministry            TEXT NOT NULL,         -- the latest ministry it was part of
+  source_document_id  INTEGER NOT NULL REFERENCES source_document(id),
+  PRIMARY KEY (person_id, title, start_date)
+);
+
+-- The portfolio, as named in the latest Budget, that each ministerial title
+-- belongs to. Curated in data/minister_titles.csv. A title can sit in more
+-- than one portfolio; one that sits in none (Deputy Prime Minister) has no row.
+CREATE TABLE IF NOT EXISTS minister_title (
+  title      TEXT NOT NULL,
+  portfolio  TEXT NOT NULL,
+  PRIMARY KEY (title, portfolio)
+);

@@ -1628,3 +1628,64 @@ ORDER BY recipient_key LIMIT ? OFFSET ?;
 SELECT go_id, CAST(MAX(publish_date) AS TEXT) AS last_published
 FROM grant_award WHERE go_id <> ''
 GROUP BY go_id ORDER BY go_id;
+
+-- name: ClearMinisterHoldings :exec
+DELETE FROM office_holding WHERE person_id IN (SELECT id FROM person WHERE aph_id IS NOT NULL);
+
+-- name: ClearParliamentarians :exec
+DELETE FROM person WHERE aph_id IS NOT NULL;
+
+-- name: ClearMinistries :exec
+DELETE FROM ministry;
+
+-- name: InsertMinistry :exec
+INSERT INTO ministry (id, name, start_date, end_date) VALUES (?, ?, ?, ?);
+
+-- name: ClearMinisterTitles :exec
+DELETE FROM minister_title;
+
+-- name: InsertPerson :one
+INSERT INTO person (aph_id, name, party, chamber, electorate, state, in_parliament, service_start, service_end,
+  wikidata_id, wikipedia_url, photo, photo_type, photo_credit, photo_licence, photo_licence_url, photo_page_url, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id;
+
+-- name: InsertOfficeHolding :exec
+INSERT INTO office_holding (person_id, role, title, start_date, end_date, ministry, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+-- name: InsertMinisterTitle :exec
+INSERT INTO minister_title (title, portfolio) VALUES (?, ?);
+
+-- name: PortfolioMinisters :many
+-- Every appointment to a title in the portfolio, current ones first. cabinet
+-- says whether a current minister sits in Cabinet now.
+SELECT p.id AS person_id, COALESCE(p.aph_id, '') AS aph_id, p.name, p.party, p.chamber, p.electorate, p.state,
+  p.in_parliament, p.service_start, p.service_end, p.wikipedia_url,
+  CAST(p.photo IS NOT NULL AS INTEGER) AS has_photo, p.photo_credit, p.photo_licence, p.photo_licence_url, p.photo_page_url,
+  h.role, h.title, h.start_date, h.end_date,
+  CAST(h.end_date = '' AND EXISTS (
+    SELECT 1 FROM office_holding c
+    WHERE c.person_id = p.id AND c.role = 'Cabinet Minister' AND c.end_date = ''
+  ) AS INTEGER) AS cabinet
+FROM office_holding h
+JOIN minister_title t ON t.title = h.title
+JOIN person p ON p.id = h.person_id
+WHERE t.portfolio = sqlc.arg(portfolio)
+ORDER BY h.end_date = '' DESC, h.end_date DESC, h.start_date, p.name;
+
+-- name: FirstMinistry :one
+-- The earliest ministry loaded, which bounds the list of earlier ministers.
+SELECT name, start_date FROM ministry ORDER BY start_date LIMIT 1;
+
+-- name: MinistersSource :one
+SELECT id, title, url, retrieved_at FROM source_document
+WHERE doc_type = 'aph_ministry_records' ORDER BY id DESC LIMIT 1;
+
+-- name: PersonPhoto :one
+SELECT photo, photo_type FROM person WHERE id = ? AND photo IS NOT NULL;
+
+-- name: LatestBudgetPortfolios :many
+SELECT DISTINCT portfolio FROM program
+WHERE budget_year = (SELECT MAX(budget_year) FROM program)
+ORDER BY portfolio;

@@ -1,0 +1,1734 @@
+[
+ {
+  "PHID": "00AKI",
+  "GivenName": "Peter",
+  "PreferredName": "",
+  "FamilyName": "DUTTON",
+  "DisplayName": "DUTTON, the Hon. Peter Craig",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Dickson",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2001-11-10",
+  "ServiceHistory_End": "2025-05-03"
+ },
+ {
+  "PHID": "00AMN",
+  "GivenName": "Sussan",
+  "PreferredName": "",
+  "FamilyName": "LEY",
+  "DisplayName": "LEY, the Hon. Sussan Penelope",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Farrer",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2001-11-10",
+  "ServiceHistory_End": "2026-02-27"
+ },
+ {
+  "PHID": "00AMR",
+  "GivenName": "Catherine",
+  "PreferredName": "",
+  "FamilyName": "KING",
+  "DisplayName": "KING, the Hon. Catherine Fiona",
+  "Party": "Australian Labor Party",
+  "Electorate": "Ballarat",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2001-11-10",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "00AMV",
+  "GivenName": "Gregory",
+  "PreferredName": "(Greg)",
+  "FamilyName": "HUNT",
+  "DisplayName": "HUNT, the Hon. Gregory (Greg) Andrew",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Flinders",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2001-11-10",
+  "ServiceHistory_End": "2022-04-11"
+ },
+ {
+  "PHID": "00AN3",
+  "GivenName": "Brendan",
+  "PreferredName": "",
+  "FamilyName": "O'CONNOR",
+  "DisplayName": "O'CONNOR, the Hon. Brendan Patrick John",
+  "Party": "Australian Labor Party",
+  "Electorate": "Gorton",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2001-11-10",
+  "ServiceHistory_End": "2025-03-28"
+ },
+ {
+  "PHID": "00AOL",
+  "GivenName": "Richard",
+  "PreferredName": "",
+  "FamilyName": "COLBECK",
+  "DisplayName": "COLBECK, the Hon. Richard Mansell",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "Tasmania",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2002-02-04",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "00AOM",
+  "GivenName": "Nigel",
+  "PreferredName": "",
+  "FamilyName": "SCULLION",
+  "DisplayName": "SCULLION, the Hon. Nigel Gregory",
+  "Party": "The Nationals",
+  "Electorate": "",
+  "State": "Northern Territory",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2001-11-10",
+  "ServiceHistory_End": "2019-05-18"
+ },
+ {
+  "PHID": "00AOU",
+  "GivenName": "Penelope ",
+  "PreferredName": "(Penny)",
+  "FamilyName": "WONG",
+  "DisplayName": "WONG, the Hon. Penelope (Penny) Ying-Yen",
+  "Party": "Australian Labor Party",
+  "Electorate": "",
+  "State": "South Australia",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2002-07-01",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "00ATG",
+  "GivenName": "William ",
+  "PreferredName": "(Bill)",
+  "FamilyName": "SHORTEN",
+  "DisplayName": "SHORTEN, the Hon. William (Bill) Richard",
+  "Party": "Australian Labor Party",
+  "Electorate": "Maribyrnong",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2025-01-20"
+ },
+ {
+  "PHID": "101351",
+  "GivenName": "Peter",
+  "PreferredName": "",
+  "FamilyName": "KHALIL",
+  "DisplayName": "KHALIL, the Hon. Peter",
+  "Party": "Australian Labor Party",
+  "Electorate": "Wills",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "102376",
+  "GivenName": "Madeleine",
+  "PreferredName": "",
+  "FamilyName": "KING",
+  "DisplayName": "KING, the Hon. Madeleine Mary Harvie",
+  "Party": "Australian Labor Party",
+  "Electorate": "Brand",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "121628",
+  "GivenName": "Jennifer ",
+  "PreferredName": "(Jenny)",
+  "FamilyName": "McALLISTER",
+  "DisplayName": "McALLISTER, the Hon. Jennifer (Jenny) Ryll",
+  "Party": "Australian Labor Party",
+  "Electorate": "",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2015-05-06",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "122087",
+  "GivenName": "Malarndirri",
+  "PreferredName": "",
+  "FamilyName": "McCARTHY",
+  "DisplayName": "McCARTHY, the Hon. Malarndirri Barbara Anne",
+  "Party": "Australian Labor Party",
+  "Electorate": "",
+  "State": "Northern Territory",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "13050",
+  "GivenName": "Anne",
+  "PreferredName": "",
+  "FamilyName": "ALY",
+  "DisplayName": "ALY, the Hon. Dr Anne",
+  "Party": "Australian Labor Party",
+  "Electorate": "Cowan",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "132880",
+  "GivenName": "Daniel ",
+  "PreferredName": "",
+  "FamilyName": "MULINO",
+  "DisplayName": "MULINO, the Hon. Dr Daniel",
+  "Party": "Australian Labor Party",
+  "Electorate": "Fraser",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2019-05-18",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "140590",
+  "GivenName": "Clare",
+  "PreferredName": "",
+  "FamilyName": "O'NEIL",
+  "DisplayName": "O'NEIL, the Hon. Clare Ellen",
+  "Party": "Australian Labor Party",
+  "Electorate": "Hotham",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "148150",
+  "GivenName": "Keith",
+  "PreferredName": "",
+  "FamilyName": "PITT",
+  "DisplayName": "PITT, the Hon. Keith John",
+  "Party": "The Nationals",
+  "Electorate": "Hinkler",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2025-01-19"
+ },
+ {
+  "PHID": "159771",
+  "GivenName": "Michelle",
+  "PreferredName": "",
+  "FamilyName": "ROWLAND",
+  "DisplayName": "ROWLAND, the Hon. Michelle Anne",
+  "Party": "Australian Labor Party",
+  "Electorate": "Greenway",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2010-08-21",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "16913",
+  "GivenName": "Timothy",
+  "PreferredName": "(Tim)",
+  "FamilyName": "AYRES",
+  "DisplayName": "AYRES, the Hon. Timothy (Tim)",
+  "Party": "Australian Labor Party",
+  "Electorate": "",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2019-07-01",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "182468",
+  "GivenName": "Matthew ",
+  "PreferredName": "(Matt)",
+  "FamilyName": "THISTLETHWAITE",
+  "DisplayName": "THISTLETHWAITE, the Hon. Matthew (Matt) James",
+  "Party": "Australian Labor Party",
+  "Electorate": "Kingsford Smith",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member",
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2011-07-01",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "193430",
+  "GivenName": "Timothy ",
+  "PreferredName": "(Tim)",
+  "FamilyName": "WATTS",
+  "DisplayName": "WATTS, the Hon. Timothy (Tim) Graham",
+  "Party": "Australian Labor Party",
+  "Electorate": "Gellibrand",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "207825",
+  "GivenName": "Bridget",
+  "PreferredName": "",
+  "FamilyName": "McKENZIE",
+  "DisplayName": "McKENZIE, the Hon. Bridget",
+  "Party": "The Nationals",
+  "Electorate": "",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2011-07-01",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "208884",
+  "GivenName": "Charles",
+  "PreferredName": "(Christian)",
+  "FamilyName": "PORTER",
+  "DisplayName": "PORTER, the Hon. Charles Christian (Christian)",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Pearce",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2022-04-11"
+ },
+ {
+  "PHID": "210911",
+  "GivenName": "Daniel ",
+  "PreferredName": "(Dan)",
+  "FamilyName": "TEHAN",
+  "DisplayName": "TEHAN, the Hon. Daniel (Dan) Thomas",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Wannon",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2010-08-21",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "218019",
+  "GivenName": "Kevin",
+  "PreferredName": "",
+  "FamilyName": "HOGAN",
+  "DisplayName": "HOGAN, the Hon. Kevin John",
+  "Party": "The Nationals",
+  "Electorate": "Page",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": ""
+ },
+ {
+  "PHID": "219646",
+  "GivenName": "Michael",
+  "PreferredName": "",
+  "FamilyName": "McCORMACK",
+  "DisplayName": "McCORMACK, the Hon. Michael Francis",
+  "Party": "The Nationals",
+  "Electorate": "Riverina",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2010-08-21",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "224102",
+  "GivenName": "Rebecca",
+  "PreferredName": "",
+  "FamilyName": "WHITE",
+  "DisplayName": "WHITE, the Hon Rebecca Peta",
+  "Party": "Australian Labor Party",
+  "Electorate": "Lyons",
+  "State": "Tasmania",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2025-05-03",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "230531",
+  "GivenName": "Scott",
+  "PreferredName": "",
+  "FamilyName": "BUCHHOLZ",
+  "DisplayName": "BUCHHOLZ, the Hon. Scott Andrew",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Wright",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2010-08-21",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "230886",
+  "GivenName": "Karen",
+  "PreferredName": "",
+  "FamilyName": "ANDREWS",
+  "DisplayName": "ANDREWS, the Hon. Karen Lesley",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "McPherson",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2010-08-21",
+  "ServiceHistory_End": "2025-03-28"
+ },
+ {
+  "PHID": "231027",
+  "GivenName": "Angus",
+  "PreferredName": "",
+  "FamilyName": "TAYLOR",
+  "DisplayName": "TAYLOR, the Hon. Angus James",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Hume",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "237920",
+  "GivenName": "Amanda",
+  "PreferredName": "",
+  "FamilyName": "STOKER",
+  "DisplayName": "STOKER, the Hon. Amanda Jane",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2018-03-21",
+  "ServiceHistory_End": "2022-06-30"
+ },
+ {
+  "PHID": "241067",
+  "GivenName": "David",
+  "PreferredName": "",
+  "FamilyName": "COLEMAN",
+  "DisplayName": "COLEMAN, the Hon. David Bernard",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Banks",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2025-05-03"
+ },
+ {
+  "PHID": "242515",
+  "GivenName": "Michael",
+  "PreferredName": "",
+  "FamilyName": "SUKKAR",
+  "DisplayName": "SUKKAR, the Hon. Michael Sven",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Deakin",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2025-05-03"
+ },
+ {
+  "PHID": "243273",
+  "GivenName": "Anne",
+  "PreferredName": "",
+  "FamilyName": "RUSTON",
+  "DisplayName": "RUSTON, the Hon. Anne Sowerby",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "South Australia",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2012-09-05",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "243609",
+  "GivenName": "Andrew",
+  "PreferredName": "",
+  "FamilyName": "GILES",
+  "DisplayName": "GILES, the Hon. Andrew James",
+  "Party": "Australian Labor Party",
+  "Electorate": "Scullin",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "245212",
+  "GivenName": "Matthew",
+  "PreferredName": "(Matt)",
+  "FamilyName": "CANAVAN",
+  "DisplayName": "CANAVAN, the Hon. Matthew (Matt) James",
+  "Party": "The Nationals",
+  "Electorate": "",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2014-07-01",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "245759",
+  "GivenName": "Murray",
+  "PreferredName": "",
+  "FamilyName": "WATT",
+  "DisplayName": "WATT, the Hon. Murray Patrick",
+  "Party": "Australian Labor Party",
+  "Electorate": "",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "247742",
+  "GivenName": "Luke",
+  "PreferredName": "",
+  "FamilyName": "HOWARTH",
+  "DisplayName": "HOWARTH, the Hon. Luke Ronald",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Petrie",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2025-05-03"
+ },
+ {
+  "PHID": "248353",
+  "GivenName": "Emma",
+  "PreferredName": "",
+  "FamilyName": "McBRIDE",
+  "DisplayName": "McBRIDE, the Hon. Emma Margaret",
+  "Party": "Australian Labor Party",
+  "Electorate": "Dobell",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "249127",
+  "GivenName": "Patrick",
+  "PreferredName": "(Pat)",
+  "FamilyName": "CONROY",
+  "DisplayName": "CONROY, the Hon. Patrick (Pat) Martin",
+  "Party": "Australian Labor Party",
+  "Electorate": "Shortland",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "249147",
+  "GivenName": "Matthew ",
+  "PreferredName": "(Matt)",
+  "FamilyName": "KEOGH",
+  "DisplayName": "KEOGH, the Hon. Matthew (Matt) James",
+  "Party": "Australian Labor Party",
+  "Electorate": "Burt",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "249308",
+  "GivenName": "Melissa",
+  "PreferredName": "",
+  "FamilyName": "PRICE",
+  "DisplayName": "PRICE, the Hon. Melissa Lee",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Durack",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "249764",
+  "GivenName": "Michelle",
+  "PreferredName": "",
+  "FamilyName": "LANDRY",
+  "DisplayName": "LANDRY, the Hon. Michelle Leanne",
+  "Party": "The Nationals",
+  "Electorate": "Capricornia",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "250216",
+  "GivenName": "Linda",
+  "PreferredName": "",
+  "FamilyName": "REYNOLDS",
+  "DisplayName": "REYNOLDS, the Hon. Linda Karen, CSC",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2014-07-01",
+  "ServiceHistory_End": "2025-06-30"
+ },
+ {
+  "PHID": "252157",
+  "GivenName": "Jess",
+  "PreferredName": "",
+  "FamilyName": "WALSH",
+  "DisplayName": "WALSH, the Hon. Dr Jess Cecille",
+  "Party": "Australian Labor Party",
+  "Electorate": "",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2019-07-01",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "259819",
+  "GivenName": "Nita",
+  "PreferredName": "",
+  "FamilyName": "GREEN",
+  "DisplayName": "GREEN, the Hon. Nita Louise",
+  "Party": "Australian Labor Party",
+  "Electorate": "",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2019-07-01",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "260805",
+  "GivenName": "Andrew",
+  "PreferredName": "",
+  "FamilyName": "HASTIE",
+  "DisplayName": "HASTIE, the Hon. Andrew William",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Canning",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2015-09-19",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "261393",
+  "GivenName": "Andrew",
+  "PreferredName": "",
+  "FamilyName": "GEE",
+  "DisplayName": "GEE, the Hon. Andrew Robert",
+  "Party": "Independent",
+  "Electorate": "Calare",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "263418",
+  "GivenName": "Jonathon",
+  "PreferredName": "(Jonno)",
+  "FamilyName": "DUNIAM",
+  "DisplayName": "DUNIAM, the Hon. Jonathon (Jonno) Roy",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "Tasmania",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "264121",
+  "GivenName": "Anika",
+  "PreferredName": "",
+  "FamilyName": "WELLS",
+  "DisplayName": "WELLS, the Hon. Anika Shay",
+  "Party": "Australian Labor Party",
+  "Electorate": "Lilley",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2019-05-18",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "265585",
+  "GivenName": "David",
+  "PreferredName": "",
+  "FamilyName": "LITTLEPROUD",
+  "DisplayName": "LITTLEPROUD, the Hon. David Kelly",
+  "Party": "The Nationals",
+  "Electorate": "Maranoa",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "265931",
+  "GivenName": "Ben",
+  "PreferredName": "",
+  "FamilyName": "MORTON",
+  "DisplayName": "MORTON, the Hon. Ben",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Tangney",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2022-05-21"
+ },
+ {
+  "PHID": "265970",
+  "GivenName": "Joshua ",
+  "PreferredName": "(Josh)",
+  "FamilyName": "WILSON",
+  "DisplayName": "WILSON, the Hon. Joshua (Josh) Hamilton",
+  "Party": "Australian Labor Party",
+  "Electorate": "Fremantle",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "266499",
+  "GivenName": "Edwina",
+  "PreferredName": "(Jane)",
+  "FamilyName": "HUME",
+  "DisplayName": "HUME, the Hon. Edwina Jane (Jane)",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "281988",
+  "GivenName": "Kristy",
+  "PreferredName": "",
+  "FamilyName": "McBAIN",
+  "DisplayName": "McBAIN, the Hon. Kristy Louise",
+  "Party": "Australian Labor Party",
+  "Electorate": "Eden-Monaro",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2020-07-04",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "282212",
+  "GivenName": "Kate",
+  "PreferredName": "",
+  "FamilyName": "THWAITES",
+  "DisplayName": "THWAITES, the Hon. Kate Lynne",
+  "Party": "Australian Labor Party",
+  "Electorate": "Jagajaga",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2019-05-18",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "300122",
+  "GivenName": "Samuel",
+  "PreferredName": "(Sam)",
+  "FamilyName": "RAE",
+  "DisplayName": "RAE, the Hon. Samuel (Sam) Thomas",
+  "Party": "Australian Labor Party",
+  "Electorate": "Hawke",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2022-05-21",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "37998",
+  "GivenName": "James ",
+  "PreferredName": "(Jim)",
+  "FamilyName": "CHALMERS",
+  "DisplayName": "CHALMERS, the Hon. Dr James (Jim) Edward",
+  "Party": "Australian Labor Party",
+  "Electorate": "Rankin",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "39801",
+  "GivenName": "Anthony",
+  "PreferredName": "",
+  "FamilyName": "CHISHOLM",
+  "DisplayName": "CHISHOLM, the Hon. Anthony David",
+  "Party": "Australian Labor Party",
+  "Electorate": "",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "61378",
+  "GivenName": "Trevor",
+  "PreferredName": "",
+  "FamilyName": "EVANS",
+  "DisplayName": "EVANS, the Hon. Trevor Mark",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Brisbane",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2022-05-21"
+ },
+ {
+  "PHID": "72184",
+  "GivenName": "David",
+  "PreferredName": "",
+  "FamilyName": "GILLESPIE",
+  "DisplayName": "GILLESPIE, the Hon. Dr David Arthur",
+  "Party": "The Nationals",
+  "Electorate": "Lyne",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2025-03-28"
+ },
+ {
+  "PHID": "74519",
+  "GivenName": "Patrick",
+  "PreferredName": "",
+  "FamilyName": "GORMAN",
+  "DisplayName": "GORMAN, the Hon. Patrick",
+  "Party": "Australian Labor Party",
+  "Electorate": "Perth",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2018-07-28",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "83M",
+  "GivenName": "Tanya",
+  "PreferredName": "",
+  "FamilyName": "PLIBERSEK",
+  "DisplayName": "PLIBERSEK, the Hon. Tanya Joan",
+  "Party": "Australian Labor Party",
+  "Electorate": "Sydney",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "1998-10-03",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "86256",
+  "GivenName": "Julian",
+  "PreferredName": "",
+  "FamilyName": "HILL",
+  "DisplayName": "HILL, the Hon. Julian Christopher",
+  "Party": "Australian Labor Party",
+  "Electorate": "Bruce",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "8GH",
+  "GivenName": "Linda",
+  "PreferredName": "",
+  "FamilyName": "BURNEY",
+  "DisplayName": "BURNEY, the Hon. Linda Jean",
+  "Party": "Australian Labor Party",
+  "Electorate": "Barton",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2025-03-28"
+ },
+ {
+  "PHID": "91219",
+  "GivenName": "Edham ",
+  "PreferredName": "(Ed)",
+  "FamilyName": "HUSIC",
+  "DisplayName": "HUSIC, the Hon. Edham (Ed) Nurredin",
+  "Party": "Australian Labor Party",
+  "Electorate": "Chifley",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2010-08-21",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "9V5",
+  "GivenName": "Christopher",
+  "PreferredName": "",
+  "FamilyName": "PYNE",
+  "DisplayName": "PYNE, the Hon. Christopher Maurice",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Sturt",
+  "State": "South Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "1993-03-13",
+  "ServiceHistory_End": "2019-04-11"
+ },
+ {
+  "PHID": "A9B",
+  "GivenName": "Stephen",
+  "PreferredName": "",
+  "FamilyName": "JONES",
+  "DisplayName": "JONES, the Hon. Stephen Patrick",
+  "Party": "Australian Labor Party",
+  "Electorate": "Whitlam",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2010-08-21",
+  "ServiceHistory_End": "2025-03-28"
+ },
+ {
+  "PHID": "BU8",
+  "GivenName": "Andrew",
+  "PreferredName": "",
+  "FamilyName": "LEIGH",
+  "DisplayName": "LEIGH, the Hon. Dr Andrew Keith",
+  "Party": "Australian Labor Party",
+  "Electorate": "Fenner",
+  "State": "Australian Capital Territory",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2010-08-21",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "D2I",
+  "GivenName": "Mitchell ",
+  "PreferredName": "(Mitch)",
+  "FamilyName": "FIFIELD",
+  "DisplayName": "FIFIELD, the Hon. Mitchell (Mitch) Peter",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2004-03-31",
+  "ServiceHistory_End": "2019-08-16"
+ },
+ {
+  "PHID": "DYU",
+  "GivenName": "David",
+  "PreferredName": "",
+  "FamilyName": "FAWCETT",
+  "DisplayName": "FAWCETT, the Hon. David Julian",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "South Australia",
+  "MPorSenator": [
+   "Senator",
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2004-10-09",
+  "ServiceHistory_End": "2025-06-30"
+ },
+ {
+  "PHID": "DYW",
+  "GivenName": "Anthony ",
+  "PreferredName": "(Tony)",
+  "FamilyName": "BURKE",
+  "DisplayName": "BURKE, the Hon. Anthony (Tony) Stephen",
+  "Party": "Australian Labor Party",
+  "Electorate": "Watson",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2004-10-09",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "DZS",
+  "GivenName": "Christopher",
+  "PreferredName": "(Chris)",
+  "FamilyName": "BOWEN",
+  "DisplayName": "BOWEN, the Hon. Christopher (Chris) Eyles",
+  "Party": "Australian Labor Party",
+  "Electorate": "McMahon",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2004-10-09",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "DZW",
+  "GivenName": "Maria",
+  "PreferredName": "(Justine)",
+  "FamilyName": "ELLIOT",
+  "DisplayName": "ELLIOT, the Hon. Maria Justine (Justine)",
+  "Party": "Australian Labor Party",
+  "Electorate": "Richmond",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2004-10-09",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "E0F",
+  "GivenName": "Jason",
+  "PreferredName": "",
+  "FamilyName": "WOOD",
+  "DisplayName": "WOOD, the Hon. Jason Peter",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "La Trobe",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2004-10-09",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "E0J",
+  "GivenName": "Michael",
+  "PreferredName": "",
+  "FamilyName": "KEENAN",
+  "DisplayName": "KEENAN, the Hon. Michael Fayat",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Stirling",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2004-10-09",
+  "ServiceHistory_End": "2019-04-11"
+ },
+ {
+  "PHID": "E3L",
+  "GivenName": "Scott",
+  "PreferredName": "",
+  "FamilyName": "MORRISON",
+  "DisplayName": "MORRISON, the Hon. Scott John AC",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Cook",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2024-02-28"
+ },
+ {
+  "PHID": "E5D",
+  "GivenName": "Barnaby",
+  "PreferredName": "",
+  "FamilyName": "JOYCE",
+  "DisplayName": "JOYCE, the Hon. Barnaby Thomas Gerard",
+  "Party": "One Nation",
+  "Electorate": "New England",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member",
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2005-07-01",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "F49",
+  "GivenName": "Carol",
+  "PreferredName": "",
+  "FamilyName": "BROWN",
+  "DisplayName": "BROWN, the Hon. Carol Louise",
+  "Party": "Australian Labor Party",
+  "Electorate": "",
+  "State": "Tasmania",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2005-08-25",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "FKL",
+  "GivenName": "Joshua",
+  "PreferredName": "(Josh)",
+  "FamilyName": "FRYDENBERG",
+  "DisplayName": "FRYDENBERG, the Hon. Joshua (Josh) Anthony",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Kooyong",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2010-08-21",
+  "ServiceHistory_End": "2022-05-21"
+ },
+ {
+  "PHID": "H6X",
+  "GivenName": "Simon",
+  "PreferredName": "",
+  "FamilyName": "BIRMINGHAM",
+  "DisplayName": "BIRMINGHAM, the Hon. Simon John",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "South Australia",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2007-05-03",
+  "ServiceHistory_End": "2025-01-28"
+ },
+ {
+  "PHID": "HDA",
+  "GivenName": "Mathias",
+  "PreferredName": "",
+  "FamilyName": "CORMANN",
+  "DisplayName": "CORMANN, the Hon. Mathias Hubert Paul AC",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2007-06-19",
+  "ServiceHistory_End": "2020-11-06"
+ },
+ {
+  "PHID": "HWA",
+  "GivenName": "Amanda",
+  "PreferredName": "",
+  "FamilyName": "RISHWORTH",
+  "DisplayName": "RISHWORTH, the Hon. Amanda Louise",
+  "Party": "Australian Labor Party",
+  "Electorate": "Kingston",
+  "State": "South Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "HWG",
+  "GivenName": "Mark",
+  "PreferredName": "",
+  "FamilyName": "DREYFUS",
+  "DisplayName": "DREYFUS, the Hon. Mark Alfred, KC",
+  "Party": "Australian Labor Party",
+  "Electorate": "Isaacs",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "HWK",
+  "GivenName": "Mark",
+  "PreferredName": "",
+  "FamilyName": "BUTLER",
+  "DisplayName": "BUTLER, the Hon. Mark Christopher",
+  "Party": "Australian Labor Party",
+  "Electorate": "Hindmarsh",
+  "State": "South Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "HWL",
+  "GivenName": "Jason",
+  "PreferredName": "",
+  "FamilyName": "CLARE",
+  "DisplayName": "CLARE, the Hon. Jason Dean",
+  "Party": "Australian Labor Party",
+  "Electorate": "Blaxland",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "HWM",
+  "GivenName": "Julie",
+  "PreferredName": "",
+  "FamilyName": "COLLINS",
+  "DisplayName": "COLLINS, the Hon. Julie Maree",
+  "Party": "Australian Labor Party",
+  "Electorate": "Franklin",
+  "State": "Tasmania",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "HWN",
+  "GivenName": "Mark",
+  "PreferredName": "",
+  "FamilyName": "COULTON",
+  "DisplayName": "COULTON, the Hon. Mark Maclean",
+  "Party": "The Nationals",
+  "Electorate": "Parkes",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2025-03-28"
+ },
+ {
+  "PHID": "HWO",
+  "GivenName": "Alexander ",
+  "PreferredName": "(Alex)",
+  "FamilyName": "HAWKE",
+  "DisplayName": "HAWKE, the Hon. Alexander (Alex) George",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Mitchell",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "HWP",
+  "GivenName": "Nola",
+  "PreferredName": "",
+  "FamilyName": "MARINO",
+  "DisplayName": "MARINO, the Hon. Nola Bethwyn",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Forrest",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2025-03-28"
+ },
+ {
+  "PHID": "HWQ",
+  "GivenName": "Richard",
+  "PreferredName": "",
+  "FamilyName": "MARLES",
+  "DisplayName": "MARLES, the Hon. Richard Donald",
+  "Party": "Australian Labor Party",
+  "Electorate": "Corio",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "HWT",
+  "GivenName": "Stuart",
+  "PreferredName": "",
+  "FamilyName": "ROBERT",
+  "DisplayName": "ROBERT, the Hon. Stuart Rowland",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Fadden",
+  "State": "Queensland",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2023-05-18"
+ },
+ {
+  "PHID": "HYM",
+  "GivenName": "Stephen ",
+  "PreferredName": "(Steve)",
+  "FamilyName": "IRONS",
+  "DisplayName": "IRONS, the Hon. Stephen (Steve) James",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Swan",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2007-11-24",
+  "ServiceHistory_End": "2022-04-11"
+ },
+ {
+  "PHID": "HZE",
+  "GivenName": "Zdenko ",
+  "PreferredName": "(Zed)",
+  "FamilyName": "SESELJA",
+  "DisplayName": "SESELJA, the Hon. Zdenko Matthew (Zed)",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "Australian Capital Territory",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2022-05-21"
+ },
+ {
+  "PHID": "I0M",
+  "GivenName": "Michaelia",
+  "PreferredName": "",
+  "FamilyName": "CASH",
+  "DisplayName": "CASH, the Hon. Michaelia Clare",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2008-07-01",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "I0N",
+  "GivenName": "Donald",
+  "PreferredName": "(Don)",
+  "FamilyName": "FARRELL",
+  "DisplayName": "FARRELL, the Hon. Donald (Don) Edward",
+  "Party": "Australian Labor Party",
+  "Electorate": "",
+  "State": "South Australia",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2008-07-01",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "I8M",
+  "GivenName": "Andrew",
+  "PreferredName": "",
+  "FamilyName": "CHARLTON",
+  "DisplayName": "CHARLTON, the Hon. Dr Andrew Henry George",
+  "Party": "Australian Labor Party",
+  "Electorate": "Parramatta",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2022-05-21",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "IMW",
+  "GivenName": "Timothy ",
+  "PreferredName": "(Tim)",
+  "FamilyName": "WILSON",
+  "DisplayName": "WILSON, the Hon. Timothy (Tim) Robert",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Goldstein",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2016-07-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "ING",
+  "GivenName": "Katherine ",
+  "PreferredName": "(Katy)",
+  "FamilyName": "GALLAGHER",
+  "DisplayName": "GALLAGHER, the Hon. Katherine (Katy) Ruth",
+  "Party": "Australian Labor Party",
+  "Electorate": "",
+  "State": "Australian Capital Territory",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2015-03-25",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "IPZ",
+  "GivenName": "Darren",
+  "PreferredName": "",
+  "FamilyName": "CHESTER",
+  "DisplayName": "CHESTER, the Hon. Darren Jeffrey",
+  "Party": "The Nationals",
+  "Electorate": "Gippsland",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2008-06-28",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "L6B",
+  "GivenName": "Paul",
+  "PreferredName": "",
+  "FamilyName": "FLETCHER",
+  "DisplayName": "FLETCHER, the Hon. Paul William",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Bradfield",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2009-12-05",
+  "ServiceHistory_End": "2025-03-28"
+ },
+ {
+  "PHID": "LKU",
+  "GivenName": "Kelly",
+  "PreferredName": "",
+  "FamilyName": "O'DWYER",
+  "DisplayName": "O'DWYER, the Hon. Kelly Megan",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Higgins",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2009-12-05",
+  "ServiceHistory_End": "2019-04-11"
+ },
+ {
+  "PHID": "LTU",
+  "GivenName": "Gerardine",
+  "PreferredName": "(Ged)",
+  "FamilyName": "KEARNEY",
+  "DisplayName": "KEARNEY, the Hon. Gerardine (Ged) Mary",
+  "Party": "Australian Labor Party",
+  "Electorate": "Cooper",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2018-03-17",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "M2Y",
+  "GivenName": "Alan",
+  "PreferredName": "",
+  "FamilyName": "TUDGE",
+  "DisplayName": "TUDGE, the Hon. Alan Edward",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Aston",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2010-08-21",
+  "ServiceHistory_End": "2023-02-17"
+ },
+ {
+  "PHID": "M3A",
+  "GivenName": "Kenneth ",
+  "PreferredName": "(Ken)",
+  "FamilyName": "WYATT",
+  "DisplayName": "WYATT, the Hon. Kenneth (Ken) George, AM",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "Hasluck",
+  "State": "Western Australia",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "2010-08-21",
+  "ServiceHistory_End": "2022-05-21"
+ },
+ {
+  "PHID": "M56",
+  "GivenName": "Marise",
+  "PreferredName": "",
+  "FamilyName": "PAYNE",
+  "DisplayName": "PAYNE, the Hon. Marise Ann",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Senator"
+  ],
+  "InCurrentParliament": "False",
+  "ServiceHistory_Start": "1997-04-09",
+  "ServiceHistory_End": "2023-09-30"
+ },
+ {
+  "PHID": "R36",
+  "GivenName": "Anthony",
+  "PreferredName": "",
+  "FamilyName": "ALBANESE",
+  "DisplayName": "ALBANESE, the Hon. Anthony Norman",
+  "Party": "Australian Labor Party",
+  "Electorate": "Grayndler",
+  "State": "New South Wales",
+  "MPorSenator": [
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "1996-03-02",
+  "ServiceHistory_End": "2026-10-29"
+ },
+ {
+  "PHID": "ZN4",
+  "GivenName": "Sarah",
+  "PreferredName": "",
+  "FamilyName": "HENDERSON",
+  "DisplayName": "HENDERSON, the Hon. Sarah Moya",
+  "Party": "Liberal Party of Australia",
+  "Electorate": "",
+  "State": "Victoria",
+  "MPorSenator": [
+   "Senator",
+   "Member"
+  ],
+  "InCurrentParliament": "True",
+  "ServiceHistory_Start": "2013-09-07",
+  "ServiceHistory_End": "2026-10-29"
+ }
+]

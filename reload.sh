@@ -15,6 +15,7 @@ go run ./cmd/load-subfunctions -budget 2026-27 -file data/raw/bp3-2026-27-genera
 go run ./cmd/load-descriptions -budget 2026-27
 go run ./cmd/load-investments
 go run ./cmd/load-projects
+go run ./cmd/load-ministers
 if ls .local/abr/public_split_*.zip >/dev/null 2>&1; then
   go run ./cmd/load-abr
 fi

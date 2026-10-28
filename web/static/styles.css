@@ -139,6 +139,17 @@ ol.notes { margin: 12px 0 0; padding-left: 20px; color: var(--ink-2); }
 .equation li.sub { font-weight: 600; border-bottom-style: solid; }
 .equation li.adjust > span:first-child { padding-left: 16px; }
 .equation li.total { font-weight: 700; border-bottom: none; border-top: 2px solid var(--ink); margin-top: 2px; }
+/* Ministers on a portfolio page. */
+.people { list-style: none; padding: 0; margin: 16px 0 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px 28px; }
+.person { display: flex; gap: 14px; align-items: flex-start; }
+.person-photo { flex: none; width: 72px; height: 72px; border-radius: 50%; object-fit: cover; object-position: 50% 15%; background: var(--tile-bg); }
+.person-initials { display: flex; align-items: center; justify-content: center; font: 600 22px/1 var(--serif); color: var(--ink-3); }
+.person-name { margin: 0; font-weight: 600; }
+.person-name a { color: var(--ink); }
+.person-titles { list-style: none; padding: 0; margin: 2px 0 4px; font-size: 14px; color: var(--ink-2); }
+.person p.muted { margin: 0; }
+.earlier { margin: 0 0 12px; }
+.photo-credits > summary { cursor: pointer; color: var(--ink-3); }
 .note { border-left: 3px solid var(--rule); padding: 4px 0 4px 12px; color: var(--ink-2); }
 
 .meter { display: block; height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; min-width: 60px; }

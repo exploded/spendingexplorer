@@ -82,6 +82,7 @@ func New(q *db.Queries, downloads *export.Store, templates, static fs.FS) (*Hand
 		"megabytes":    megabytes,
 		"count":        count,
 		"add":          func(a, b int) int { return a + b },
+		"initials":     initials,
 		"cap100":       func(f float64) float64 { return min(max(f, 0), 100) },
 		"trunc": func(s string, n int) string {
 			r := []rune(s)
@@ -126,6 +127,7 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /portfolio/{name}", h.portfolio)
 	mux.HandleFunc("GET /entity/{id}", h.entity)
 	mux.HandleFunc("GET /program/{id}", h.program)
+	mux.HandleFunc("GET /person/{id}/photo", h.personPhoto)
 	mux.HandleFunc("GET /suppliers", h.suppliers)
 	mux.HandleFunc("GET /suppliers.csv", h.suppliersCSV)
 	mux.HandleFunc("GET /supplier/{id}", h.supplier)
@@ -224,6 +226,7 @@ type nodePage struct {
 	Grants     *grantsSection    // entity only: GrantConnect awards
 	Projects   []projectView     // home: every major project; entity: projects linked to it
 	Funding    *fundingNote      // corporate entity only: funding counted where it is paid from
+	Ministers  *ministersSection // portfolio only
 }
 
 // recon reconciles program line items to the Budget Paper 1 total.
@@ -427,6 +430,10 @@ func (h *Handler) portfolio(w http.ResponseWriter, r *http.Request) {
 		grants += grantAmounts[ids[r.Name]]
 	}
 	page.Coverage = h.coverageFor(ctx, contracts, grants, total.Cur)
+	if page.Ministers, err = h.portfolioMinisters(ctx, name); err != nil {
+		h.fail(w, err)
+		return
+	}
 	h.render(w, "node.html", page)
 }
 

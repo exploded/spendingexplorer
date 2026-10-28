@@ -208,6 +208,42 @@ func (q *Queries) ClearGrantRecipientSuppliers(ctx context.Context) error {
 	return err
 }
 
+const clearMinisterHoldings = `-- name: ClearMinisterHoldings :exec
+DELETE FROM office_holding WHERE person_id IN (SELECT id FROM person WHERE aph_id IS NOT NULL)
+`
+
+func (q *Queries) ClearMinisterHoldings(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearMinisterHoldings)
+	return err
+}
+
+const clearMinisterTitles = `-- name: ClearMinisterTitles :exec
+DELETE FROM minister_title
+`
+
+func (q *Queries) ClearMinisterTitles(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearMinisterTitles)
+	return err
+}
+
+const clearMinistries = `-- name: ClearMinistries :exec
+DELETE FROM ministry
+`
+
+func (q *Queries) ClearMinistries(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearMinistries)
+	return err
+}
+
+const clearParliamentarians = `-- name: ClearParliamentarians :exec
+DELETE FROM person WHERE aph_id IS NOT NULL
+`
+
+func (q *Queries) ClearParliamentarians(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearParliamentarians)
+	return err
+}
+
 const clearProjectEstimates = `-- name: ClearProjectEstimates :exec
 DELETE FROM project_estimate
 `
@@ -1757,6 +1793,23 @@ func (q *Queries) FindProgram(ctx context.Context, arg FindProgramParams) (int64
 	return id, err
 }
 
+const firstMinistry = `-- name: FirstMinistry :one
+SELECT name, start_date FROM ministry ORDER BY start_date LIMIT 1
+`
+
+type FirstMinistryRow struct {
+	Name      string
+	StartDate string
+}
+
+// The earliest ministry loaded, which bounds the list of earlier ministers.
+func (q *Queries) FirstMinistry(ctx context.Context) (FirstMinistryRow, error) {
+	row := q.db.QueryRowContext(ctx, firstMinistry)
+	var i FirstMinistryRow
+	err := row.Scan(&i.Name, &i.StartDate)
+	return i, err
+}
+
 const functionAmounts = `-- name: FunctionAmounts :many
 SELECT w.fiscal_year, w.category, w.amount
 FROM wog_expense w
@@ -2685,6 +2738,123 @@ func (q *Queries) InsertLoadRun(ctx context.Context, arg InsertLoadRunParams) er
 	return err
 }
 
+const insertMinisterTitle = `-- name: InsertMinisterTitle :exec
+INSERT INTO minister_title (title, portfolio) VALUES (?, ?)
+`
+
+type InsertMinisterTitleParams struct {
+	Title     string
+	Portfolio string
+}
+
+func (q *Queries) InsertMinisterTitle(ctx context.Context, arg InsertMinisterTitleParams) error {
+	_, err := q.db.ExecContext(ctx, insertMinisterTitle, arg.Title, arg.Portfolio)
+	return err
+}
+
+const insertMinistry = `-- name: InsertMinistry :exec
+INSERT INTO ministry (id, name, start_date, end_date) VALUES (?, ?, ?, ?)
+`
+
+type InsertMinistryParams struct {
+	ID        int64
+	Name      string
+	StartDate string
+	EndDate   string
+}
+
+func (q *Queries) InsertMinistry(ctx context.Context, arg InsertMinistryParams) error {
+	_, err := q.db.ExecContext(ctx, insertMinistry,
+		arg.ID,
+		arg.Name,
+		arg.StartDate,
+		arg.EndDate,
+	)
+	return err
+}
+
+const insertOfficeHolding = `-- name: InsertOfficeHolding :exec
+INSERT INTO office_holding (person_id, role, title, start_date, end_date, ministry, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type InsertOfficeHoldingParams struct {
+	PersonID         int64
+	Role             string
+	Title            string
+	StartDate        string
+	EndDate          string
+	Ministry         string
+	SourceDocumentID int64
+}
+
+func (q *Queries) InsertOfficeHolding(ctx context.Context, arg InsertOfficeHoldingParams) error {
+	_, err := q.db.ExecContext(ctx, insertOfficeHolding,
+		arg.PersonID,
+		arg.Role,
+		arg.Title,
+		arg.StartDate,
+		arg.EndDate,
+		arg.Ministry,
+		arg.SourceDocumentID,
+	)
+	return err
+}
+
+const insertPerson = `-- name: InsertPerson :one
+INSERT INTO person (aph_id, name, party, chamber, electorate, state, in_parliament, service_start, service_end,
+  wikidata_id, wikipedia_url, photo, photo_type, photo_credit, photo_licence, photo_licence_url, photo_page_url, source_document_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id
+`
+
+type InsertPersonParams struct {
+	AphID            sql.NullString
+	Name             string
+	Party            string
+	Chamber          string
+	Electorate       string
+	State            string
+	InParliament     int64
+	ServiceStart     string
+	ServiceEnd       string
+	WikidataID       string
+	WikipediaUrl     string
+	Photo            []byte
+	PhotoType        string
+	PhotoCredit      string
+	PhotoLicence     string
+	PhotoLicenceUrl  string
+	PhotoPageUrl     string
+	SourceDocumentID int64
+}
+
+func (q *Queries) InsertPerson(ctx context.Context, arg InsertPersonParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, insertPerson,
+		arg.AphID,
+		arg.Name,
+		arg.Party,
+		arg.Chamber,
+		arg.Electorate,
+		arg.State,
+		arg.InParliament,
+		arg.ServiceStart,
+		arg.ServiceEnd,
+		arg.WikidataID,
+		arg.WikipediaUrl,
+		arg.Photo,
+		arg.PhotoType,
+		arg.PhotoCredit,
+		arg.PhotoLicence,
+		arg.PhotoLicenceUrl,
+		arg.PhotoPageUrl,
+		arg.SourceDocumentID,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const insertPolicyInvestment = `-- name: InsertPolicyInvestment :exec
 INSERT INTO policy_investment (source_document_id, item, item_key, fiscal_year, estimate_type, amount, is_total)
 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -3239,6 +3409,35 @@ func (q *Queries) LargestTransfers(ctx context.Context, arg LargestTransfersPara
 	return items, nil
 }
 
+const latestBudgetPortfolios = `-- name: LatestBudgetPortfolios :many
+SELECT DISTINCT portfolio FROM program
+WHERE budget_year = (SELECT MAX(budget_year) FROM program)
+ORDER BY portfolio
+`
+
+func (q *Queries) LatestBudgetPortfolios(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, latestBudgetPortfolios)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var portfolio string
+		if err := rows.Scan(&portfolio); err != nil {
+			return nil, err
+		}
+		items = append(items, portfolio)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const latestOutcomeYear = `-- name: LatestOutcomeYear :one
 
 SELECT CAST(COALESCE(MAX(fiscal_year), '') AS TEXT) AS fiscal_year
@@ -3631,6 +3830,30 @@ func (q *Queries) MarkLLMBatchCollected(ctx context.Context, batchID string) err
 	return err
 }
 
+const ministersSource = `-- name: MinistersSource :one
+SELECT id, title, url, retrieved_at FROM source_document
+WHERE doc_type = 'aph_ministry_records' ORDER BY id DESC LIMIT 1
+`
+
+type MinistersSourceRow struct {
+	ID          int64
+	Title       string
+	Url         string
+	RetrievedAt time.Time
+}
+
+func (q *Queries) MinistersSource(ctx context.Context) (MinistersSourceRow, error) {
+	row := q.db.QueryRowContext(ctx, ministersSource)
+	var i MinistersSourceRow
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Url,
+		&i.RetrievedAt,
+	)
+	return i, err
+}
+
 const moveAgenciesToEntity = `-- name: MoveAgenciesToEntity :exec
 UPDATE agency SET entity_id = ?1 WHERE entity_id = ?2
 `
@@ -3765,6 +3988,22 @@ func (q *Queries) PendingGroupClusters(ctx context.Context, promptVersion string
 	return items, nil
 }
 
+const personPhoto = `-- name: PersonPhoto :one
+SELECT photo, photo_type FROM person WHERE id = ? AND photo IS NOT NULL
+`
+
+type PersonPhotoRow struct {
+	Photo     []byte
+	PhotoType string
+}
+
+func (q *Queries) PersonPhoto(ctx context.Context, id int64) (PersonPhotoRow, error) {
+	row := q.db.QueryRowContext(ctx, personPhoto, id)
+	var i PersonPhotoRow
+	err := row.Scan(&i.Photo, &i.PhotoType)
+	return i, err
+}
+
 const policyInvestments = `-- name: PolicyInvestments :many
 SELECT item, item_key, fiscal_year, amount, is_total FROM policy_investment
 WHERE source_document_id = ?
@@ -3879,6 +4118,93 @@ func (q *Queries) PortfolioGrantTotals(ctx context.Context, arg PortfolioGrantTo
 	for rows.Next() {
 		var i PortfolioGrantTotalsRow
 		if err := rows.Scan(&i.Portfolio, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const portfolioMinisters = `-- name: PortfolioMinisters :many
+SELECT p.id AS person_id, COALESCE(p.aph_id, '') AS aph_id, p.name, p.party, p.chamber, p.electorate, p.state,
+  p.in_parliament, p.service_start, p.service_end, p.wikipedia_url,
+  CAST(p.photo IS NOT NULL AS INTEGER) AS has_photo, p.photo_credit, p.photo_licence, p.photo_licence_url, p.photo_page_url,
+  h.role, h.title, h.start_date, h.end_date,
+  CAST(h.end_date = '' AND EXISTS (
+    SELECT 1 FROM office_holding c
+    WHERE c.person_id = p.id AND c.role = 'Cabinet Minister' AND c.end_date = ''
+  ) AS INTEGER) AS cabinet
+FROM office_holding h
+JOIN minister_title t ON t.title = h.title
+JOIN person p ON p.id = h.person_id
+WHERE t.portfolio = ?1
+ORDER BY h.end_date = '' DESC, h.end_date DESC, h.start_date, p.name
+`
+
+type PortfolioMinistersRow struct {
+	PersonID        int64
+	AphID           string
+	Name            string
+	Party           string
+	Chamber         string
+	Electorate      string
+	State           string
+	InParliament    int64
+	ServiceStart    string
+	ServiceEnd      string
+	WikipediaUrl    string
+	HasPhoto        int64
+	PhotoCredit     string
+	PhotoLicence    string
+	PhotoLicenceUrl string
+	PhotoPageUrl    string
+	Role            string
+	Title           string
+	StartDate       string
+	EndDate         string
+	Cabinet         int64
+}
+
+// Every appointment to a title in the portfolio, current ones first. cabinet
+// says whether a current minister sits in Cabinet now.
+func (q *Queries) PortfolioMinisters(ctx context.Context, portfolio string) ([]PortfolioMinistersRow, error) {
+	rows, err := q.db.QueryContext(ctx, portfolioMinisters, portfolio)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PortfolioMinistersRow
+	for rows.Next() {
+		var i PortfolioMinistersRow
+		if err := rows.Scan(
+			&i.PersonID,
+			&i.AphID,
+			&i.Name,
+			&i.Party,
+			&i.Chamber,
+			&i.Electorate,
+			&i.State,
+			&i.InParliament,
+			&i.ServiceStart,
+			&i.ServiceEnd,
+			&i.WikipediaUrl,
+			&i.HasPhoto,
+			&i.PhotoCredit,
+			&i.PhotoLicence,
+			&i.PhotoLicenceUrl,
+			&i.PhotoPageUrl,
+			&i.Role,
+			&i.Title,
+			&i.StartDate,
+			&i.EndDate,
+			&i.Cabinet,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

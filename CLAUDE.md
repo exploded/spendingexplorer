@@ -60,6 +60,9 @@ sits inside a known whole-of-government total, and every box shows how much of i
 - `contract` (AusTender; entity, supplier ABN, value, start, end, UNSPSC category,
   description, llm_class) + `supplier`
 - `grant` (GrantConnect), later
+- `person` + `office_holding` + `ministry` (Parliamentary Handbook, from May 2019; photos from
+  Wikimedia Commons with licence and credit) + `minister_title` (title → portfolio, curated in
+  `data/minister_titles.csv`; extend it when a new ministry brings new titles)
 
 ## LLM usage
 

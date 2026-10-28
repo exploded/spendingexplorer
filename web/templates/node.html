@@ -54,6 +54,53 @@
 
 {{template "table" .}}
 
+{{with .Ministers}}
+<section id="ministers" aria-labelledby="ministers-h">
+  <h2 id="ministers-h">Ministers</h2>
+  <p class="muted">The ministers whose titles sit in this portfolio. Holding a title is not the same as deciding each amount: Cabinet sets the Budget, and much of the spending follows from legislation. <a href="/methodology#ministers">How titles are placed in portfolios</a>.</p>
+  <ul class="people">
+  {{range .Current}}
+    <li class="person">
+      {{if .Photo}}<img class="person-photo" src="/person/{{.ID}}/photo" alt="" width="72" height="72" loading="lazy">{{else}}<span class="person-photo person-initials" aria-hidden="true">{{initials .Name}}</span>{{end}}
+      <div>
+        <p class="person-name">{{if .WikipediaURL}}<a href="{{.WikipediaURL}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}{{if .Cabinet}} <span class="badge">Cabinet</span>{{end}}</p>
+        <ul class="person-titles">{{range .Titles}}<li>{{.Title}} <span class="muted small date">since {{.Start}}</span></li>{{end}}</ul>
+        <p class="muted small">{{.Bio}}{{if .APHURL}} · <a href="{{.APHURL}}">Parliament profile</a>{{end}}</p>
+      </div>
+    </li>
+  {{end}}
+  </ul>
+  {{with .Earlier}}
+  <details class="recon-more earlier">
+    <summary>{{len .}} earlier appointment{{if ne (len .) 1}}s{{end}} to these titles since {{$.Ministers.Since}}. <span class="recon-show">Show them</span></summary>
+    <div class="scroll">
+    <table class="data">
+      <thead><tr><th scope="col">Minister</th><th scope="col">Title</th><th scope="col">From</th><th scope="col">To</th></tr></thead>
+      <tbody>
+      {{range .}}
+        <tr>
+          <th scope="row">{{if .URL}}<a href="{{.URL}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}</th>
+          <td>{{.Title}}</td>
+          <td class="date">{{.Start}}</td>
+          <td class="date">{{.End}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+    <p class="muted small">From the {{$.Ministers.SinceMinistry}} on. An appointment that began earlier shows its first day.</p>
+  </details>
+  {{end}}
+  <p class="muted small">Appointments from the Parliamentary Library’s Parliamentary Handbook, as at {{.Source.RetrievedAt.Format "2 January 2006"}}. <a href="/sources">Sources</a>.</p>
+  {{with .Credited}}
+  <details class="small photo-credits">
+    <summary>Photo credits</summary>
+    <p class="muted">From Wikimedia Commons: {{range $i, $c := .}}{{if $i}}; {{end}}{{.Name}}{{if .PhotoCredit}} by {{.PhotoCredit}}{{end}}, {{if .LicenceURL}}<a href="{{.LicenceURL}}">{{.PhotoLicence}}</a>{{else}}{{.PhotoLicence}}{{end}} (<a href="{{.PhotoPage}}">source</a>){{end}}.</p>
+  </details>
+  {{end}}
+</section>
+{{end}}
+
 {{if .Signals}}
 <section class="closer" aria-labelledby="closer-h">
   <h2 id="closer-h">Worth a closer look</h2>
