@@ -40,6 +40,18 @@ sudo install-db-spendingexplorer /tmp/spending.db
 half-written copy, and switches the copy to a rollback journal. `install-db-spendingexplorer`
 swaps the file in and restarts the service, which keeps the old file open until it restarts.
 
+### Downloads and sitemap
+
+The `/data` page offers the whole database as `spending-sqlite.zip` and CSVs of the main
+tables as `spending-csv.zip`. The app builds both itself (`internal/export`), in the
+background, when it starts on a database it hasn't exported yet. That takes about 20 seconds
+and needs about 550 MB of free disk while it runs. Until a build finishes, the page serves the
+previous one. Files go in `downloads/` beside the database, or in `DOWNLOADS_DIR` if set.
+Change the CSV columns in `internal/export` and bump its `version` to force a rebuild.
+
+`/sitemap.xml` is a sitemap index, listed in `robots.txt`. It points to one file for the
+explorer's pages, one for suppliers (individuals left out) and one per 50,000 contracts.
+
 First-time server setup is `scripts/server-setup.sh`:
 
 ```

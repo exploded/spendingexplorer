@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/exploded/monitor/pkg/logship"
 
 	"spendingexplorer/internal/db"
+	"spendingexplorer/internal/export"
 	"spendingexplorer/internal/handlers"
 	"spendingexplorer/internal/pagecache"
 	"spendingexplorer/internal/ratelimit"
@@ -29,6 +31,10 @@ func main() {
 	if dbPath == "" {
 		dbPath = "spending.db"
 	}
+	downloadsDir := os.Getenv("DOWNLOADS_DIR")
+	if downloadsDir == "" {
+		downloadsDir = filepath.Join(filepath.Dir(dbPath), "downloads")
+	}
 	stopLogs := setupLogging(os.Getenv("MONITOR_URL"), os.Getenv("MONITOR_API_KEY"))
 	defer stopLogs()
 
@@ -39,17 +45,28 @@ func main() {
 	}
 	defer conn.Close()
 
-	h, err := handlers.New(db.New(conn), web.Templates, web.Static)
+	downloads := export.New(conn, downloadsDir, dbPath, dbPath+"-wal")
+	go func() {
+		if err := downloads.Build(); err != nil {
+			slog.Error("build downloads", "dir", downloadsDir, "error", err)
+		}
+	}()
+
+	h, err := handlers.New(db.New(conn), downloads, web.Templates, web.Static)
 	if err != nil {
 		slog.Error("load templates", "error", err)
 		os.Exit(1)
 	}
 	pages := http.NewServeMux()
 	h.Routes(pages)
+	site := http.NewServeMux()
+	site.Handle("/", pagecache.New(pages, 64<<20, dbPath, dbPath+"-wal"))
+	// Downloads skip the page cache, which would hold a whole file in memory.
+	site.Handle("GET /data/{file}", downloads)
 	mux := http.NewServeMux()
 	// 4 pages a second per client, after a burst of 40, is far more than a
 	// person clicks through but keeps a crawler from overloading the server.
-	mux.Handle("/", ratelimit.New(pagecache.New(pages, 64<<20, dbPath, dbPath+"-wal"), 4, 40))
+	mux.Handle("/", ratelimit.New(site, 4, 40))
 	mux.Handle("GET /static/", staticFiles(http.StripPrefix("/static/", http.FileServerFS(web.Static))))
 
 	srv := &http.Server{

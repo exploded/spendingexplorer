@@ -603,6 +603,20 @@ func (q *Queries) ContractsToClassify(ctx context.Context, arg ContractsToClassi
 	return items, nil
 }
 
+const dataAsAt = `-- name: DataAsAt :one
+
+SELECT CAST(COALESCE(substr(MAX(finished_at), 1, 10), '') AS TEXT) AS as_at FROM load_run
+`
+
+// Sitemap ---------------------------------------------------------------------
+// When the data was last loaded, as YYYY-MM-DD.
+func (q *Queries) DataAsAt(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, dataAsAt)
+	var as_at string
+	err := row.Scan(&as_at)
+	return as_at, err
+}
+
 const deleteEntity = `-- name: DeleteEntity :exec
 DELETE FROM entity WHERE id = ?
 `
@@ -5068,6 +5082,234 @@ func (q *Queries) SignalCounts(ctx context.Context) ([]SignalCountsRow, error) {
 	for rows.Next() {
 		var i SignalCountsRow
 		if err := rows.Scan(&i.RuleID, &i.Contracts, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sitemapContractCount = `-- name: SitemapContractCount :one
+SELECT CAST(COUNT(*) AS INTEGER) AS contracts FROM contract
+`
+
+func (q *Queries) SitemapContractCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, sitemapContractCount)
+	var contracts int64
+	err := row.Scan(&contracts)
+	return contracts, err
+}
+
+const sitemapContracts = `-- name: SitemapContracts :many
+SELECT cn_id, release_date FROM contract ORDER BY cn_id LIMIT ? OFFSET ?
+`
+
+type SitemapContractsParams struct {
+	Limit  int64
+	Offset int64
+}
+
+type SitemapContractsRow struct {
+	CnID        string
+	ReleaseDate string
+}
+
+func (q *Queries) SitemapContracts(ctx context.Context, arg SitemapContractsParams) ([]SitemapContractsRow, error) {
+	rows, err := q.db.QueryContext(ctx, sitemapContracts, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SitemapContractsRow
+	for rows.Next() {
+		var i SitemapContractsRow
+		if err := rows.Scan(&i.CnID, &i.ReleaseDate); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sitemapEntities = `-- name: SitemapEntities :many
+SELECT DISTINCT p.entity_id
+FROM program p JOIN program_expense pe ON pe.program_id = p.id
+WHERE pe.source_document_id = ?
+ORDER BY p.entity_id
+`
+
+// Entities with lines in the publication, which GetEntityInDoc finds.
+func (q *Queries) SitemapEntities(ctx context.Context, sourceDocumentID int64) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, sitemapEntities, sourceDocumentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var entity_id int64
+		if err := rows.Scan(&entity_id); err != nil {
+			return nil, err
+		}
+		items = append(items, entity_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sitemapGroups = `-- name: SitemapGroups :many
+SELECT id FROM supplier_group ORDER BY id
+`
+
+func (q *Queries) SitemapGroups(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, sitemapGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sitemapPortfolios = `-- name: SitemapPortfolios :many
+SELECT DISTINCT p.portfolio
+FROM program p JOIN program_expense pe ON pe.program_id = p.id
+WHERE pe.source_document_id = ?
+ORDER BY p.portfolio
+`
+
+func (q *Queries) SitemapPortfolios(ctx context.Context, sourceDocumentID int64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, sitemapPortfolios, sourceDocumentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var portfolio string
+		if err := rows.Scan(&portfolio); err != nil {
+			return nil, err
+		}
+		items = append(items, portfolio)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sitemapPrograms = `-- name: SitemapPrograms :many
+SELECT id FROM program WHERE budget_year = ? ORDER BY id
+`
+
+func (q *Queries) SitemapPrograms(ctx context.Context, budgetYear string) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, sitemapPrograms, budgetYear)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sitemapProjects = `-- name: SitemapProjects :many
+SELECT key FROM project ORDER BY sort
+`
+
+func (q *Queries) SitemapProjects(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, sitemapProjects)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		items = append(items, key)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sitemapSuppliers = `-- name: SitemapSuppliers :many
+SELECT s.id, CAST(MAX(c.release_date) AS TEXT) AS last_release
+FROM supplier s JOIN contract c ON c.supplier_id = s.id
+WHERE s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+GROUP BY s.id
+ORDER BY s.id
+`
+
+type SitemapSuppliersRow struct {
+	ID          int64
+	LastRelease string
+}
+
+// Suppliers who are, or may be, individuals are left out, as they are from
+// rankings: the sitemap is a site-wide list. Their pages still exist.
+func (q *Queries) SitemapSuppliers(ctx context.Context) ([]SitemapSuppliersRow, error) {
+	rows, err := q.db.QueryContext(ctx, sitemapSuppliers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SitemapSuppliersRow
+	for rows.Next() {
+		var i SitemapSuppliersRow
+		if err := rows.Scan(&i.ID, &i.LastRelease); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

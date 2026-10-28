@@ -1,0 +1,56 @@
+{{define "title"}}Download the data{{end}}
+
+{{define "content"}}
+<p class="kicker"><a href="/about">About</a> · Data</p>
+<h1>Download the data</h1>
+<div class="prose">
+<p>Everything on this site comes from one database, and you can download all of it. Use it for your own analysis, or give it to a tool that can read SQLite or CSV files, rather than collecting it page by page.</p>
+
+{{if .Manifest}}
+<p>Data as at {{.Manifest.AsAt.Format "2 January 2006"}}.{{if .Building}} A newer copy is being prepared and will replace these files in a few minutes.{{end}}</p>
+<ul>
+  <li><strong><a href="/data/{{.SQLite.Name}}">{{.SQLite.Name}}</a></strong> ({{megabytes .SQLite.Bytes}}): the SQLite database the site runs on, with every table. <span class="small mono" title="SHA-256">SHA-256 {{.SQLite.SHA256}}</span></li>
+  <li><strong><a href="/data/{{.CSV.Name}}">{{.CSV.Name}}</a></strong> ({{megabytes .CSV.Bytes}}): CSV files of the main tables, listed below. They open in Excel. <span class="small mono" title="SHA-256">SHA-256 {{.CSV.SHA256}}</span></li>
+</ul>
+<p>Each file includes a README with the notes on this page. The files are rebuilt whenever the data is reloaded, and keep the same addresses.</p>
+{{else if .Building}}
+<p class="note">The downloads are being prepared. Try again in a few minutes.</p>
+{{else}}
+<p class="note">The downloads aren’t available right now. Try again later, or <a href="https://github.com/exploded/spendingexplorer/issues/new">let us know</a>.</p>
+{{end}}
+
+<h2 id="reading">Reading the figures</h2>
+<ul>
+  <li>Amounts are whole Australian dollars.</li>
+  <li>Budget estimates and actuals are different series. Every amount carries its estimate type (Budget estimate, forward estimate, estimated actual or actual) and the document it came from.</li>
+  <li>Contract and grant values are whole-of-life values as published, not annual spending. The annual estimates files spread each value evenly over its term, and are <a href="/methodology#annualised">estimates</a>.</li>
+  <li>Program line items don’t add up to the whole-of-government total. The difference is the <a href="/methodology#adjustments">whole-of-government adjustments</a>.</li>
+  <li>Columns marked AI come from a language model and may be wrong. See <a href="/methodology#ai">how contracts are classified</a> and <a href="/methodology#groups">how suppliers are grouped</a>.</li>
+  <li>Signals are patterns worth a closer look, not findings of wrongdoing.</li>
+</ul>
+
+<h2 id="individuals">Suppliers who are people</h2>
+<p>Some suppliers and grant recipients are individuals, such as sole traders. Their names are as the government published them. This site leaves them out of rankings and signal lists, and we ask that you do the same. The files flag them, and the <a href="/methodology#individuals">methodology</a> explains how they are identified.</p>
+
+<h2 id="credit">Sources and credit</h2>
+<p>Our own work on the data is licensed under <a href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 (CC BY 4.0)</a>. That covers the database as a whole, the AI classifications and groupings, the signals and the annual estimates. The underlying figures keep their publishers’ licences, and <a href="/sources">Sources and changes</a> lists every file and API response the data was loaded from. Please credit the original publishers and the Federal Spending Explorer (spending.mchugh.au).</p>
+</div>
+
+{{if .Manifest}}
+<h2 id="tables">What’s in the CSV files</h2>
+<div class="scroll">
+<table class="data">
+  <thead><tr><th scope="col">File</th><th scope="col" class="num">Rows</th><th scope="col">What it holds</th></tr></thead>
+  <tbody>
+  {{range .Manifest.Tables}}
+    <tr>
+      <th scope="row" class="mono small">{{.File}}</th>
+      <td class="num">{{count .Rows}}</td>
+      <td class="small">{{.About}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}
+{{end}}

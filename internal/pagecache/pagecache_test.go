@@ -19,6 +19,9 @@ func (c *counter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if r.URL.Path == "/live" {
+		w.Header().Set("Cache-Control", "no-store")
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(strings.Repeat("x", 10) + r.URL.RequestURI() + r.Header.Get("HX-Target")))
 }
@@ -68,6 +71,15 @@ func TestDoesNotCacheErrors(t *testing.T) {
 	get(c, "/missing")
 	if w := get(c, "/missing"); w.Code != http.StatusNotFound || next.n != 2 {
 		t.Errorf("got status %d after %d renders, want 404 after 2", w.Code, next.n)
+	}
+}
+
+func TestDoesNotCacheNoStore(t *testing.T) {
+	next := &counter{}
+	c := New(next, 1<<20)
+	get(c, "/live")
+	if w := get(c, "/live"); w.Header().Get("Cache-Control") != "no-store" || next.n != 2 {
+		t.Errorf("got Cache-Control %q after %d renders, want no-store after 2", w.Header().Get("Cache-Control"), next.n)
 	}
 }
 

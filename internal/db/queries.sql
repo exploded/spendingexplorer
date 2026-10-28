@@ -1404,3 +1404,46 @@ SELECT CAST(COUNT(*) AS INTEGER) AS notices
 FROM contract c
 JOIN agency a ON a.id = c.agency_id
 WHERE a.entity_id = ?;
+
+-- Sitemap ---------------------------------------------------------------------
+
+-- name: DataAsAt :one
+-- When the data was last loaded, as YYYY-MM-DD.
+SELECT CAST(COALESCE(substr(MAX(finished_at), 1, 10), '') AS TEXT) AS as_at FROM load_run;
+
+-- name: SitemapPortfolios :many
+SELECT DISTINCT p.portfolio
+FROM program p JOIN program_expense pe ON pe.program_id = p.id
+WHERE pe.source_document_id = ?
+ORDER BY p.portfolio;
+
+-- name: SitemapEntities :many
+-- Entities with lines in the publication, which GetEntityInDoc finds.
+SELECT DISTINCT p.entity_id
+FROM program p JOIN program_expense pe ON pe.program_id = p.id
+WHERE pe.source_document_id = ?
+ORDER BY p.entity_id;
+
+-- name: SitemapPrograms :many
+SELECT id FROM program WHERE budget_year = ? ORDER BY id;
+
+-- name: SitemapGroups :many
+SELECT id FROM supplier_group ORDER BY id;
+
+-- name: SitemapProjects :many
+SELECT key FROM project ORDER BY sort;
+
+-- name: SitemapSuppliers :many
+-- Suppliers who are, or may be, individuals are left out, as they are from
+-- rankings: the sitemap is a site-wide list. Their pages still exist.
+SELECT s.id, CAST(MAX(c.release_date) AS TEXT) AS last_release
+FROM supplier s JOIN contract c ON c.supplier_id = s.id
+WHERE s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+GROUP BY s.id
+ORDER BY s.id;
+
+-- name: SitemapContractCount :one
+SELECT CAST(COUNT(*) AS INTEGER) AS contracts FROM contract;
+
+-- name: SitemapContracts :many
+SELECT cn_id, release_date FROM contract ORDER BY cn_id LIMIT ? OFFSET ?;

@@ -58,7 +58,9 @@ func (c *Cache) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	rec := &recorder{header: http.Header{}, status: http.StatusOK}
 	c.next.ServeHTTP(rec, r)
-	if rec.status != http.StatusOK || !strings.HasPrefix(rec.header.Get("Content-Type"), "text/html") {
+	// A page that depends on more than the database says so with no-store.
+	if rec.status != http.StatusOK || !strings.HasPrefix(rec.header.Get("Content-Type"), "text/html") ||
+		strings.Contains(rec.header.Get("Cache-Control"), "no-store") {
 		rec.copyTo(w)
 		return
 	}

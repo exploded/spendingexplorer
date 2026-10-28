@@ -21,6 +21,7 @@ import (
 	"spendingexplorer/internal/austender"
 	"spendingexplorer/internal/db"
 	"spendingexplorer/internal/explore"
+	"spendingexplorer/internal/export"
 	"spendingexplorer/internal/pbs"
 )
 
@@ -28,11 +29,12 @@ import (
 const treemapAspect = 2.2
 
 type Handler struct {
-	q     *db.Queries
-	pages map[string]*template.Template
+	q         *db.Queries
+	downloads *export.Store
+	pages     map[string]*template.Template
 }
 
-func New(q *db.Queries, templates, static fs.FS) (*Handler, error) {
+func New(q *db.Queries, downloads *export.Store, templates, static fs.FS) (*Handler, error) {
 	assets, err := assetURLs(static)
 	if err != nil {
 		return nil, err
@@ -76,6 +78,8 @@ func New(q *db.Queries, templates, static fs.FS) (*Handler, error) {
 			return m
 		},
 		"pathEscape": url.PathEscape,
+		"megabytes":  megabytes,
+		"count":      count,
 		"add":        func(a, b int) int { return a + b },
 		"cap100":     func(f float64) float64 { return min(max(f, 0), 100) },
 		"trunc": func(s string, n int) string {
@@ -86,8 +90,8 @@ func New(q *db.Queries, templates, static fs.FS) (*Handler, error) {
 			return strings.TrimSpace(string(r[:n])) + "…"
 		},
 	}
-	h := &Handler{q: q, pages: map[string]*template.Template{}}
-	for _, page := range []string{"node.html", "program.html", "about.html", "methodology.html", "sources.html", "supplier.html", "suppliers.html", "group.html", "contract.html", "signals.html", "signal.html", "investments.html", "projects.html", "project.html", "search.html"} {
+	h := &Handler{q: q, downloads: downloads, pages: map[string]*template.Template{}}
+	for _, page := range []string{"node.html", "program.html", "about.html", "methodology.html", "sources.html", "data.html", "supplier.html", "suppliers.html", "group.html", "contract.html", "signals.html", "signal.html", "investments.html", "projects.html", "project.html", "search.html"} {
 		t, err := template.New("").Funcs(funcs).ParseFS(templates, "layout.html", "partials.html", "projectparts.html", page)
 		if err != nil {
 			return nil, err
@@ -134,22 +138,28 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /about", h.about)
 	mux.HandleFunc("GET /methodology", h.methodology)
 	mux.HandleFunc("GET /sources", h.sources)
+	mux.HandleFunc("GET /data", h.data)
+	mux.HandleFunc("GET /sitemap.xml", h.sitemapIndex)
+	mux.HandleFunc("GET /sitemap/{file}", h.sitemapFile)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ok")) })
 	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Write([]byte(robotsTxt))
+		w.Write([]byte(robotsTxt + "\nSitemap: " + siteURL(r) + "/sitemap.xml\n"))
 	})
 }
 
 // robotsTxt welcomes crawlers but keeps them off search results and the
-// re-sorted copies of each breakdown, which add requests and no new pages.
+// re-sorted copies of each breakdown, which add requests and no new pages,
+// and off the large downloads, which the /data page describes.
 // The rate limit in front of the app is what actually protects it.
 const robotsTxt = `# Crawlers are welcome. Each client may make about 4 requests a second;
 # faster than that gets 429 Too Many Requests with Retry-After.
+# The whole dataset is a download: see /data.
 User-agent: *
 Crawl-delay: 1
 Disallow: /search
 Disallow: /*?sort=
+Disallow: /data/
 `
 
 // period is the publication and years every page reports on.
