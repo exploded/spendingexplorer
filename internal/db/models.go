@@ -210,6 +210,12 @@ type LlmSupplierGroup struct {
 	CreatedAt     time.Time
 }
 
+type LlmWebsiteBatchItem struct {
+	BatchID    string
+	CustomID   string
+	SupplierID int64
+}
+
 type LoadRun struct {
 	ID               int64
 	Command          string
@@ -427,6 +433,35 @@ type SupplierGroupMember struct {
 type SupplierIndividual struct {
 	SupplierID int64
 	Basis      string
+}
+
+type SupplierWebsite struct {
+	SupplierID int64
+	Url        string
+	Basis      string
+	ParentName string
+	Evidence   string
+	CheckedAt  string
+}
+
+type WebsiteCheck struct {
+	SupplierID int64
+	Url        string
+	Method     string
+	Passed     int64
+	Detail     string
+	CheckedAt  string
+}
+
+type WebsiteSearch struct {
+	SupplierID    int64
+	Url           string
+	Answer        string
+	WebSearches   int64
+	Model         string
+	PromptVersion string
+	BatchID       string
+	SearchedAt    string
 }
 
 type WogExpense struct {

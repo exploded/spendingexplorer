@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"spendingexplorer/internal/austender"
 	"spendingexplorer/internal/classify"
@@ -80,6 +82,13 @@ type supplierPage struct {
 	Crumbs    []crumb
 	Projects  []projectView         // major projects this supplier delivers
 	Grants    *db.SupplierGrantsRow // grants to the recipient matched by name, if any
+	Website   *supplierSite
+}
+
+// supplierSite is a supplier's website as linked from its page.
+type supplierSite struct {
+	db.SupplierWebsiteRow
+	Host string // e.g. dt-global.com
 }
 
 func (h *Handler) supplier(w http.ResponseWriter, r *http.Request) {
@@ -118,6 +127,17 @@ func (h *Handler) supplier(w http.ResponseWriter, r *http.Request) {
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		h.fail(w, err)
 		return
+	}
+	// A database older than cmd/find-websites has no supplier_website table;
+	// the page goes without a link rather than failing.
+	if ws, err := h.q.SupplierWebsite(ctx, id); err == nil {
+		host := ws.Url
+		if u, err := url.Parse(ws.Url); err == nil && u.Hostname() != "" {
+			host = strings.TrimPrefix(u.Hostname(), "www.")
+		}
+		page.Website = &supplierSite{ws, host}
+	} else if !errors.Is(err, sql.ErrNoRows) && !errors.Is(err, context.Canceled) {
+		slog.Warn("supplier website", "supplier", id, "error", err)
 	}
 	if page.Totals, err = h.q.SupplierTotals(ctx, sql.NullInt64{Int64: id, Valid: true}); err != nil {
 		h.fail(w, err)

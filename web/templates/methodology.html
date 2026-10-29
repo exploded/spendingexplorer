@@ -105,6 +105,15 @@
 </ul>
 <p>We do not join a company that contracts as trustee or custodian for a trust to its parent, because the trust’s property is not the company’s. Individuals are never grouped. Joint ventures and brands with unrelated names (such as a firm’s acquisitions trading under their old names) are not detected unless the LEI register links them.</p>
 
+<h2 id="websites">Supplier websites</h2>
+<p>AusTender doesn’t record suppliers’ websites, so we find them in three ways, and each link is labelled with where it came from:</p>
+<ul>
+  <li><span class="badge badge-reported">Wikidata</span> The official website recorded on <a href="https://www.wikidata.org/">Wikidata</a> for the supplier, found by its ABN or its Legal Entity Identifier. When only the supplier’s ultimate parent company (as reported to GLEIF) has a Wikidata entry, the link is marked as the parent company’s website.</li>
+  <li><span class="badge badge-reported">checked</span> A domain built from the supplier’s name, such as its name followed by .com.au, kept only when the page shows the supplier’s ABN or ACN, or its full name in the page title or copyright line.</li>
+  <li><span class="badge badge-ai">found by AI search</span> A Claude model searched the web, told the supplier’s name, ABN, location and largest contract. Its answer is kept only when the page shows the supplier’s ABN or ACN, or its name in the page title, copyright line or domain.</li>
+</ul>
+<p>Sites that fail these checks are left out: no link is better than a wrong one. A link can lead to a corporate group’s site rather than the contracting company’s own. Links are for identification only; they don’t suggest the supplier endorses this site, or that we endorse the supplier. We don’t show logos, because they are the companies’ own artwork. Individuals’ pages get no website link.</p>
+
 <h2 id="ai">AI classification</h2>
 <p>AusTender’s categories (UNSPSC codes) are broad: “management and business professionals” covers consultants, contractors filling roles, lawyers and auditors alike. To tell these apart, we ask a Claude model to read each contract’s description, agency and supplier and choose one category from a fixed list. It runs in batches with a fixed prompt; each result records the model, prompt version and a fingerprint of the text it read, and is labelled <span class="badge badge-ai">AI-classified</span> wherever it appears.</p>
 <p>The model can be wrong, especially when descriptions are short. Results marked low confidence are shown but not counted in totals. The model is never asked to judge value for money or wrongdoing. In a check of 55 results chosen at random across the categories, a reviewer agreed with 91%.</p>

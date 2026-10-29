@@ -1689,3 +1689,84 @@ SELECT photo, photo_type FROM person WHERE id = ? AND photo IS NOT NULL;
 SELECT DISTINCT portfolio FROM program
 WHERE budget_year = (SELECT MAX(budget_year) FROM program)
 ORDER BY portfolio;
+
+-- Supplier websites ------------------------------------------------------------------
+
+-- name: WebsiteCandidates :many
+-- Suppliers ranked by contract value, leaving out individuals, with their
+-- largest contract and main agency for the search prompt.
+SELECT s.id, s.name, s.abn, s.postcode, s.country,
+  CAST(SUM(c.value) AS INTEGER) AS value,
+  CAST((SELECT c2.description FROM contract c2 WHERE c2.supplier_id = s.id ORDER BY c2.value DESC LIMIT 1) AS TEXT) AS top_description,
+  CAST((SELECT a.name FROM contract c3 JOIN agency a ON a.id = c3.agency_id WHERE c3.supplier_id = s.id
+        GROUP BY a.id ORDER BY SUM(c3.value) DESC LIMIT 1) AS TEXT) AS top_agency,
+  CAST(EXISTS (SELECT 1 FROM supplier_website w WHERE w.supplier_id = s.id) AS INTEGER) AS has_site
+FROM supplier s JOIN contract c ON c.supplier_id = s.id
+WHERE s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+GROUP BY s.id
+ORDER BY value DESC
+LIMIT sqlc.arg(lim);
+
+-- name: SupplierLEIs :many
+-- Each supplier's own LEI and its ultimate parent's, for the Wikidata lookup.
+SELECT s.id, s.abn, g.lei,
+  CAST(COALESCE(p.parent_lei, '') AS TEXT) AS parent_lei,
+  CAST(COALESCE(pe.legal_name, '') AS TEXT) AS parent_name
+FROM supplier s
+JOIN gleif_entity g ON g.abn = s.abn AND s.abn <> ''
+LEFT JOIN gleif_parent p ON p.lei = g.lei
+LEFT JOIN gleif_entity pe ON pe.lei = p.parent_lei
+WHERE s.id NOT IN (SELECT supplier_id FROM supplier_individual);
+
+-- name: WebsiteSupplierABNs :many
+SELECT id, abn FROM supplier
+WHERE abn <> '' AND id NOT IN (SELECT supplier_id FROM supplier_individual);
+
+-- name: ClearWikidataWebsites :exec
+DELETE FROM supplier_website WHERE basis IN ('wikidata', 'wikidata-parent');
+
+-- name: PutWebsite :exec
+-- Wikidata replaces any guessed or searched site.
+INSERT OR REPLACE INTO supplier_website (supplier_id, url, basis, parent_name, evidence, checked_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- name: AddWebsite :exec
+-- A guessed or searched site, kept only when the supplier has none yet.
+INSERT OR IGNORE INTO supplier_website (supplier_id, url, basis, parent_name, evidence, checked_at)
+VALUES (?, ?, ?, '', ?, ?);
+
+-- name: PutWebsiteCheck :exec
+INSERT OR REPLACE INTO website_check (supplier_id, url, method, passed, detail, checked_at)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- name: GuessedSuppliers :many
+SELECT DISTINCT supplier_id FROM website_check WHERE method = 'guess';
+
+-- name: SearchedSuppliers :many
+-- Suppliers answered, or waiting in a batch not yet collected.
+SELECT supplier_id FROM website_search
+UNION
+SELECT i.supplier_id FROM llm_website_batch_item i JOIN llm_batch b ON b.batch_id = i.batch_id
+WHERE b.status = 'submitted';
+
+-- name: InsertLLMWebsiteBatchItem :exec
+INSERT INTO llm_website_batch_item (batch_id, custom_id, supplier_id) VALUES (?, ?, ?);
+
+-- name: LLMWebsiteBatchItems :many
+SELECT i.custom_id, s.id, s.name, s.abn, s.postcode, s.country
+FROM llm_website_batch_item i JOIN supplier s ON s.id = i.supplier_id
+WHERE i.batch_id = ?;
+
+-- name: PutWebsiteSearch :exec
+INSERT OR REPLACE INTO website_search (supplier_id, url, answer, web_searches, model, prompt_version, batch_id, searched_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: SupplierWebsite :one
+SELECT url, basis, parent_name, evidence FROM supplier_website WHERE supplier_id = ?;
+
+-- name: WebsiteCoverage :many
+-- Sites by basis, with the contract value of the suppliers they cover.
+SELECT w.basis, CAST(COUNT(DISTINCT w.supplier_id) AS INTEGER) AS suppliers,
+  CAST(COALESCE(SUM(c.value), 0) AS INTEGER) AS value
+FROM supplier_website w JOIN contract c ON c.supplier_id = w.supplier_id
+GROUP BY w.basis;

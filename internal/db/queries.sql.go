@@ -88,6 +88,31 @@ func (q *Queries) AISupplierGroups(ctx context.Context, promptVersion string) ([
 	return items, nil
 }
 
+const addWebsite = `-- name: AddWebsite :exec
+INSERT OR IGNORE INTO supplier_website (supplier_id, url, basis, parent_name, evidence, checked_at)
+VALUES (?, ?, ?, '', ?, ?)
+`
+
+type AddWebsiteParams struct {
+	SupplierID int64
+	Url        string
+	Basis      string
+	Evidence   string
+	CheckedAt  string
+}
+
+// A guessed or searched site, kept only when the supplier has none yet.
+func (q *Queries) AddWebsite(ctx context.Context, arg AddWebsiteParams) error {
+	_, err := q.db.ExecContext(ctx, addWebsite,
+		arg.SupplierID,
+		arg.Url,
+		arg.Basis,
+		arg.Evidence,
+		arg.CheckedAt,
+	)
+	return err
+}
+
 const ausTenderSourceSummary = `-- name: AusTenderSourceSummary :many
 SELECT doc_type, CAST(COUNT(*) AS INTEGER) AS documents,
   CAST(MIN(retrieved_at) AS TEXT) AS first_retrieved, CAST(MAX(retrieved_at) AS TEXT) AS last_retrieved
@@ -326,6 +351,15 @@ DELETE FROM supplier_individual
 
 func (q *Queries) ClearSupplierIndividuals(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, clearSupplierIndividuals)
+	return err
+}
+
+const clearWikidataWebsites = `-- name: ClearWikidataWebsites :exec
+DELETE FROM supplier_website WHERE basis IN ('wikidata', 'wikidata-parent')
+`
+
+func (q *Queries) ClearWikidataWebsites(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, clearWikidataWebsites)
 	return err
 }
 
@@ -2458,6 +2492,33 @@ func (q *Queries) GroupedClusterHashes(ctx context.Context, promptVersion string
 	return items, nil
 }
 
+const guessedSuppliers = `-- name: GuessedSuppliers :many
+SELECT DISTINCT supplier_id FROM website_check WHERE method = 'guess'
+`
+
+func (q *Queries) GuessedSuppliers(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, guessedSuppliers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var supplier_id int64
+		if err := rows.Scan(&supplier_id); err != nil {
+			return nil, err
+		}
+		items = append(items, supplier_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const individualSupplierABNs = `-- name: IndividualSupplierABNs :many
 SELECT s.abn FROM supplier s JOIN supplier_individual i ON i.supplier_id = s.id WHERE s.abn <> ''
 `
@@ -2711,6 +2772,21 @@ func (q *Queries) InsertLLMGroupBatchItem(ctx context.Context, arg InsertLLMGrou
 		arg.InputHash,
 		arg.SupplierID,
 	)
+	return err
+}
+
+const insertLLMWebsiteBatchItem = `-- name: InsertLLMWebsiteBatchItem :exec
+INSERT INTO llm_website_batch_item (batch_id, custom_id, supplier_id) VALUES (?, ?, ?)
+`
+
+type InsertLLMWebsiteBatchItemParams struct {
+	BatchID    string
+	CustomID   string
+	SupplierID int64
+}
+
+func (q *Queries) InsertLLMWebsiteBatchItem(ctx context.Context, arg InsertLLMWebsiteBatchItemParams) error {
+	_, err := q.db.ExecContext(ctx, insertLLMWebsiteBatchItem, arg.BatchID, arg.CustomID, arg.SupplierID)
 	return err
 }
 
@@ -3344,6 +3420,51 @@ func (q *Queries) LLMGroupBatchItems(ctx context.Context, batchID string) ([]LLM
 			&i.InputHash,
 			&i.SupplierID,
 			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lLMWebsiteBatchItems = `-- name: LLMWebsiteBatchItems :many
+SELECT i.custom_id, s.id, s.name, s.abn, s.postcode, s.country
+FROM llm_website_batch_item i JOIN supplier s ON s.id = i.supplier_id
+WHERE i.batch_id = ?
+`
+
+type LLMWebsiteBatchItemsRow struct {
+	CustomID string
+	ID       int64
+	Name     string
+	Abn      string
+	Postcode string
+	Country  string
+}
+
+func (q *Queries) LLMWebsiteBatchItems(ctx context.Context, batchID string) ([]LLMWebsiteBatchItemsRow, error) {
+	rows, err := q.db.QueryContext(ctx, lLMWebsiteBatchItems, batchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LLMWebsiteBatchItemsRow
+	for rows.Next() {
+		var i LLMWebsiteBatchItemsRow
+		if err := rows.Scan(
+			&i.CustomID,
+			&i.ID,
+			&i.Name,
+			&i.Abn,
+			&i.Postcode,
+			&i.Country,
 		); err != nil {
 			return nil, err
 		}
@@ -4516,6 +4637,89 @@ func (q *Queries) ProjectLinks(ctx context.Context) ([]ProjectLinksRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const putWebsite = `-- name: PutWebsite :exec
+INSERT OR REPLACE INTO supplier_website (supplier_id, url, basis, parent_name, evidence, checked_at)
+VALUES (?, ?, ?, ?, ?, ?)
+`
+
+type PutWebsiteParams struct {
+	SupplierID int64
+	Url        string
+	Basis      string
+	ParentName string
+	Evidence   string
+	CheckedAt  string
+}
+
+// Wikidata replaces any guessed or searched site.
+func (q *Queries) PutWebsite(ctx context.Context, arg PutWebsiteParams) error {
+	_, err := q.db.ExecContext(ctx, putWebsite,
+		arg.SupplierID,
+		arg.Url,
+		arg.Basis,
+		arg.ParentName,
+		arg.Evidence,
+		arg.CheckedAt,
+	)
+	return err
+}
+
+const putWebsiteCheck = `-- name: PutWebsiteCheck :exec
+INSERT OR REPLACE INTO website_check (supplier_id, url, method, passed, detail, checked_at)
+VALUES (?, ?, ?, ?, ?, ?)
+`
+
+type PutWebsiteCheckParams struct {
+	SupplierID int64
+	Url        string
+	Method     string
+	Passed     int64
+	Detail     string
+	CheckedAt  string
+}
+
+func (q *Queries) PutWebsiteCheck(ctx context.Context, arg PutWebsiteCheckParams) error {
+	_, err := q.db.ExecContext(ctx, putWebsiteCheck,
+		arg.SupplierID,
+		arg.Url,
+		arg.Method,
+		arg.Passed,
+		arg.Detail,
+		arg.CheckedAt,
+	)
+	return err
+}
+
+const putWebsiteSearch = `-- name: PutWebsiteSearch :exec
+INSERT OR REPLACE INTO website_search (supplier_id, url, answer, web_searches, model, prompt_version, batch_id, searched_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+`
+
+type PutWebsiteSearchParams struct {
+	SupplierID    int64
+	Url           string
+	Answer        string
+	WebSearches   int64
+	Model         string
+	PromptVersion string
+	BatchID       string
+	SearchedAt    string
+}
+
+func (q *Queries) PutWebsiteSearch(ctx context.Context, arg PutWebsiteSearchParams) error {
+	_, err := q.db.ExecContext(ctx, putWebsiteSearch,
+		arg.SupplierID,
+		arg.Url,
+		arg.Answer,
+		arg.WebSearches,
+		arg.Model,
+		arg.PromptVersion,
+		arg.BatchID,
+		arg.SearchedAt,
+	)
+	return err
 }
 
 const recipientAgencies = `-- name: RecipientAgencies :many
@@ -5930,6 +6134,37 @@ func (q *Queries) SearchSuppliers(ctx context.Context, arg SearchSuppliersParams
 	return items, nil
 }
 
+const searchedSuppliers = `-- name: SearchedSuppliers :many
+SELECT supplier_id FROM website_search
+UNION
+SELECT i.supplier_id FROM llm_website_batch_item i JOIN llm_batch b ON b.batch_id = i.batch_id
+WHERE b.status = 'submitted'
+`
+
+// Suppliers answered, or waiting in a batch not yet collected.
+func (q *Queries) SearchedSuppliers(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, searchedSuppliers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var supplier_id int64
+		if err := rows.Scan(&supplier_id); err != nil {
+			return nil, err
+		}
+		items = append(items, supplier_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setAgencyEntity = `-- name: SetAgencyEntity :exec
 UPDATE agency SET entity_id = ?, match_method = ? WHERE id = ?
 `
@@ -6839,6 +7074,55 @@ func (q *Queries) SupplierIndividualCounts(ctx context.Context) ([]SupplierIndiv
 	return items, nil
 }
 
+const supplierLEIs = `-- name: SupplierLEIs :many
+SELECT s.id, s.abn, g.lei,
+  CAST(COALESCE(p.parent_lei, '') AS TEXT) AS parent_lei,
+  CAST(COALESCE(pe.legal_name, '') AS TEXT) AS parent_name
+FROM supplier s
+JOIN gleif_entity g ON g.abn = s.abn AND s.abn <> ''
+LEFT JOIN gleif_parent p ON p.lei = g.lei
+LEFT JOIN gleif_entity pe ON pe.lei = p.parent_lei
+WHERE s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+`
+
+type SupplierLEIsRow struct {
+	ID         int64
+	Abn        string
+	Lei        string
+	ParentLei  string
+	ParentName string
+}
+
+// Each supplier's own LEI and its ultimate parent's, for the Wikidata lookup.
+func (q *Queries) SupplierLEIs(ctx context.Context) ([]SupplierLEIsRow, error) {
+	rows, err := q.db.QueryContext(ctx, supplierLEIs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SupplierLEIsRow
+	for rows.Next() {
+		var i SupplierLEIsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Abn,
+			&i.Lei,
+			&i.ParentLei,
+			&i.ParentName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const supplierNames = `-- name: SupplierNames :many
 SELECT s.id, s.name, CAST(EXISTS (SELECT 1 FROM supplier_individual i WHERE i.supplier_id = s.id) AS INTEGER) AS individual
 FROM supplier s
@@ -6936,6 +7220,29 @@ func (q *Queries) SupplierTotals(ctx context.Context, supplierID sql.NullInt64) 
 		&i.LimitedContracts,
 		&i.FirstPublished,
 		&i.LastPublished,
+	)
+	return i, err
+}
+
+const supplierWebsite = `-- name: SupplierWebsite :one
+SELECT url, basis, parent_name, evidence FROM supplier_website WHERE supplier_id = ?
+`
+
+type SupplierWebsiteRow struct {
+	Url        string
+	Basis      string
+	ParentName string
+	Evidence   string
+}
+
+func (q *Queries) SupplierWebsite(ctx context.Context, supplierID int64) (SupplierWebsiteRow, error) {
+	row := q.db.QueryRowContext(ctx, supplierWebsite, supplierID)
+	var i SupplierWebsiteRow
+	err := row.Scan(
+		&i.Url,
+		&i.Basis,
+		&i.ParentName,
+		&i.Evidence,
 	)
 	return i, err
 }
@@ -7724,6 +8031,139 @@ func (q *Queries) UpsertSupplier(ctx context.Context, arg UpsertSupplierParams) 
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const websiteCandidates = `-- name: WebsiteCandidates :many
+
+SELECT s.id, s.name, s.abn, s.postcode, s.country,
+  CAST(SUM(c.value) AS INTEGER) AS value,
+  CAST((SELECT c2.description FROM contract c2 WHERE c2.supplier_id = s.id ORDER BY c2.value DESC LIMIT 1) AS TEXT) AS top_description,
+  CAST((SELECT a.name FROM contract c3 JOIN agency a ON a.id = c3.agency_id WHERE c3.supplier_id = s.id
+        GROUP BY a.id ORDER BY SUM(c3.value) DESC LIMIT 1) AS TEXT) AS top_agency,
+  CAST(EXISTS (SELECT 1 FROM supplier_website w WHERE w.supplier_id = s.id) AS INTEGER) AS has_site
+FROM supplier s JOIN contract c ON c.supplier_id = s.id
+WHERE s.id NOT IN (SELECT supplier_id FROM supplier_individual)
+GROUP BY s.id
+ORDER BY value DESC
+LIMIT ?1
+`
+
+type WebsiteCandidatesRow struct {
+	ID             int64
+	Name           string
+	Abn            string
+	Postcode       string
+	Country        string
+	Value          int64
+	TopDescription string
+	TopAgency      string
+	HasSite        int64
+}
+
+// Supplier websites ------------------------------------------------------------------
+// Suppliers ranked by contract value, leaving out individuals, with their
+// largest contract and main agency for the search prompt.
+func (q *Queries) WebsiteCandidates(ctx context.Context, lim int64) ([]WebsiteCandidatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, websiteCandidates, lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WebsiteCandidatesRow
+	for rows.Next() {
+		var i WebsiteCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Abn,
+			&i.Postcode,
+			&i.Country,
+			&i.Value,
+			&i.TopDescription,
+			&i.TopAgency,
+			&i.HasSite,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const websiteCoverage = `-- name: WebsiteCoverage :many
+SELECT w.basis, CAST(COUNT(DISTINCT w.supplier_id) AS INTEGER) AS suppliers,
+  CAST(COALESCE(SUM(c.value), 0) AS INTEGER) AS value
+FROM supplier_website w JOIN contract c ON c.supplier_id = w.supplier_id
+GROUP BY w.basis
+`
+
+type WebsiteCoverageRow struct {
+	Basis     string
+	Suppliers int64
+	Value     int64
+}
+
+// Sites by basis, with the contract value of the suppliers they cover.
+func (q *Queries) WebsiteCoverage(ctx context.Context) ([]WebsiteCoverageRow, error) {
+	rows, err := q.db.QueryContext(ctx, websiteCoverage)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WebsiteCoverageRow
+	for rows.Next() {
+		var i WebsiteCoverageRow
+		if err := rows.Scan(&i.Basis, &i.Suppliers, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const websiteSupplierABNs = `-- name: WebsiteSupplierABNs :many
+SELECT id, abn FROM supplier
+WHERE abn <> '' AND id NOT IN (SELECT supplier_id FROM supplier_individual)
+`
+
+type WebsiteSupplierABNsRow struct {
+	ID  int64
+	Abn string
+}
+
+func (q *Queries) WebsiteSupplierABNs(ctx context.Context) ([]WebsiteSupplierABNsRow, error) {
+	rows, err := q.db.QueryContext(ctx, websiteSupplierABNs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WebsiteSupplierABNsRow
+	for rows.Next() {
+		var i WebsiteSupplierABNsRow
+		if err := rows.Scan(&i.ID, &i.Abn); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const wogDocument = `-- name: WogDocument :one

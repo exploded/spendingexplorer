@@ -585,3 +585,55 @@ CREATE TABLE IF NOT EXISTS minister_title (
   portfolio  TEXT NOT NULL,
   PRIMARY KEY (title, portfolio)
 );
+
+-- Supplier websites --------------------------------------------------------------
+
+-- Each supplier's own website, written by cmd/find-websites. basis:
+--   wikidata         Wikidata's official website for the supplier's item,
+--                    found by ABN or by the supplier's LEI;
+--   wikidata-parent  the same for its GLEIF ultimate parent (parent_name);
+--   guess            a domain built from the supplier's name;
+--   search           found by Claude with web search.
+-- guess and search sites are linked only after the page passed the checks in
+-- internal/website (evidence says what matched).
+CREATE TABLE IF NOT EXISTS supplier_website (
+  supplier_id  INTEGER PRIMARY KEY,
+  url          TEXT NOT NULL,
+  basis        TEXT NOT NULL CHECK (basis IN ('wikidata', 'wikidata-parent', 'guess', 'search')),
+  parent_name  TEXT NOT NULL DEFAULT '',
+  evidence     TEXT NOT NULL DEFAULT '',
+  checked_at   TEXT NOT NULL DEFAULT ''
+);
+
+-- Every site checked for a supplier, passed or not, so a rerun skips it.
+-- method: guess | search | wikidata.
+CREATE TABLE IF NOT EXISTS website_check (
+  supplier_id  INTEGER NOT NULL,
+  url          TEXT NOT NULL,
+  method       TEXT NOT NULL,
+  passed       INTEGER NOT NULL,
+  detail       TEXT NOT NULL,
+  checked_at   TEXT NOT NULL,
+  PRIMARY KEY (supplier_id, url)
+);
+
+-- Suppliers sent to Claude for a web search, one request each.
+CREATE TABLE IF NOT EXISTS llm_website_batch_item (
+  batch_id     TEXT NOT NULL,
+  custom_id    TEXT NOT NULL,
+  supplier_id  INTEGER NOT NULL,
+  PRIMARY KEY (batch_id, custom_id)
+);
+
+-- The model's answer for each supplier searched; url is '' for none. A
+-- supplier with a row here is not searched again.
+CREATE TABLE IF NOT EXISTS website_search (
+  supplier_id      INTEGER PRIMARY KEY,
+  url              TEXT NOT NULL,
+  answer           TEXT NOT NULL,
+  web_searches     INTEGER NOT NULL,
+  model            TEXT NOT NULL,
+  prompt_version   TEXT NOT NULL,
+  batch_id         TEXT NOT NULL,
+  searched_at      TEXT NOT NULL
+);
