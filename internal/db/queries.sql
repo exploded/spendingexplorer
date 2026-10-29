@@ -1745,6 +1745,15 @@ SELECT s.id, s.name, COALESCE(s.abn, '') AS abn, COALESCE(s.postcode, '') AS pos
 FROM supplier_website w JOIN supplier s ON s.id = w.supplier_id
 WHERE w.basis = 'guess';
 
+-- name: SearchAnswers :many
+-- Search answers, for a recheck after the checks change. Suppliers with a
+-- Wikidata or guessed site are left alone.
+SELECT s.id, s.name, COALESCE(s.abn, '') AS abn, COALESCE(s.postcode, '') AS postcode,
+       COALESCE(s.country, '') AS country, w.url
+FROM website_search w JOIN supplier s ON s.id = w.supplier_id
+WHERE w.url != ''
+  AND NOT EXISTS (SELECT 1 FROM supplier_website x WHERE x.supplier_id = w.supplier_id AND x.basis != 'search');
+
 -- name: DeleteWebsite :exec
 DELETE FROM supplier_website WHERE supplier_id = ?;
 

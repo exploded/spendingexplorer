@@ -5779,6 +5779,55 @@ func (q *Queries) RuleTotals(ctx context.Context, arg RuleTotalsParams) ([]RuleT
 	return items, nil
 }
 
+const searchAnswers = `-- name: SearchAnswers :many
+SELECT s.id, s.name, COALESCE(s.abn, '') AS abn, COALESCE(s.postcode, '') AS postcode,
+       COALESCE(s.country, '') AS country, w.url
+FROM website_search w JOIN supplier s ON s.id = w.supplier_id
+WHERE w.url != ''
+  AND NOT EXISTS (SELECT 1 FROM supplier_website x WHERE x.supplier_id = w.supplier_id AND x.basis != 'search')
+`
+
+type SearchAnswersRow struct {
+	ID       int64
+	Name     string
+	Abn      string
+	Postcode string
+	Country  string
+	Url      string
+}
+
+// Search answers, for a recheck after the checks change. Suppliers with a
+// Wikidata or guessed site are left alone.
+func (q *Queries) SearchAnswers(ctx context.Context) ([]SearchAnswersRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchAnswers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchAnswersRow
+	for rows.Next() {
+		var i SearchAnswersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Abn,
+			&i.Postcode,
+			&i.Country,
+			&i.Url,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchContracts = `-- name: SearchContracts :many
 SELECT c.cn_id, c.description, c.value, c.published_date, a.name AS agency, a.entity_id,
   CAST(COALESCE(s.id, 0) AS INTEGER) AS supplier_id, CAST(COALESCE(s.name, '') AS TEXT) AS supplier,

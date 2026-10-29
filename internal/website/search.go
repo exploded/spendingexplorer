@@ -57,15 +57,23 @@ func Prompt(s Supplier, c Context) string {
 	return b.String()
 }
 
-var answer = regexp.MustCompile(`(?im)^\W*WEBSITE:[\s*_]*([^\s*_]\S*)`)
+var (
+	answer  = regexp.MustCompile(`(?im)^\W*WEBSITE:[\s*_]*([^\s*_]\S*)`)
+	bareURL = regexp.MustCompile(`(?i)\n[\s*_<]*(https?://\S+?)[\s*_>]*$`)
+)
 
 // Parse reads the model's answer. It returns "" for none.
 func Parse(text string) (string, error) {
-	m := answer.FindAllStringSubmatch(text, -1)
-	if m == nil {
+	var u string
+	if m := answer.FindAllStringSubmatch(text, -1); m != nil {
+		u = m[len(m)-1][1]
+	} else if m := bareURL.FindStringSubmatch(text); m != nil {
+		// The model sometimes ends with the address alone.
+		u = m[1]
+	} else {
 		return "", fmt.Errorf("no WEBSITE line in %q", tail(text))
 	}
-	u := strings.Trim(m[len(m)-1][1], "<>()[]*`'\".,")
+	u = strings.Trim(u, "<>()[]*`'\".,")
 	if strings.EqualFold(u, "none") {
 		return "", nil
 	}

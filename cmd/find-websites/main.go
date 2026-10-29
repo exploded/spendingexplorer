@@ -91,16 +91,57 @@ func main() {
 
 func today() string { return time.Now().Format(time.DateOnly) }
 
-// recheck visits every guessed site again and drops those that now fail, so
-// the supplier goes on to the search step.
+// recheck applies the current checks again: guessed sites that now fail are
+// dropped, so the supplier goes on to the search step, and search answers that
+// failed are linked if they now pass. No search is repeated.
 func recheck(ctx context.Context, conn *sql.DB, o options) error {
+	if err := recheckGuesses(ctx, conn, o); err != nil {
+		return err
+	}
+	return recheckSearches(ctx, conn, o)
+}
+
+func recheckSearches(ctx context.Context, conn *sql.DB, o options) error {
+	q := db.New(conn)
+	rows, err := q.SearchAnswers(ctx)
+	if err != nil {
+		return err
+	}
+	ck := website.NewChecker()
+	linked := 0
+	err = each(rows, o.workers, func(a db.SearchAnswersRow) website.Result {
+		s := website.Supplier{ID: a.ID, Name: a.Name, ABN: a.Abn, Postcode: a.Postcode, Country: a.Country}
+		return ck.Visit(ctx, s, a.Url, website.Plain)
+	}, func(a db.SearchAnswersRow, r website.Result) error {
+		if err := q.PutWebsiteCheck(ctx, db.PutWebsiteCheckParams{
+			SupplierID: a.ID, Url: a.Url, Method: "search", Passed: boolInt(r.Passed), Detail: r.Evidence + r.Detail, CheckedAt: today(),
+		}); err != nil {
+			return err
+		}
+		if r.Passed {
+			linked++
+			return q.PutWebsite(ctx, db.PutWebsiteParams{
+				SupplierID: a.ID, Url: website.Home(r.URL), Basis: "search", Evidence: r.Evidence, CheckedAt: today(),
+			})
+		}
+		// A linked site that is down or blocks us today keeps its link.
+		if r.Blocked || !r.Reached {
+			return nil
+		}
+		log.Printf("rejected %s: %s (%s)", a.Name, a.Url, r.Detail)
+		return q.DeleteWebsite(ctx, a.ID)
+	})
+	log.Printf("recheck: %d of %d search answers pass", linked, len(rows))
+	return err
+}
+
+func recheckGuesses(ctx context.Context, conn *sql.DB, o options) error {
 	q := db.New(conn)
 	rows, err := q.GuessedWebsites(ctx)
 	if err != nil {
 		return err
 	}
 	ck := website.NewChecker()
-	kept, dropped := 0, 0
 	return each(rows, o.workers, func(g db.GuessedWebsitesRow) website.Result {
 		s := website.Supplier{ID: g.ID, Name: g.Name, ABN: g.Abn, Postcode: g.Postcode, Country: g.Country}
 		return ck.Visit(ctx, s, g.Url, website.Strict)
@@ -111,17 +152,14 @@ func recheck(ctx context.Context, conn *sql.DB, o options) error {
 			return err
 		}
 		if r.Passed {
-			kept++
 			return q.PutWebsite(ctx, db.PutWebsiteParams{
 				SupplierID: g.ID, Url: website.Home(r.URL), Basis: "guess", Evidence: r.Evidence, CheckedAt: today(),
 			})
 		}
 		// A site that is down or blocks us today keeps its link.
 		if r.Blocked || !r.Reached {
-			kept++
 			return nil
 		}
-		dropped++
 		log.Printf("dropped %s: %s (%s)", g.Name, g.Url, r.Detail)
 		return q.DeleteWebsite(ctx, g.ID)
 	})

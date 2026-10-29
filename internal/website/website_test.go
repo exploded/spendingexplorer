@@ -15,7 +15,7 @@ func TestNames(t *testing.T) {
 		"KONGSBERG DEFENCE & AEROSPACE AS":          {{"kongsberg", "defence", "and", "aerospace"}},
 		"Data#3 Limited Formerly: Data #3 Business": {{"data", "3"}, {"data", "3", "business"}},
 		"PARTECH PTY LIMITED T/A BYTES 'N COLOURS":  {{"partech"}, {"bytes", "n", "colours"}},
-		"THE TRUSTEE FOR THE SMITH FAMILY TRUST":    {{"trustee", "for", "the", "smith", "family"}},
+		"THE TRUSTEE FOR THE SMITH FAMILY TRUST":    {{"smith", "family"}},
 		"MITSUBISHI HEAVY INDUSTRIES, LTD.":         {{"mitsubishi", "heavy", "industries"}},
 		"SERENDIPITY WA PTY LTD":                    {{"serendipity"}},
 	} {
@@ -85,6 +85,16 @@ func TestCheck(t *testing.T) {
 			page("https://cushman-and-wakefield.com/", `<title>Welcome</title><p>Australia</p>`), Strict, false, ""},
 		{"title is its own domain", Supplier{Name: "MINISTRY OF HEALTH", Postcode: "1590", Country: "AUSTRALIA"},
 			page("https://ministryofhealth.com.au/", `<title>ministryofhealth.com.au</title><p>ministryofhealth.com.au</p>`), Strict, false, ""},
+		{"joined leading part, searched", Supplier{Name: "MINTER ELLISON LAWYERS", Country: "AUSTRALIA"},
+			page("https://www.minterellison.com/", `<title>Leading Australian law firm - MinterEllison</title>`), Plain, true, `name in title: "minter ellison"`},
+		{"initials and domain, searched", Supplier{Name: "KELLOGG BROWN & ROOT PTY LTD", Country: "AUSTRALIA"},
+			page("https://www.kbr.com/en-au/", `<title>KBR | Delivering Solutions</title>`), Plain, true, `name in title and domain: "kbr"`},
+		{"first word and domain, searched", Supplier{Name: "Doma Barton Pty Ltd", Country: "AUSTRALIA"},
+			page("https://domagroup.com.au/", `<title>DOMA Group</title>`), Plain, true, `name in title and domain: "doma"`},
+		{"first word and domain, guessed", Supplier{Name: "Doma Barton Pty Ltd", Postcode: "2600", Country: "AUSTRALIA"},
+			page("https://domagroup.com.au/", `<title>DOMA Group</title>`), Strict, false, ""},
+		{"renamed business", Supplier{Name: "Duxton Water Ltd", Country: "AUSTRALIA"},
+			page("https://www.rivco.com.au/", `<title>Rivco Australia</title><p>© Rivco Australia 2026</p>`), Plain, false, ""},
 		{"placeholder page", dt, page("https://dt-global.com/", `<title>DT Global</title><h1>Launching Soon</h1>`), Plain, false, ""},
 	} {
 		r := Check(c.s, c.p, c.bar)
@@ -113,6 +123,9 @@ func TestParse(t *testing.T) {
 
 func TestHome(t *testing.T) {
 	if got := Home("https://www.boeing.com.au:443/?x=1#top"); got != "https://www.boeing.com.au/" {
+		t.Errorf("Home = %q", got)
+	}
+	if got := Home("https://www.tbwa.com.au/page-not-found/"); got != "https://www.tbwa.com.au/" {
 		t.Errorf("Home = %q", got)
 	}
 	if got := Home("https://besixwatpac.com//"); got != "https://besixwatpac.com/" {

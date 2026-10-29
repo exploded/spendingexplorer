@@ -6,6 +6,7 @@ package website
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"html"
@@ -38,6 +39,7 @@ func (s Supplier) Australian() bool {
 
 var (
 	tradingAs   = regexp.MustCompile(`(?i)\s(t/as?|ta|trading as|atf|as trustee for|formerly:?)\s`)
+	trusteeFor  = regexp.MustCompile(`(?i)^\s*(the\s+)?trustees?\s+for\s+`)
 	parenthesis = regexp.MustCompile(`\([^)]*\)`)
 	nonWord     = regexp.MustCompile(`[^\p{L}\p{N}]+`)
 )
@@ -76,6 +78,7 @@ func words(s string) []string {
 // legal forms and place names trimmed from the end.
 func Names(name string) [][]string {
 	var parts []string
+	name = trusteeFor.ReplaceAllString(name, "")
 	if loc := tradingAs.FindStringIndex(name); loc != nil {
 		parts = []string{name[:loc[0]], name[loc[1]:]}
 	} else {
@@ -122,9 +125,62 @@ func match(names [][]string, text string, prefixes bool) string {
 				return phrase
 			}
 			// "DT Global" is written "dt-global" or "DTGlobal" in domains and logos.
-			if k == len(n) && k > 1 && len(strings.Join(prefix, "")) >= 6 && strings.Contains(compact, strings.Join(prefix, "")) {
+			if k > 1 && len(strings.Join(prefix, "")) >= 6 && strings.Contains(compact, strings.Join(prefix, "")) {
 				return phrase
 			}
+		}
+	}
+	return ""
+}
+
+// initials returns a name's initials ("kbr" for Kellogg Brown & Root),
+// skipping joining words, or "" when there are fewer than three.
+func initials(n []string) string {
+	var b strings.Builder
+	for _, w := range n {
+		switch w {
+		case "and", "of", "for", "the":
+			continue
+		}
+		b.WriteString(w[:1])
+	}
+	if b.Len() < 3 {
+		return ""
+	}
+	return b.String()
+}
+
+// labelAgrees passes a search answer whose title carries the name's initials
+// or first word when the domain starts with the same: "KBR" on kbr.com, "Saab"
+// on saab.com, "DOMA Group" on domagroup.com.au. Either alone is too weak.
+func labelAgrees(names [][]string, title, label string) string {
+	t := " " + strings.Join(words(title), " ") + " "
+	label = strings.ReplaceAll(label, "-", "")
+	for _, n := range names {
+		if in := initials(n); in != "" && strings.Contains(t, " "+in+" ") &&
+			(strings.HasPrefix(label, in) || label == strings.Join(n, "")) {
+			return in
+		}
+		if w := n[0]; len(w) >= 3 && !generic[w] && !tailWords[w] && strings.Contains(t, " "+w+" ") && strings.HasPrefix(label, w) {
+			return w
+		}
+	}
+	return ""
+}
+
+// labelIsName reports whether a domain label reads as the supplier's name:
+// the name or its start ("serco" for Serco Citizen Services), the name with
+// more after it ("technologyonecorp"), a long part of it ("homeaffairs") or
+// its initials ("aemo").
+func labelIsName(names [][]string, label string) string {
+	label = strings.ReplaceAll(label, "-", "")
+	for _, n := range names {
+		full := strings.Join(n, "")
+		switch {
+		case len(label) >= 4 && (strings.HasPrefix(full, label) || strings.HasPrefix(label, full)),
+			len(label) >= 8 && strings.Contains(full, label),
+			label == initials(n):
+			return strings.Join(n, " ")
 		}
 	}
 	return ""
@@ -303,6 +359,11 @@ func Check(s Supplier, p Page, bar Bar) Result {
 			break
 		}
 	}
+	if matched == "" && bar == Plain {
+		if m := labelAgrees(names, sources[0].text, label); m != "" {
+			where, matched = "title and domain", m
+		}
+	}
 	if matched == "" {
 		r.Detail = "name not in title, copyright line or domain"
 		return r
@@ -351,9 +412,17 @@ type Checker struct {
 	Client *http.Client
 }
 
-// NewChecker returns a Checker with sensible timeouts.
+// NewChecker returns a Checker with sensible timeouts. It speaks HTTP/1.1
+// only: some CDNs reset Go's HTTP/2 streams (DHL, HPE, Optus).
 func NewChecker() *Checker {
-	return &Checker{Client: &http.Client{Timeout: 20 * time.Second}}
+	t := &http.Transport{
+		Proxy:               http.ProxyFromEnvironment,
+		DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+		TLSClientConfig:     &tls.Config{NextProtos: []string{"http/1.1"}},
+		TLSHandshakeTimeout: 10 * time.Second,
+		MaxIdleConnsPerHost: 2,
+	}
+	return &Checker{Client: &http.Client{Timeout: 20 * time.Second, Transport: t}}
 }
 
 // Fetch reads a page, up to 2 MB. A missing domain is reported as such, so
@@ -408,10 +477,8 @@ func (c *Checker) Visit(ctx context.Context, s Supplier, raw string, bar Bar) Re
 		if bar == Plain {
 			label := strings.TrimPrefix(p.URL.Hostname(), "www.")
 			label = label[:max(strings.Index(label, "."), 0)]
-			for _, n := range Names(s.Name) {
-				if len(n) > 0 && strings.ReplaceAll(label, "-", "") == strings.Join(n, "") {
-					r.Passed, r.Evidence = true, fmt.Sprintf("site refused the check; domain is the full name %q", strings.Join(n, " "))
-				}
+			if m := labelIsName(Names(s.Name), label); m != "" {
+				r.Passed, r.Evidence = true, fmt.Sprintf("site refused the check; domain reads as the name %q", m)
 			}
 		}
 		return r
@@ -431,6 +498,10 @@ func shortErr(err error) string {
 	return strings.TrimFunc(s, unicode.IsSpace)
 }
 
+// errorPath is where some sites send a missing page while still answering
+// HTTP 200; the site's home page is linked instead.
+var errorPath = regexp.MustCompile(`(?i)(not-?found|/404|/error)`)
+
 // Home trims a checked page's address to what the site links: scheme, host
 // and path, without query or fragment.
 func Home(raw string) string {
@@ -442,8 +513,11 @@ func Home(raw string) string {
 	if (u.Scheme == "https" && u.Port() == "443") || (u.Scheme == "http" && u.Port() == "80") {
 		u.Host = u.Hostname()
 	}
-	if u.Path == "" || strings.HasPrefix(u.Path, "//") {
+	if u.Path == "" || strings.HasPrefix(u.Path, "//") || errorPath.MatchString(u.Path) {
 		u.Path = "/" + strings.TrimLeft(u.Path, "/")
+		if errorPath.MatchString(u.Path) {
+			u.Path = "/"
+		}
 	}
 	u.RawPath = ""
 	return u.String()
