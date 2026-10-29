@@ -249,6 +249,14 @@ func australianSign(s Supplier, p Page) bool {
 	return len(s.Postcode) == 4 && numberPattern(s.Postcode).MatchString(p.Text)
 }
 
+var placeholderText = regexp.MustCompile(`(?i)\b(?:launching soon|coming soon|under construction|domain (?:name )?(?:is |may be )?for sale|buy this domain|parked (?:free|domain))\b`)
+
+// placeholder reports whether a page is a short holding page: coming soon,
+// under construction or a domain for sale.
+func placeholder(p Page) bool {
+	return len(p.Text) < 3000 && placeholderText.MatchString(p.Title+" "+p.Text)
+}
+
 // Strict is the bar for a domain guessed from the name, where a different
 // business of the same name is a real risk. Search answers come from a model
 // that was told the ABN and location, and use the plain bar.
@@ -266,6 +274,10 @@ func Check(s Supplier, p Page, bar Bar) Result {
 		r.Passed, r.Evidence = true, ev
 		return r
 	}
+	if placeholder(p) {
+		r.Detail = "placeholder page"
+		return r
+	}
 	names := Names(s.Name)
 	host := strings.TrimPrefix(p.URL.Hostname(), "www.")
 	label := host
@@ -274,10 +286,12 @@ func Check(s Supplier, p Page, bar Bar) Result {
 	}
 	// A guessed domain must carry the whole name in its title or copyright
 	// line: a first word alone ("Riverina", "Universal") or a domain alone (a
-	// parked domain for sale) is too weak.
+	// parked domain for sale) is too weak. A page that names only its own
+	// domain ("ministryofhealth.com.au") says nothing either.
+	own := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(host))
 	sources := []struct{ where, text string }{
-		{"title", p.Title},
-		{"copyright line", strings.Join(copyright.FindAllString(p.Text, 5), " ")},
+		{"title", own.ReplaceAllString(p.Title, " ")},
+		{"copyright line", own.ReplaceAllString(strings.Join(copyright.FindAllString(p.Text, 5), " "), " ")},
 	}
 	if bar == Plain {
 		sources = append(sources, struct{ where, text string }{"domain", label})
@@ -428,8 +442,9 @@ func Home(raw string) string {
 	if (u.Scheme == "https" && u.Port() == "443") || (u.Scheme == "http" && u.Port() == "80") {
 		u.Host = u.Hostname()
 	}
-	if u.Path == "" {
-		u.Path = "/"
+	if u.Path == "" || strings.HasPrefix(u.Path, "//") {
+		u.Path = "/" + strings.TrimLeft(u.Path, "/")
 	}
+	u.RawPath = ""
 	return u.String()
 }

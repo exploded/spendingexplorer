@@ -2,6 +2,7 @@
 //
 //	find-websites wikidata [-fetch]  # Wikidata by ABN, LEI or GLEIF parent (free)
 //	find-websites guess              # domains built from the name, checked here (free)
+//	find-websites recheck            # check stored guesses again after the checks change
 //	find-websites submit [-n]        # Claude web search for the rest of the top suppliers
 //	find-websites collect [-wait]    # store and check the answers of finished batches
 //	find-websites test -id 6058      # one search, answered now, nothing stored
@@ -40,7 +41,7 @@ type options struct {
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatal("usage: find-websites wikidata|guess|submit|collect|test|report [flags]")
+		log.Fatal("usage: find-websites wikidata|guess|recheck|submit|collect|test|report [flags]")
 	}
 	cmd := os.Args[1]
 	var o options
@@ -68,6 +69,8 @@ func main() {
 		err = wikidata(ctx, conn, o)
 	case "guess":
 		err = guess(ctx, conn, o)
+	case "recheck":
+		err = recheck(ctx, conn, o)
 	case "submit":
 		err = submit(ctx, conn, o)
 	case "collect":
@@ -87,6 +90,42 @@ func main() {
 }
 
 func today() string { return time.Now().Format(time.DateOnly) }
+
+// recheck visits every guessed site again and drops those that now fail, so
+// the supplier goes on to the search step.
+func recheck(ctx context.Context, conn *sql.DB, o options) error {
+	q := db.New(conn)
+	rows, err := q.GuessedWebsites(ctx)
+	if err != nil {
+		return err
+	}
+	ck := website.NewChecker()
+	kept, dropped := 0, 0
+	return each(rows, o.workers, func(g db.GuessedWebsitesRow) website.Result {
+		s := website.Supplier{ID: g.ID, Name: g.Name, ABN: g.Abn, Postcode: g.Postcode, Country: g.Country}
+		return ck.Visit(ctx, s, g.Url, website.Strict)
+	}, func(g db.GuessedWebsitesRow, r website.Result) error {
+		if err := q.PutWebsiteCheck(ctx, db.PutWebsiteCheckParams{
+			SupplierID: g.ID, Url: g.Url, Method: "guess", Passed: boolInt(r.Passed), Detail: r.Evidence + r.Detail, CheckedAt: today(),
+		}); err != nil {
+			return err
+		}
+		if r.Passed {
+			kept++
+			return q.PutWebsite(ctx, db.PutWebsiteParams{
+				SupplierID: g.ID, Url: website.Home(r.URL), Basis: "guess", Evidence: r.Evidence, CheckedAt: today(),
+			})
+		}
+		// A site that is down or blocks us today keeps its link.
+		if r.Blocked || !r.Reached {
+			kept++
+			return nil
+		}
+		dropped++
+		log.Printf("dropped %s: %s (%s)", g.Name, g.Url, r.Detail)
+		return q.DeleteWebsite(ctx, g.ID)
+	})
+}
 
 // candidates returns the top suppliers by contract value, leaving out FMS.
 func candidates(ctx context.Context, q *db.Queries, top int) ([]db.WebsiteCandidatesRow, error) {

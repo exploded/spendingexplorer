@@ -83,6 +83,9 @@ func TestCheck(t *testing.T) {
 			page("https://www.austal.com/", `<title>Austal | Shipbuilding</title>`), Plain, true, `name in title: "austal"`},
 		{"domain only, guessed", Supplier{Name: "CUSHMAN & WAKEFIELD PTY LTD", Country: "AUSTRALIA"},
 			page("https://cushman-and-wakefield.com/", `<title>Welcome</title><p>Australia</p>`), Strict, false, ""},
+		{"title is its own domain", Supplier{Name: "MINISTRY OF HEALTH", Postcode: "1590", Country: "AUSTRALIA"},
+			page("https://ministryofhealth.com.au/", `<title>ministryofhealth.com.au</title><p>ministryofhealth.com.au</p>`), Strict, false, ""},
+		{"placeholder page", dt, page("https://dt-global.com/", `<title>DT Global</title><h1>Launching Soon</h1>`), Plain, false, ""},
 	} {
 		r := Check(c.s, c.p, c.bar)
 		if r.Passed != c.pass || r.Evidence != c.evidence {
@@ -110,6 +113,9 @@ func TestParse(t *testing.T) {
 
 func TestHome(t *testing.T) {
 	if got := Home("https://www.boeing.com.au:443/?x=1#top"); got != "https://www.boeing.com.au/" {
+		t.Errorf("Home = %q", got)
+	}
+	if got := Home("https://besixwatpac.com//"); got != "https://besixwatpac.com/" {
 		t.Errorf("Home = %q", got)
 	}
 }

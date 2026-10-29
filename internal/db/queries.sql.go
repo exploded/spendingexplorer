@@ -747,6 +747,15 @@ func (q *Queries) DeleteReportedProgramDescriptions(ctx context.Context, budgetY
 	return err
 }
 
+const deleteWebsite = `-- name: DeleteWebsite :exec
+DELETE FROM supplier_website WHERE supplier_id = ?
+`
+
+func (q *Queries) DeleteWebsite(ctx context.Context, supplierID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteWebsite, supplierID)
+	return err
+}
+
 const deleteWogExpensesForDoc = `-- name: DeleteWogExpensesForDoc :exec
 DELETE FROM wog_expense WHERE source_document_id = ?
 `
@@ -2509,6 +2518,52 @@ func (q *Queries) GuessedSuppliers(ctx context.Context) ([]int64, error) {
 			return nil, err
 		}
 		items = append(items, supplier_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const guessedWebsites = `-- name: GuessedWebsites :many
+SELECT s.id, s.name, COALESCE(s.abn, '') AS abn, COALESCE(s.postcode, '') AS postcode,
+       COALESCE(s.country, '') AS country, w.url
+FROM supplier_website w JOIN supplier s ON s.id = w.supplier_id
+WHERE w.basis = 'guess'
+`
+
+type GuessedWebsitesRow struct {
+	ID       int64
+	Name     string
+	Abn      string
+	Postcode string
+	Country  string
+	Url      string
+}
+
+func (q *Queries) GuessedWebsites(ctx context.Context) ([]GuessedWebsitesRow, error) {
+	rows, err := q.db.QueryContext(ctx, guessedWebsites)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GuessedWebsitesRow
+	for rows.Next() {
+		var i GuessedWebsitesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Abn,
+			&i.Postcode,
+			&i.Country,
+			&i.Url,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

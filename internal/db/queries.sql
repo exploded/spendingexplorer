@@ -1739,6 +1739,15 @@ VALUES (?, ?, ?, '', ?, ?);
 INSERT OR REPLACE INTO website_check (supplier_id, url, method, passed, detail, checked_at)
 VALUES (?, ?, ?, ?, ?, ?);
 
+-- name: GuessedWebsites :many
+SELECT s.id, s.name, COALESCE(s.abn, '') AS abn, COALESCE(s.postcode, '') AS postcode,
+       COALESCE(s.country, '') AS country, w.url
+FROM supplier_website w JOIN supplier s ON s.id = w.supplier_id
+WHERE w.basis = 'guess';
+
+-- name: DeleteWebsite :exec
+DELETE FROM supplier_website WHERE supplier_id = ?;
+
 -- name: GuessedSuppliers :many
 SELECT DISTINCT supplier_id FROM website_check WHERE method = 'guess';
 
