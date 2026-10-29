@@ -16,9 +16,13 @@ type Node struct {
 	Prev     int64 // previous fiscal year from the same publication
 	Excluded int64 // removed as double counting or non-expense, current year
 	Itemised int64 // annualised contract and grant value traced to this node (estimate)
+	Funded   int64 // corporate funding from other entities, counted where it is paid from and not in Cur
 	Children int
 	Note     string // short description shown under the name, e.g. a program objective
 }
+
+// InAll is what the node spends, including funding counted where it is paid from.
+func (n Node) InAll() int64 { return n.Cur + n.Funded }
 
 // Change is the year-on-year change in dollars.
 func (n Node) Change() int64 { return n.Cur - n.Prev }

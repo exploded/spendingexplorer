@@ -14,6 +14,9 @@
 <p class="muted small">No description yet. <a href="https://budget.gov.au/content/pbs/index.htm">Read the {{.Program.EntityName}} Portfolio Budget Statements</a> for this program’s objective.</p>
 {{end}}
 {{template "hero" .}}
+{{if .Funded}}
+<p class="note">Of this, {{money .Funded}} is paid to the entity by other Commonwealth entities and is counted where it is paid from, so it isn’t added again to the portfolio and whole-of-government totals. <a href="/entity/{{.Program.EntityID}}">Who pays it</a>.</p>
+{{end}}
 {{if .Total.Excluded}}
 <p class="note">A further {{money .Total.Excluded}} is listed for this program but not counted, because it is counted elsewhere or is not an expense. Each line below says why.</p>
 {{end}}
@@ -35,13 +38,13 @@
     </tr></thead>
     <tbody>
     {{range .Lines}}
-      <tr class="{{if ne .Treatment "expense"}}excluded{{end}}">
+      <tr class="{{if and (ne .Treatment "expense") (ne .TreatmentRule "corporate-commonwealth-funded")}}excluded{{end}}">
         <th scope="row">{{.LineItem}}</th>
         <td>{{.ExpenseKind}}</td>
         <td class="num">{{if .NotPublished}}<span class="badge" title="Not for publication">nfp</span>{{else}}{{money .Prev}}{{end}}</td>
         <td class="num">{{if .NotPublished}}<span class="badge" title="Not for publication">nfp</span>{{else}}{{money .Cur}}{{end}}</td>
         <td class="num">{{signedMoney .Node.Change}} <span class="muted">{{changePct .Node}}</span></td>
-        <td>{{if eq .Treatment "expense"}}<span class="badge badge-reported">reported</span>{{else}}<a class="badge badge-removed" href="/methodology#rule-{{.Rule.ID}}" title="{{.Rule.Reason}}">not counted: {{.Rule.Short}}</a>{{end}}</td>
+        <td>{{if eq .Treatment "expense"}}<span class="badge badge-reported">reported</span>{{else if eq .TreatmentRule "corporate-commonwealth-funded"}}<a class="badge" href="/methodology#rule-{{.Rule.ID}}" title="{{.Rule.Reason}}">in this total; counted at the payer</a>{{else}}<a class="badge badge-removed" href="/methodology#rule-{{.Rule.ID}}" title="{{.Rule.Reason}}">not counted: {{.Rule.Short}}</a>{{end}}</td>
         <td class="muted small">{{.SourceTable}}, row {{.SourceRow}}</td>
       </tr>
     {{end}}

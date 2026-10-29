@@ -20,6 +20,7 @@
   <dd>{{.Reason}}{{with index $.Recon.RemovedByID .ID}} In {{$.Period.FY}}: {{money .Amount}} across {{.Lines}} line{{if ne .Lines 1}}s{{end}}.{{end}}</dd>
 {{end}}{{end}}
 </dl>
+<p id="corporate">A corporate entity’s own page, its program pages and search results show what it spends in all, including this funding, so that its total and the change on last year describe the whole entity. The portfolio and whole-of-government totals count the funding once, where it is paid from, so a corporate entity’s box on its portfolio’s page shows only the part counted there, mostly its own revenue.</p>
 <p id="payer">A corporate entity’s page names the program that pays its funding when it can tell which one does. The PBS doesn’t link the two, so the site looks for an administered line in the same portfolio whose amount is within 0.05% of the funding line. The line must also mention corporate entities or the entity by name, unless the amount is $1bn or more: smaller unnamed lines match by coincidence too often. If no line, or more than one, qualifies, the page says the funding couldn’t be traced and points to the portfolio.</p>
 
 <h2 id="adjustments">Whole-of-government adjustments</h2>

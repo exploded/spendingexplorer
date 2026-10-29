@@ -52,7 +52,7 @@
     {{range .Tiles}}
     <a role="listitem" class="tile t-{{tone .Node}}{{if .Label}} labelled{{end}}" href="{{.URL}}"
        style="left:{{pctCSS .X}};top:{{pctCSS .Y}};width:{{pctCSS .W}};height:{{pctCSS .H}}"
-       data-tip="{{.Name}}|{{money .Cur}} · {{f1 .Share}}% of total|{{signedMoney .Change}} ({{changePct .Node}}) on {{$.Period.Prev}}"
+       data-tip="{{.Name}}|{{money .Cur}} · {{f1 .Share}}% of total|{{signedMoney .Change}} ({{changePct .Node}}) on {{$.Period.Prev}}{{if .Funded}}|{{money .InAll}} in all, with funding counted where it is paid from{{end}}"
        aria-label="{{.Name}}: {{money .Cur}}, {{changePct .Node}} on {{$.Period.Prev}}">
       {{if .Label}}<span class="tile-name">{{.Name}}</span><span class="tile-value">{{money .Cur}}</span><span class="tile-change">{{changePct .Node}}</span>{{end}}
     </a>
@@ -112,7 +112,7 @@
         <td class="num">{{money .Cur}}</td>
         <td class="num chg"><span>{{signedMoney .Change}}</span> <span class="muted">{{changePct .Node}}</span></td>
         <td class="num share"><span class="sharebar" aria-hidden="true"><span style="width:{{pctCSS (cap100 .Share)}}"></span></span>{{f1 .Share}}%</td>
-        {{if $.Itemised}}<td class="num">{{if .Itemised}}{{money .Itemised}} <span class="muted">{{f1 (share .Itemised .Cur)}}%</span>{{else}}<span class="muted">–</span>{{end}}</td>{{end}}
+        {{if $.Itemised}}<td class="num">{{if .Itemised}}{{money .Itemised}} <span class="muted">{{f1 (share .Itemised .InAll)}}%</span>{{else}}<span class="muted">–</span>{{end}}</td>{{end}}
         <td class="num muted">{{if .Excluded}}{{money .Excluded}}{{else}}–{{end}}</td>
       </tr>
     {{end}}

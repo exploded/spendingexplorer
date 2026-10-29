@@ -176,6 +176,7 @@ SELECT e.id, e.name,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(fy) AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(prev_fy) AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS prev,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(fy) AND pe.treatment IN ('transfer', 'other_economic_flow') THEN pe.amount END), 0) AS INTEGER) AS excluded,
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(fy) AND pe.treatment_rule = 'corporate-commonwealth-funded' THEN pe.amount END), 0) AS INTEGER) AS funded,
   CAST(COUNT(DISTINCT p.id) AS INTEGER) AS children
 FROM program_expense pe
 JOIN program p ON p.id = pe.program_id
@@ -193,10 +194,14 @@ WHERE e.id = sqlc.arg(entity_id) AND pe.source_document_id = sqlc.arg(doc_id)
 LIMIT 1;
 
 -- name: ProgramTotals :many
+-- funded and funded_prev are a corporate entity's funding from other
+-- Commonwealth entities, counted where it is paid from (and in excluded).
 SELECT p.id, p.name, p.outcome,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(fy) AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(prev_fy) AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS prev,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(fy) AND pe.treatment IN ('transfer', 'other_economic_flow') THEN pe.amount END), 0) AS INTEGER) AS excluded,
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(fy) AND pe.treatment_rule = 'corporate-commonwealth-funded' THEN pe.amount END), 0) AS INTEGER) AS funded,
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(prev_fy) AND pe.treatment_rule = 'corporate-commonwealth-funded' THEN pe.amount END), 0) AS INTEGER) AS funded_prev,
   CAST(COUNT(DISTINCT pe.source_row) AS INTEGER) AS children
 FROM program_expense pe
 JOIN program p ON p.id = pe.program_id
@@ -1379,9 +1384,10 @@ ORDER BY l.project_key, e.name, s.name;
 -- name: SearchEntities :many
 -- Entities in the publication whose name, a former name or an AusTender agency
 -- name contains the fragment, largest first. matched_name is the other name
--- that matched, or '' when the entity's own name did.
+-- that matched, or '' when the entity's own name did. cur includes a
+-- corporate entity's funding counted where it is paid from, as its page does.
 SELECT e.id, e.name, CAST(MIN(p.portfolio) AS TEXT) AS portfolio,
-  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(fy) AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur,
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(fy) AND (pe.treatment = 'expense' OR pe.treatment_rule = 'corporate-commonwealth-funded') THEN pe.amount END), 0) AS INTEGER) AS cur,
   CAST(CASE WHEN instr(upper(e.name), upper(sqlc.arg(fragment))) > 0 THEN '' ELSE COALESCE(
     (SELECT ea.alias FROM entity_alias ea WHERE ea.entity_id = e.id AND instr(upper(ea.alias), upper(sqlc.arg(fragment))) > 0 LIMIT 1),
     (SELECT a.name FROM agency a WHERE a.entity_id = e.id AND instr(upper(a.name), upper(sqlc.arg(fragment))) > 0 LIMIT 1), '') END AS TEXT) AS matched_name
@@ -1403,8 +1409,9 @@ ORDER BY portfolio;
 
 -- name: SearchPrograms :many
 -- Programs in the publication whose name contains the fragment, largest first.
+-- cur includes corporate funding counted where it is paid from, as the program page does.
 SELECT p.id, p.name, e.id AS entity_id, e.name AS entity_name,
-  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(fy) AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = sqlc.arg(fy) AND (pe.treatment = 'expense' OR pe.treatment_rule = 'corporate-commonwealth-funded') THEN pe.amount END), 0) AS INTEGER) AS cur
 FROM program_expense pe
 JOIN program p ON p.id = pe.program_id
 JOIN entity e ON e.id = p.entity_id

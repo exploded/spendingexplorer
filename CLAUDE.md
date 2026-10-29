@@ -43,6 +43,12 @@ sits inside a known whole-of-government total, and every box shows how much of i
 - "FMS ACCOUNT RESERVE BANK OF AUSTRALIA" is US Foreign Military Sales (Defence buying from the
   US Government), not a company. It stays in rankings, with a "US Foreign Military Sales" badge
   and an explanation (`austender.IsFMS`, `/methodology#fms`) (decided 2026-10-28).
+- A corporate entity's funding from other Commonwealth entities (rule
+  `corporate-commonwealth-funded`) is counted once, where it is paid from. Anything summed
+  into a parent (portfolio tiles and table) uses the counted amount; anything describing one
+  entity (its page, program pages, search) uses the amount in all, so its headline, change
+  and itemised % cover the whole entity (decided 2026-10-29). Before this, the Australian
+  Human Rights Commission showed $1.0m of $42m and 435% itemised.
 - AusTender values are whole-of-life contract values at publication, not annual spend.
   Any annualised figure (value spread evenly start to end date) must be labelled an estimate.
 - Machinery-of-government changes rename/move programs between years; track this in a

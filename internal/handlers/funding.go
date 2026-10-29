@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"spendingexplorer/internal/db"
 	"spendingexplorer/internal/explore"
@@ -16,6 +17,7 @@ import (
 type fundingNote struct {
 	Gross        int64 // counted here plus funding counted where it is paid from
 	Funded       int64
+	Appropriated int64 // the part of Funded appropriated by Parliament and paid through the portfolio department
 	Counted      int64
 	Payers       []payerAmount
 	Unmatched    int64 // funding no single paying line could be found for
@@ -45,6 +47,9 @@ func (h *Handler) entityFunding(ctx context.Context, p period, id int64, name st
 	for i, l := range lines {
 		amounts[i] = l.Amount
 		f.Funded += l.Amount
+		if appropriated(l.LineItem) {
+			f.Appropriated += l.Amount
+		}
 	}
 	payerLines := make([]pbs.PayerLine, len(cands))
 	for i, c := range cands {
@@ -75,4 +80,12 @@ func (h *Handler) entityFunding(ctx context.Context, p period, id int64, name st
 		f.Largest, f.LargestAmt = explore.DisplayName(largest[0].LineItem), largest[0].Amount
 	}
 	return f, nil
+}
+
+// appropriated reports whether a funding line is the entity's own
+// appropriation, which Parliament makes to the portfolio department to pass
+// on, as against payments other entities make to it for work or services.
+func appropriated(lineItem string) bool {
+	l := strings.ToLower(lineItem)
+	return strings.Contains(l, "appropriation") || strings.Contains(l, "ordinary annual services")
 }

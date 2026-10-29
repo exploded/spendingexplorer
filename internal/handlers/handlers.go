@@ -391,7 +391,10 @@ func (h *Handler) portfolio(w http.ResponseWriter, r *http.Request) {
 	var nodes []explore.Node
 	total := explore.Node{Name: name}
 	for _, e := range ents {
-		n := explore.Node{Name: e.Name, URL: "/entity/" + strconv.FormatInt(e.ID, 10), Cur: e.Cur, Prev: e.Prev, Excluded: e.Excluded, Children: int(e.Children)}
+		n := explore.Node{Name: e.Name, URL: "/entity/" + strconv.FormatInt(e.ID, 10), Cur: e.Cur, Prev: e.Prev, Excluded: e.Excluded, Funded: e.Funded, Children: int(e.Children)}
+		if n.Funded > 0 {
+			n.Note = explore.Money(n.InAll()) + " in all, with funding counted where it is paid from"
+		}
 		nodes = append(nodes, n)
 		total.Cur += n.Cur
 		total.Prev += n.Prev
@@ -471,11 +474,15 @@ func (h *Handler) entity(w http.ResponseWriter, r *http.Request) {
 	for _, d := range descs {
 		notes[d.ProgramID] = d.Text
 	}
+	// A corporate entity's page shows what it spends in all, including funding
+	// counted where it is paid from; only counted is added to the portfolio.
 	var nodes []explore.Node
+	var counted int64
 	total := explore.Node{Name: ent.Name}
 	for _, pr := range progs {
-		n := explore.Node{Name: explore.DisplayName(pr.Name), URL: "/program/" + strconv.FormatInt(pr.ID, 10), Cur: pr.Cur, Prev: pr.Prev, Excluded: pr.Excluded, Children: int(pr.Children), Note: notes[pr.ID]}
+		n := explore.Node{Name: explore.DisplayName(pr.Name), URL: "/program/" + strconv.FormatInt(pr.ID, 10), Cur: pr.Cur + pr.Funded, Prev: pr.Prev + pr.FundedPrev, Excluded: pr.Excluded - pr.Funded, Children: int(pr.Children), Note: notes[pr.ID]}
 		nodes = append(nodes, n)
+		counted += pr.Cur
 		total.Cur += n.Cur
 		total.Prev += n.Prev
 		total.Excluded += n.Excluded
@@ -506,13 +513,25 @@ func (h *Handler) entity(w http.ResponseWriter, r *http.Request) {
 		page.Kinds = append(page.Kinds, row{Node: explore.Node{Name: kindLabel[k.ExpenseKind], Cur: k.Cur}, Share: explore.Share(k.Cur, total.Cur)})
 		corporate = corporate || k.ExpenseKind == "corporate"
 	}
-	if page.Funding, err = h.entityFunding(ctx, p, id, ent.Name, total.Cur); err != nil {
+	if page.Funding, err = h.entityFunding(ctx, p, id, ent.Name, counted); err != nil {
 		h.fail(w, err)
 		return
 	}
-	if page.Funding != nil {
-		// The funding note accounts for this part; the general note covers the rest.
-		page.Total.Excluded -= page.Funding.Funded
+	if f := page.Funding; f != nil {
+		// Kind of expense says nothing for a corporate entity; where its money comes from does.
+		page.Kinds = nil
+		for _, k := range []struct {
+			name   string
+			amount int64
+		}{
+			{"Appropriation paid through its portfolio department", f.Appropriated},
+			{"Payments from other Commonwealth entities", f.Funded - f.Appropriated},
+			{"Its own revenue and other sources, counted here", f.Counted},
+		} {
+			if k.amount != 0 {
+				page.Kinds = append(page.Kinds, row{Node: explore.Node{Name: k.name, Cur: k.amount}, Share: explore.Share(k.amount, total.Cur)})
+			}
+		}
 	}
 	if page.Contracts, err = h.entityContracts(ctx, id, p.FY); err != nil {
 		h.fail(w, err)
@@ -614,7 +633,12 @@ type programPage struct {
 	Lines       []programLine
 	Coverage    coverage
 	Description *db.GetProgramDescriptionRow
+	Funded      int64 // in Total but counted where it is paid from
 }
+
+// corporateFunded is the treatment rule for a corporate entity's funding from
+// other Commonwealth entities.
+const corporateFunded = "corporate-commonwealth-funded"
 
 type programLine struct {
 	db.ProgramLinesRow
@@ -660,9 +684,13 @@ func (h *Handler) program(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, l := range lines {
 		pl := programLine{ProgramLinesRow: l, Node: explore.Node{Name: l.LineItem, Cur: l.Cur, Prev: l.Prev}, Rule: ruleByID(l.TreatmentRule)}
-		if l.Treatment == "expense" {
+		if l.Treatment == "expense" || l.TreatmentRule == corporateFunded {
+			// Corporate funding counted where it is paid from is still spent here.
 			page.Total.Cur += l.Cur
 			page.Total.Prev += l.Prev
+			if l.Treatment != "expense" {
+				page.Funded += l.Cur
+			}
 		} else if l.Treatment != "subtotal" {
 			page.Total.Excluded += l.Cur
 		}

@@ -1754,6 +1754,7 @@ SELECT e.id, e.name,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?2 AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS prev,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND pe.treatment IN ('transfer', 'other_economic_flow') THEN pe.amount END), 0) AS INTEGER) AS excluded,
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND pe.treatment_rule = 'corporate-commonwealth-funded' THEN pe.amount END), 0) AS INTEGER) AS funded,
   CAST(COUNT(DISTINCT p.id) AS INTEGER) AS children
 FROM program_expense pe
 JOIN program p ON p.id = pe.program_id
@@ -1776,6 +1777,7 @@ type EntityTotalsRow struct {
 	Cur      int64
 	Prev     int64
 	Excluded int64
+	Funded   int64
 	Children int64
 }
 
@@ -1799,6 +1801,7 @@ func (q *Queries) EntityTotals(ctx context.Context, arg EntityTotalsParams) ([]E
 			&i.Cur,
 			&i.Prev,
 			&i.Excluded,
+			&i.Funded,
 			&i.Children,
 		); err != nil {
 			return nil, err
@@ -4586,6 +4589,8 @@ SELECT p.id, p.name, p.outcome,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?2 AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS prev,
   CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND pe.treatment IN ('transfer', 'other_economic_flow') THEN pe.amount END), 0) AS INTEGER) AS excluded,
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND pe.treatment_rule = 'corporate-commonwealth-funded' THEN pe.amount END), 0) AS INTEGER) AS funded,
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?2 AND pe.treatment_rule = 'corporate-commonwealth-funded' THEN pe.amount END), 0) AS INTEGER) AS funded_prev,
   CAST(COUNT(DISTINCT pe.source_row) AS INTEGER) AS children
 FROM program_expense pe
 JOIN program p ON p.id = pe.program_id
@@ -4602,15 +4607,19 @@ type ProgramTotalsParams struct {
 }
 
 type ProgramTotalsRow struct {
-	ID       int64
-	Name     string
-	Outcome  string
-	Cur      int64
-	Prev     int64
-	Excluded int64
-	Children int64
+	ID         int64
+	Name       string
+	Outcome    string
+	Cur        int64
+	Prev       int64
+	Excluded   int64
+	Funded     int64
+	FundedPrev int64
+	Children   int64
 }
 
+// funded and funded_prev are a corporate entity's funding from other
+// Commonwealth entities, counted where it is paid from (and in excluded).
 func (q *Queries) ProgramTotals(ctx context.Context, arg ProgramTotalsParams) ([]ProgramTotalsRow, error) {
 	rows, err := q.db.QueryContext(ctx, programTotals,
 		arg.Fy,
@@ -4632,6 +4641,8 @@ func (q *Queries) ProgramTotals(ctx context.Context, arg ProgramTotalsParams) ([
 			&i.Cur,
 			&i.Prev,
 			&i.Excluded,
+			&i.Funded,
+			&i.FundedPrev,
 			&i.Children,
 		); err != nil {
 			return nil, err
@@ -5896,7 +5907,7 @@ func (q *Queries) SearchContracts(ctx context.Context, arg SearchContractsParams
 const searchEntities = `-- name: SearchEntities :many
 
 SELECT e.id, e.name, CAST(MIN(p.portfolio) AS TEXT) AS portfolio,
-  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur,
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND (pe.treatment = 'expense' OR pe.treatment_rule = 'corporate-commonwealth-funded') THEN pe.amount END), 0) AS INTEGER) AS cur,
   CAST(CASE WHEN instr(upper(e.name), upper(?2)) > 0 THEN '' ELSE COALESCE(
     (SELECT ea.alias FROM entity_alias ea WHERE ea.entity_id = e.id AND instr(upper(ea.alias), upper(?2)) > 0 LIMIT 1),
     (SELECT a.name FROM agency a WHERE a.entity_id = e.id AND instr(upper(a.name), upper(?2)) > 0 LIMIT 1), '') END AS TEXT) AS matched_name
@@ -5930,7 +5941,8 @@ type SearchEntitiesRow struct {
 // Site-wide search ---------------------------------------------------------
 // Entities in the publication whose name, a former name or an AusTender agency
 // name contains the fragment, largest first. matched_name is the other name
-// that matched, or ” when the entity's own name did.
+// that matched, or ” when the entity's own name did. cur includes a
+// corporate entity's funding counted where it is paid from, as its page does.
 func (q *Queries) SearchEntities(ctx context.Context, arg SearchEntitiesParams) ([]SearchEntitiesRow, error) {
 	rows, err := q.db.QueryContext(ctx, searchEntities,
 		arg.Fy,
@@ -6059,7 +6071,7 @@ func (q *Queries) SearchPortfolios(ctx context.Context, arg SearchPortfoliosPara
 
 const searchPrograms = `-- name: SearchPrograms :many
 SELECT p.id, p.name, e.id AS entity_id, e.name AS entity_name,
-  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND pe.treatment = 'expense' THEN pe.amount END), 0) AS INTEGER) AS cur
+  CAST(COALESCE(SUM(CASE WHEN pe.fiscal_year = ?1 AND (pe.treatment = 'expense' OR pe.treatment_rule = 'corporate-commonwealth-funded') THEN pe.amount END), 0) AS INTEGER) AS cur
 FROM program_expense pe
 JOIN program p ON p.id = pe.program_id
 JOIN entity e ON e.id = p.entity_id
@@ -6085,6 +6097,7 @@ type SearchProgramsRow struct {
 }
 
 // Programs in the publication whose name contains the fragment, largest first.
+// cur includes corporate funding counted where it is paid from, as the program page does.
 func (q *Queries) SearchPrograms(ctx context.Context, arg SearchProgramsParams) ([]SearchProgramsRow, error) {
 	rows, err := q.db.QueryContext(ctx, searchPrograms,
 		arg.Fy,
