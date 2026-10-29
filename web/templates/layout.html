@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
 <title>{{template "title" .}} · Federal Spending Explorer</title>
+<meta name="description" content="{{block "description" .}}Follow Commonwealth spending from the whole Budget down to portfolios, programs, AusTender contracts and grants, and see how much of each is traced to a named supplier or recipient.{{end}}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Federal Spending Explorer">
+<meta property="og:title" content="{{template "title" .}} · Federal Spending Explorer">
+<meta property="og:description" content="{{template "description" .}}">
+<meta property="og:image" content="https://spending.mchugh.au{{static "og.png"}}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Federal Spending Explorer: a treemap of 2026-27 Budget expenses by function, led by social security and welfare at $308.7bn.">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preload" href="/static/fonts/source-serif-4-v5-latin-wght.woff2?v=5" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/static/fonts/ibm-plex-sans-v5-latin-400.woff2?v=5" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="{{static "styles.css"}}">
