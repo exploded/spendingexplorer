@@ -16,6 +16,10 @@ const searchLimit = 20
 // cnPattern is an AusTender contract notice ID, such as CN4012345 or CN4012345-A1.
 var cnPattern = regexp.MustCompile(`^CN\d+(-A\d+)?$`)
 
+// gaPattern is a GrantConnect award ID, with or without its version, such as
+// GA580209 or GA580209-V1.
+var gaPattern = regexp.MustCompile(`^(GA\d+)(-V\d+)?$`)
+
 type searchPage struct {
 	Period     period
 	Crumbs     []crumb
@@ -30,12 +34,21 @@ type searchPage struct {
 	Suppliers  []db.SearchSuppliersRow
 	Contracts  []db.SearchContractsRow
 	Grants     []db.SearchGrantRecipientsRow
+	Awards     []db.SearchGrantAwardsRow
 }
 
 // Matches counts every result listed, for the summary line.
 func (p searchPage) Matches() int {
 	return len(p.Entities) + len(p.Portfolios) + len(p.Programs) + len(p.Projects) +
-		len(p.Groups) + len(p.Suppliers) + len(p.Contracts) + len(p.Grants)
+		len(p.Groups) + len(p.Suppliers) + len(p.Contracts) + len(p.Grants) + len(p.Awards)
+}
+
+// AwardMatches is how many grant awards matched, including those not listed.
+func (p searchPage) AwardMatches() int64 {
+	if len(p.Awards) == 0 {
+		return 0
+	}
+	return p.Awards[0].Matches
 }
 
 // ContractMatches is how many contracts matched, including those not listed.
@@ -77,11 +90,15 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) searchAll(r *http.Request, page *searchPage) error {
 	ctx, q, p := r.Context(), page.Query, page.Period
 	cn := strings.ToUpper(strings.Join(strings.Fields(q), ""))
+	ga := ""
+	if m := gaPattern.FindStringSubmatch(cn); m != nil {
+		ga = m[1]
+	}
 	if !cnPattern.MatchString(cn) {
 		cn = ""
 	}
 	var wg sync.WaitGroup
-	errs := make([]error, 8)
+	errs := make([]error, 9)
 	wg.Go(func() {
 		page.Entities, errs[0] = h.q.SearchEntities(ctx, db.SearchEntitiesParams{Fy: p.FY, Fragment: q, DocID: p.Doc.ID, Lim: searchLimit})
 	})
@@ -112,6 +129,9 @@ func (h *Handler) searchAll(r *http.Request, page *searchPage) error {
 	})
 	wg.Go(func() {
 		page.Grants, errs[7] = h.q.SearchGrantRecipients(ctx, db.SearchGrantRecipientsParams{Fragment: q, Lim: searchLimit})
+	})
+	wg.Go(func() {
+		page.Awards, errs[8] = h.q.SearchGrantAwards(ctx, db.SearchGrantAwardsParams{GaID: ga, Fragment: q, Lim: searchLimit})
 	})
 	wg.Wait()
 	return errors.Join(errs...)

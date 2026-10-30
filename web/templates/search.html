@@ -6,7 +6,7 @@
 <h1>Search the explorer</h1>
 
 <form class="search" action="/search" method="get" role="search">
-  <label for="site-q">Departments, portfolios, programs, major projects, suppliers, contracts and grant recipients</label>
+  <label for="site-q">Departments, portfolios, programs, major projects, suppliers, contracts, grants and grant recipients</label>
   <div class="search-row">
     <input id="site-q" name="q" type="search" value="{{.Query}}" autocomplete="off" spellcheck="false" autofocus
            hx-get="/search" hx-trigger="input changed delay:300ms, search" hx-target="#site-results" hx-swap="outerHTML" hx-replace-url="true">
@@ -21,7 +21,7 @@
 {{if .TooShort}}
   <p class="muted">Type at least two characters.</p>
 {{else if not .Searched}}
-  <p class="muted">Search by name, ABN (for example 51 824 753 556) or contract notice ID (for example CN4012345). Contracts are found by words in their description.</p>
+  <p class="muted">Search by name, ABN (for example 51 824 753 556), contract notice ID (for example CN4012345) or grant award ID (for example GA580209). Contracts and grants are also found by words in their description.</p>
 {{else if not .Matches}}
   <p>Nothing matches “{{.Query}}”.</p>
   <p class="muted small">Try part of a name, such as “Defence” or “Deloitte”. Suppliers who are individuals are found by name, but grant recipients who are individuals are not. <a href="/methodology#individuals">Why</a></p>
@@ -181,6 +181,28 @@
     </table>
     </div>
     <p class="muted small">Each award’s value over its whole term, as published on GrantConnect, one row per recipient and agency. Recipients whose names read as a person’s are not listed. <a href="/methodology#individuals">Why</a></p>
+  </section>
+  {{end}}
+
+  {{if .Awards}}
+  <section aria-labelledby="r-awards">
+    <h2 id="r-awards">Grants</h2>
+    <div class="scroll">
+    <table class="data">
+      <thead><tr><th scope="col">Grant</th><th scope="col">Recipient</th><th scope="col">Granting agency</th><th scope="col" class="num">Value</th></tr></thead>
+      <tbody>
+      {{range .Awards}}
+        <tr>
+          <th scope="row">{{trunc .Activity 110}}<span class="row-note"><span class="mono">{{.GaID}}</span> · published {{.PublishDate}}{{if .GoID}} · <a href="/grants/round/{{.GoID}}">round {{.GoID}}</a>{{end}}</span></th>
+          <td><a href="{{recipientURL .RecipientKey}}">{{.Recipient}}</a></td>
+          <td>{{if .EntityID}}<a href="/entity/{{.EntityID}}">{{.AgencyName}}</a>{{else}}{{.AgencyName}}{{end}}</td>
+          <td class="num">{{money .Value}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+    <p class="muted small">{{if gt .AwardMatches (len .Awards)}}The {{len .Awards}} largest of {{.AwardMatches}} grants whose description matches. {{end}}Each award’s value over its whole term, as published on GrantConnect. Grants to individuals are not listed.</p>
   </section>
   {{end}}
 {{end}}

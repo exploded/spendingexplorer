@@ -5977,6 +5977,74 @@ func (q *Queries) SearchEntities(ctx context.Context, arg SearchEntitiesParams) 
 	return items, nil
 }
 
+const searchGrantAwards = `-- name: SearchGrantAwards :many
+SELECT g.ga_id, g.activity, g.value, g.publish_date, g.go_id, g.recipient_key, g.recipient,
+  g.agency_name, CAST(COALESCE(g.entity_id, 0) AS INTEGER) AS entity_id,
+  CAST(COUNT(*) OVER () AS INTEGER) AS matches
+FROM grant_award g
+WHERE g.individual = 0 AND g.unnamed = 0
+  AND (g.ga_id = ?1 OR instr(upper(g.activity), upper(?2)) > 0)
+ORDER BY g.value DESC
+LIMIT ?3
+`
+
+type SearchGrantAwardsParams struct {
+	GaID     string
+	Fragment string
+	Lim      int64
+}
+
+type SearchGrantAwardsRow struct {
+	GaID         string
+	Activity     string
+	Value        int64
+	PublishDate  string
+	GoID         string
+	RecipientKey string
+	Recipient    string
+	AgencyName   string
+	EntityID     int64
+	Matches      int64
+}
+
+// The award with this ID, or awards whose description contains the fragment,
+// largest first, so a grant paid to a council is found by what it pays for.
+// Leaves out the same awards as SearchGrantRecipients. matches counts every
+// match before the limit.
+func (q *Queries) SearchGrantAwards(ctx context.Context, arg SearchGrantAwardsParams) ([]SearchGrantAwardsRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchGrantAwards, arg.GaID, arg.Fragment, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchGrantAwardsRow
+	for rows.Next() {
+		var i SearchGrantAwardsRow
+		if err := rows.Scan(
+			&i.GaID,
+			&i.Activity,
+			&i.Value,
+			&i.PublishDate,
+			&i.GoID,
+			&i.RecipientKey,
+			&i.Recipient,
+			&i.AgencyName,
+			&i.EntityID,
+			&i.Matches,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchGrantRecipients = `-- name: SearchGrantRecipients :many
 SELECT g.recipient_key, CAST(MAX(g.recipient) AS TEXT) AS recipient, g.agency_name,
   CAST(COALESCE(g.entity_id, 0) AS INTEGER) AS entity_id,

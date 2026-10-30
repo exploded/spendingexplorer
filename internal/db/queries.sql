@@ -1459,6 +1459,20 @@ GROUP BY g.recipient_key, g.agency_name, g.entity_id
 ORDER BY value DESC
 LIMIT sqlc.arg(lim);
 
+-- name: SearchGrantAwards :many
+-- The award with this ID, or awards whose description contains the fragment,
+-- largest first, so a grant paid to a council is found by what it pays for.
+-- Leaves out the same awards as SearchGrantRecipients. matches counts every
+-- match before the limit.
+SELECT g.ga_id, g.activity, g.value, g.publish_date, g.go_id, g.recipient_key, g.recipient,
+  g.agency_name, CAST(COALESCE(g.entity_id, 0) AS INTEGER) AS entity_id,
+  CAST(COUNT(*) OVER () AS INTEGER) AS matches
+FROM grant_award g
+WHERE g.individual = 0 AND g.unnamed = 0
+  AND (g.ga_id = sqlc.arg(ga_id) OR instr(upper(g.activity), upper(sqlc.arg(fragment))) > 0)
+ORDER BY g.value DESC
+LIMIT sqlc.arg(lim);
+
 -- Budget against outcome -------------------------------------------------------
 
 -- name: LatestOutcomeYear :one
