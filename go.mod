@@ -5,7 +5,7 @@ go 1.26.0
 toolchain go1.27.3
 
 require (
-	github.com/anthropics/anthropic-sdk-go v1.84.0
+	github.com/anthropics/anthropic-sdk-go/v2 v2.7.0
 	github.com/exploded/monitor v0.0.0-20261108023952-ef2e555e9003
 	github.com/xuri/excelize/v2 v2.11.1
 	golang.org/x/text v0.43.0
